@@ -7,16 +7,18 @@ const { User } = require('../../models');
 const { SECRET_KEY } = process.env;
 
 const login = async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ email });
+  const { login: email, login: primaryPhoneNumber, password } = req.body;
+  const user =
+    (await User.findOne({ email })) ||
+    (await User.findOne({ primaryPhoneNumber }));
 
   if (!user) {
-    throw HttpError(401, 'Email or password is wrong');
+    throw HttpError(401, 'login or password is wrong');
   }
 
   const passwordCompare = await bcrypt.compare(password, user.password);
   if (!passwordCompare) {
-    throw HttpError(401, 'Email or password is wrong');
+    throw HttpError(401, 'login or password is wrong');
   }
 
   const payload = {
@@ -29,9 +31,9 @@ const login = async (req, res) => {
 
   res.status(201).json({
     user: {
-      name: user.name,
       email: user.email,
-      userType: user.userType,
+      primaryPhoneNumber: user.primaryPhoneNumber,
+      name: user.name,
       isFirstLogin: !user.isFirstLogin,
       token: token,
     },

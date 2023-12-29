@@ -1,8 +1,9 @@
 const Joi = require('joi');
 
 const registerSchema = Joi.object({
-  email: Joi.string().required(),
+  primaryPhoneNumber: Joi.string(),
+  email: Joi.string(),
   password: Joi.string().required(),
-});
+}).or('primaryPhoneNumber', 'email');
 
 module.exports = registerSchema;

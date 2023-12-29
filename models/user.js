@@ -4,16 +4,43 @@ const { handleMongooseError } = require('../helpers');
 
 // eslint-disable-next-line no-useless-escape
 const emailRegexp = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+const phoneRegexp = /^\+(?:[0-9] ?){6,14}[0-9]$/;
 
 const userSchema = new Schema(
   {
     email: {
       type: String,
       lowercase: true,
-      trim: true,
       match: emailRegexp,
       unique: true,
-      required: [true, 'Email is required'],
+      sparse: true, // дозволяє null значенням бути унікальними
+      validate: {
+        validator: function (value) {
+          // Either email or primaryPhoneNumber should be present
+          return !!(value || this.primaryPhoneNumber);
+        },
+        message: 'Email or primaryPhoneNumber is required',
+      },
+    },
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    primaryPhoneNumber: {
+      type: String,
+      match: phoneRegexp,
+      unique: true,
+      sparse: true, // дозволяє null значенням бути унікальними
+      required: [
+        function () {
+          return !this.email;
+        },
+        'Email or primaryPhoneNumber is required',
+      ],
+    },
+    primaryPhoneNumberVerified: {
+      type: Boolean,
+      default: false,
     },
     password: {
       type: String,
@@ -44,7 +71,7 @@ const userSchema = new Schema(
     },
     provider: {
       type: String,
-      default: 'Dentist Portal',
+      default: 'AniraKids',
     },
     avatar: String,
     avatarPublicId: String,
