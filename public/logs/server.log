@@ -114,3 +114,17 @@ OPTIONS /api/users/register 29-12-2023_10:57:24
 POST /api/users/register 29-12-2023_10:57:24
 OPTIONS /api/users/login 29-12-2023_10:59:03
 POST /api/users/login 29-12-2023_10:59:03
+OPTIONS /api/users/current 30-12-2023_11:49:53
+OPTIONS /api/users/current 30-12-2023_11:49:53
+GET /api/users/current 30-12-2023_11:49:53
+GET /api/users/current 30-12-2023_11:49:53
+GET /api/users/current 30-12-2023_11:49:56
+GET /api/users/current 30-12-2023_11:49:56
+OPTIONS /api/users/current 30-12-2023_11:50:29
+OPTIONS /api/users/current 30-12-2023_11:50:29
+GET /api/users/current 30-12-2023_11:50:29
+GET /api/users/current 30-12-2023_11:50:30
+OPTIONS /api/users/current 30-12-2023_11:51:31
+OPTIONS /api/users/current 30-12-2023_11:51:31
+GET /api/users/current 30-12-2023_11:51:31
+GET /api/users/current 30-12-2023_11:51:31
