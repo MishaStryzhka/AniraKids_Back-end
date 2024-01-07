@@ -26,17 +26,25 @@ const login = async (req, res) => {
   };
 
   const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '23h' });
-  await User.findByIdAndUpdate(user._id, { token, isFirstLogin: false });
+  await User.findByIdAndUpdate(user._id, { token });
   req.user = user;
 
   res.status(201).json({
     user: {
       email: user.email,
+      emailVerified: user.emailVerified,
       primaryPhoneNumber: user.primaryPhoneNumber,
-      name: user.name,
-      isFirstLogin: !user.isFirstLogin,
-      token: token,
+      primaryPhoneNumberVerified: user.primaryPhoneNumberVerified,
+      provider: user.provider,
+      isFirstLogin: user.isFirstLogin,
+      avatar: user.avatar,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      patronymic: user.patronymic,
+      companyName: user.companyName,
+      nickname: user.nickname,
     },
+    token: token,
   });
 };
 

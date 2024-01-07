@@ -21,11 +21,7 @@ const storage = new CloudinaryStorage({
     const uniqueImgName = `${userID}_${file.originalname}`;
 
     if (file.fieldname === 'avatar') {
-      folder = 'DentistPortal_Avatars';
-    } else if (file.fieldname === 'certificates') {
-      folder = 'DentistPortal_Certificates';
-    } else if (file.fieldname === 'workExamples') {
-      folder = 'DentistPortal_WorkExamples';
+      folder = 'AniraKids_Avatars';
     } else {
       folder = 'misc';
     }

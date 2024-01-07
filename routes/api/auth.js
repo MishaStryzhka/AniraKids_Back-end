@@ -4,6 +4,7 @@ const {
   validateBody,
   authenticate,
   passport,
+  upload,
 } = require('../../middlewares');
 
 const {
@@ -11,6 +12,7 @@ const {
   loginSchema,
   refreshPasswordSchema,
   refreshEmailSchema,
+  updateSchema,
 } = require('../../schemas/users');
 
 const router = express.Router();
@@ -38,6 +40,14 @@ router.patch(
   authenticate,
   validateBody(refreshPasswordSchema),
   ctrl.refreshPassword
+);
+
+router.patch(
+  '/current/update',
+  authenticate,
+  validateBody(updateSchema),
+  upload.fields([{ name: 'avatar', maxCount: 1 }]),
+  ctrl.updateCurrentUser
 );
 
 router.patch(
