@@ -8,6 +8,13 @@ const phoneRegexp = /^\+(?:[0-9] ?){6,14}[0-9]$/;
 
 const userSchema = new Schema(
   {
+    isFirstLogin: {
+      type: Boolean,
+      default: true,
+    },
+    companyName: {
+      type: String,
+    },
     email: {
       type: String,
       lowercase: true,
@@ -21,6 +28,11 @@ const userSchema = new Schema(
         },
         message: 'Email or primaryPhoneNumber is required',
       },
+    },
+    nickname: {
+      type: String,
+      unique: true,
+      sparse: true,
     },
     emailVerified: {
       type: Boolean,
@@ -57,13 +69,10 @@ const userSchema = new Schema(
       trim: true,
       minlength: 3,
     },
-    // patronymic: {
-    //   type: String,
-    //   trim: true,
-    //   minlength: 5,
-    // },
-    phones: {
-      type: [String],
+    patronymic: {
+      type: String,
+      trim: true,
+      minlength: 5,
     },
     dateOfBirthday: {
       type: Date,

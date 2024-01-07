@@ -8,23 +8,19 @@ const getCurrentUser = async (req, res, next) => {
     next(HttpError(401, 'Not authorized'));
   }
 
-  const {
-    id: userID,
-    email,
-    emailVerified,
-    primaryPhoneNumber,
-    primaryPhoneNumberVerified,
-    provider,
-  } = user;
-
   res.status(200).json({
     user: {
-      userID,
-      email,
-      emailVerified,
-      primaryPhoneNumber,
-      primaryPhoneNumberVerified,
-      provider,
+      avatar: user.avatar,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      patronymic: user.patronymic,
+      companyName: user.companyName,
+      nickname: user.nickname,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      primaryPhoneNumber: user.primaryPhoneNumber,
+      primaryPhoneNumberVerified: user.primaryPhoneNumberVerified,
+      provider: user.provider,
     },
   });
 };

@@ -24,7 +24,6 @@ const register = async (req, res) => {
   await User.create({
     ...req.body,
     password: hashPassword,
-    // isFirstLogin: true,
   });
 
   const registeredUser =
@@ -44,11 +43,10 @@ const register = async (req, res) => {
     user: {
       email: registeredUser.email,
       primaryPhoneNumber: registeredUser.primaryPhoneNumber,
-      token,
-      // firstLogin: registeredUser.isFirstLogin,
-      // userType: registeredUser.userType,
+      firstLogin: registeredUser.isFirstLogin,
       userID: registeredUser.id,
     },
+    token,
   });
 };
 
