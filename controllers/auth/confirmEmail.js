@@ -1,28 +1,18 @@
-const { HttpError, sendConfirmationEmail } = require('../../helpers');
 const { User } = require('../../models');
 
-const refreshEmail = async (req, res) => {
-  const {
-    query: { email },
-    user,
-  } = req;
-
-  if (await User.findOne({ email })) {
-    throw HttpError(409, 'Email in use');
-  }
-
-  sendConfirmationEmail(
-    email,
-    `${process.env.FRONTEND_URL}/confirmEmail?token=${user.token}`
-  );
+const confirmEmail = async (req, res) => {
+  const { user } = req;
+  console.log('user', user);
 
   const updatedUser = await User.findByIdAndUpdate(
     user._id,
-    { email, emailVerified: false },
+    { emailVerified: true },
     {
       new: true,
     }
   );
+
+  console.log('updatedUser', updatedUser);
 
   res.status(200).json({
     user: {
@@ -41,4 +31,4 @@ const refreshEmail = async (req, res) => {
   });
 };
 
-module.exports = refreshEmail;
+module.exports = confirmEmail;

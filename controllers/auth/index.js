@@ -5,10 +5,10 @@ const logout = require('./logout');
 const getCurrentUser = require('./getCurrentUser');
 const getUserById = require('./getUserById');
 const updateCurrentUser = require('./updateCurrentUser');
-const updateUserType = require('./updateUserType');
 const deleteById = require('./deleteById');
 const refreshPassword = require('./refreshPassword');
 const refreshEmail = require('./refreshEmail');
+const confirmEmail = require('./confirmEmail');
 
 const googleAuth = require('./googleAuth');
 
@@ -20,8 +20,8 @@ module.exports = {
   getUserById: ctrlWrapper(getUserById),
   updateCurrentUser: ctrlWrapper(updateCurrentUser),
   googleAuth: ctrlWrapper(googleAuth),
-  updateUserType: ctrlWrapper(updateUserType),
   deleteById: ctrlWrapper(deleteById),
   refreshPassword: ctrlWrapper(refreshPassword),
   refreshEmail: ctrlWrapper(refreshEmail),
+  confirmEmail: ctrlWrapper(confirmEmail),
 };
