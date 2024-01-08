@@ -5,6 +5,7 @@ const {
   authenticate,
   passport,
   upload,
+  validateQuery,
 } = require('../../middlewares');
 
 const {
@@ -53,8 +54,9 @@ router.patch(
 router.patch(
   '/current/refreshEmail',
   authenticate,
-  validateBody(refreshEmailSchema),
+  validateQuery(refreshEmailSchema),
   ctrl.refreshEmail
 );
+router.post('/current/confirmEmail', authenticate, ctrl.confirmEmail);
 
 module.exports = router;
