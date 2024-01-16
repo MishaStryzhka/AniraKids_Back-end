@@ -23,3 +23,33 @@ const sendConfirmationEmail = (to, confirmationLink) => {
 };
 
 module.exports = sendConfirmationEmail;
+
+//================
+//=====SEZNAM.CZ==
+//================
+
+// const nodemailer = require('nodemailer');
+
+// async function sendEmail({ from, to, subject, html, text }) {
+//   const transporter = nodemailer.createTransport({
+//     host: 'smtp.seznam.cz',
+//     port: 465,
+//     auth: {
+//       user: 'no-reply',
+//       pass: 'Karina2022',
+//     },
+//   });
+//   // 86qW5:*Kq.RmBpyo
+//   await transporter.sendMail({ from, to, subject, html, text });
+
+//   // verify connection configuration
+//   transporter.verify(function (error, success) {
+//     if (error) {
+//       console.log(error);
+//     } else {
+//       console.log('Server is ready to take our messages');
+//     }
+//   });
+// }
+
+// module.exports = sendEmail;

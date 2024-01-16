@@ -1,4 +1,5 @@
 const { HttpError, sendConfirmationEmail } = require('../../helpers');
+// const sendEmail = require('../../helpers/sendConfirmationEmail');
 const { User } = require('../../models');
 
 const refreshEmail = async (req, res) => {
@@ -15,6 +16,17 @@ const refreshEmail = async (req, res) => {
     email,
     `${process.env.FRONTEND_URL}/confirmEmail?token=${user.token}`
   );
+
+  //================
+  //===SEZNAM.CZ====
+  //================
+
+  // sendEmail({
+  //   from: 'no-reply@anirakids.cz',
+  //   to: email,
+  //   subject: 'Confirm Email',
+  //   text: `${process.env.FRONTEND_URL}/confirmEmail?token=${user.token}`,
+  // });
 
   const updatedUser = await User.findByIdAndUpdate(
     user._id,
