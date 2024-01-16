@@ -91,6 +91,9 @@ const userSchema = new Schema(
       type: Boolean,
       default: false, // Set the default value to true if needed
     },
+    ico: {
+      type: String,
+    },
   },
   { versionKey: false, timestamps: true }
 );

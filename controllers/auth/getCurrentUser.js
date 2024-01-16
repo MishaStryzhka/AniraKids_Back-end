@@ -15,6 +15,7 @@ const getCurrentUser = async (req, res, next) => {
       lastName: user.lastName,
       patronymic: user.patronymic,
       companyName: user.companyName,
+      ico: user.ico,
       nickname: user.nickname,
       email: user.email,
       emailVerified: user.emailVerified,

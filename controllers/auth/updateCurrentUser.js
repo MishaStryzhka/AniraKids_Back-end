@@ -38,6 +38,7 @@ const updateCurrentUser = async (req, res, next) => {
       lastName: updatedUser.lastName,
       patronymic: updatedUser.patronymic,
       companyName: updatedUser.companyName,
+      ico: updatedUser.ico,
       nickname: updatedUser.nickname,
       primaryPhoneNumber: updatedUser.primaryPhoneNumber,
       email: updatedUser.email,
