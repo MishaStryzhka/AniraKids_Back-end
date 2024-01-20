@@ -4,12 +4,13 @@ const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // Функція для відправки листа
-const sendConfirmationEmail = (to, confirmationLink) => {
+const sendConfirmationEmail = ({to, text, html}) => {
   const msg = {
     to: to,
     from: 'no-reply@anirakids.com', // Ваша електронна пошта, яку ви вказали при реєстрації на SendGrid
     subject: 'Підтвердження пошти',
-    text: `Підтвердіть свою пошту за посиланням: ${confirmationLink}`,
+    text: text,
+    html: html,
   };
 
   sgMail

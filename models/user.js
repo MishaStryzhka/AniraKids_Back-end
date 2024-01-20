@@ -15,6 +15,9 @@ const userSchema = new Schema(
     companyName: {
       type: String,
     },
+    language: {
+      type: String,
+    },
     email: {
       type: String,
       lowercase: true,

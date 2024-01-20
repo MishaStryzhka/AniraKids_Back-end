@@ -12,14 +12,25 @@ const refreshEmail = async (req, res) => {
     throw HttpError(409, 'Email in use');
   }
 
-  sendConfirmationEmail(
-    email,
-    `${process.env.FRONTEND_URL}/confirmEmail?token=${user.token}`
-  );
+  sendConfirmationEmail({
+    to: email,
+    text: `Добрий день ${user?.name ? user?.name : ''},
 
-  //================
-  //===SEZNAM.CZ====
-  //================
+    Ми отримали запит на зміну вашої електронної пошти на нашому сайті. Для завершення цього процесу, будь ласка, перейдіть за посиланням нижче:
+    
+    ${process.env.FRONTEND_URL}/confirmEmail?token=${user.token}
+    
+    Якщо ви не ініціювали цю зміну, проігноруйте цей лист.
+    
+    Дякуємо за використання нашого сайту.
+    
+    З повагою,
+    Команда AniraKids`,
+  });
+
+  // ================
+  // ===SEZNAM.CZ====
+  // ================
 
   // sendEmail({
   //   from: 'no-reply@anirakids.cz',
