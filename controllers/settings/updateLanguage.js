@@ -1,38 +1,25 @@
 const { HttpError } = require('../../helpers');
 const { User } = require('../../models');
 
-const updateCurrentUser = async (req, res, next) => {
+const updateLanguage = async (req, res, next) => {
   const { _id } = req.user;
-
   const user = await User.findById(_id);
+
+  console.log('req', req.query);
+
   if (!user) {
     next(HttpError(401, 'Not authorized'));
   }
 
-  // -> Set / Update User nickname
-  const { nickname } = req.body;
-  if (nickname) {
-    const userByNickname = await User.findOne({ nickname });
-    if (userByNickname) {
-      next(HttpError(409, 'Nickname must be unique'));
-    }
-  }
-
-  // -> Set / Update User Avatar
-  if (req.files.avatar) {
-    req.body.avatar = req.files.avatar[0].path;
-    req.body.avatarPublicId = req.files.avatar[0].filename;
-  }
-
   const updatedUser = await User.findByIdAndUpdate(
     _id,
-    { ...req.body, isFirstLogin: false },
+    { ...req.query },
     {
       new: true,
     }
   );
 
-  // console.log('updatedUser', updatedUser);
+  console.log('updatedUser', updatedUser);
 
   res.status(200).json({
     user: {
@@ -50,8 +37,9 @@ const updateCurrentUser = async (req, res, next) => {
       emailVerified: updatedUser.emailVerified,
       primaryPhoneNumberVerified: updatedUser.primaryPhoneNumberVerified,
       provider: updatedUser.provider,
+      language: updatedUser.language,
     },
   });
 };
 
-module.exports = updateCurrentUser;
+module.exports = updateLanguage;
