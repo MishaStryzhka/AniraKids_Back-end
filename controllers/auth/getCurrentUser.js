@@ -10,18 +10,22 @@ const getCurrentUser = async (req, res, next) => {
 
   res.status(200).json({
     user: {
+      userID: user._id,
+      isFirstLogin: user.isFirstLogin,
       avatar: user.avatar,
       firstName: user.firstName,
       lastName: user.lastName,
-      patronymic: user.patronymic,
-      companyName: user.companyName,
-      ico: user.ico,
       nickname: user.nickname,
-      email: user.email,
-      emailVerified: user.emailVerified,
+
       primaryPhoneNumber: user.primaryPhoneNumber,
       primaryPhoneNumberVerified: user.primaryPhoneNumberVerified,
+
+      email: user.email,
+      emailVerified: user.emailVerified,
+
       provider: user.provider,
+      typeUser: user.typeUser,
+      billingDetails: user.billingDetails,
     },
   });
 };

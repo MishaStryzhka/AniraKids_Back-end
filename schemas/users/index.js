@@ -3,6 +3,7 @@ const registerSchema = require('./registerSchema');
 const updateSchema = require('./updateSchema');
 const refreshPasswordSchema = require('./refreshPasswordSchema');
 const refreshEmailSchema = require('./refreshEmailSchema');
+const updateBillingDetailsSchema = require('./updateBillingDetailsSchema');
 
 module.exports = {
   loginSchema,
@@ -10,4 +11,5 @@ module.exports = {
   updateSchema,
   refreshPasswordSchema,
   refreshEmailSchema,
+  updateBillingDetailsSchema,
 };

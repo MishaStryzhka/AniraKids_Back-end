@@ -19,7 +19,6 @@ const confirmEmail = async (req, res) => {
       avatar: updatedUser.avatar,
       firstName: updatedUser.firstName,
       lastName: updatedUser.lastName,
-      patronymic: updatedUser.patronymic,
       companyName: updatedUser.companyName,
       nickname: updatedUser.nickname,
       email: updatedUser.email,

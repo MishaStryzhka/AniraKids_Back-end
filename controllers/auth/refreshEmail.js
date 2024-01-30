@@ -52,7 +52,6 @@ const refreshEmail = async (req, res) => {
       avatar: updatedUser.avatar,
       firstName: updatedUser.firstName,
       lastName: updatedUser.lastName,
-      patronymic: updatedUser.patronymic,
       companyName: updatedUser.companyName,
       nickname: updatedUser.nickname,
       email: updatedUser.email,
@@ -60,6 +59,7 @@ const refreshEmail = async (req, res) => {
       primaryPhoneNumber: updatedUser.primaryPhoneNumber,
       primaryPhoneNumberVerified: updatedUser.primaryPhoneNumberVerified,
       provider: updatedUser.provider,
+      typeUser: updatedUser.typeUser,
     },
   });
 };
