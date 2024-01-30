@@ -18,6 +18,15 @@ const updateCurrentUser = async (req, res, next) => {
     }
   }
 
+  // -> Set / Update User nickname
+  const { email } = req.body;
+  if (email) {
+    const userByEmail = await User.findOne({ email });
+    if (userByEmail) {
+      next(HttpError(409, 'Email in use'));
+    }
+  }
+
   // -> Set / Update User Avatar
   if (req.files.avatar) {
     req.body.avatar = req.files.avatar[0].path;
@@ -41,7 +50,6 @@ const updateCurrentUser = async (req, res, next) => {
       avatar: updatedUser.avatar,
       firstName: updatedUser.firstName,
       lastName: updatedUser.lastName,
-      patronymic: updatedUser.patronymic,
       companyName: updatedUser.companyName,
       ico: updatedUser.ico,
       nickname: updatedUser.nickname,

@@ -14,6 +14,7 @@ const {
   refreshPasswordSchema,
   refreshEmailSchema,
   updateSchema,
+  updateBillingDetailsSchema,
 } = require('../../schemas/users');
 
 const router = express.Router();
@@ -49,6 +50,13 @@ router.patch(
   validateBody(updateSchema),
   upload.fields([{ name: 'avatar', maxCount: 1 }]),
   ctrl.updateCurrentUser
+);
+
+router.patch(
+  '/current/update-billing-details',
+  authenticate,
+  validateBody(updateBillingDetailsSchema),
+  ctrl.updateCurrentUserBillingDetails
 );
 
 router.patch(

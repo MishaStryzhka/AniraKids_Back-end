@@ -1,19 +1,21 @@
 const { HttpError } = require('../../helpers');
 const { User } = require('../../models');
 
-const updateLanguage = async (req, res, next) => {
+const updateCurrentUserBillingDetails = async (req, res, next) => {
   const { _id } = req.user;
+
   const user = await User.findById(_id);
-
-  console.log('req', req.query);
-
   if (!user) {
     next(HttpError(401, 'Not authorized'));
   }
 
+  console.log('user', user);
+
+  //   -> Set / Update User nickname
+
   const updatedUser = await User.findByIdAndUpdate(
     _id,
-    { ...req.query },
+    { typeUser: 'owner', billingDetails: { ...req.body }, isFirstLogin: false },
     {
       new: true,
     }
@@ -28,17 +30,19 @@ const updateLanguage = async (req, res, next) => {
       avatar: updatedUser.avatar,
       firstName: updatedUser.firstName,
       lastName: updatedUser.lastName,
-      companyName: updatedUser.companyName,
-      ico: updatedUser.ico,
       nickname: updatedUser.nickname,
+
       primaryPhoneNumber: updatedUser.primaryPhoneNumber,
+      primaryPhoneNumberVerified: updatedUser.primaryPhoneNumberVerified,
+
       email: updatedUser.email,
       emailVerified: updatedUser.emailVerified,
-      primaryPhoneNumberVerified: updatedUser.primaryPhoneNumberVerified,
+
       provider: updatedUser.provider,
-      language: updatedUser.language,
+      typeUser: updatedUser.typeUser,
+      billingDetails: updatedUser.billingDetails,
     },
   });
 };
 
-module.exports = updateLanguage;
+module.exports = updateCurrentUserBillingDetails;

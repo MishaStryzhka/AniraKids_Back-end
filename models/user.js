@@ -12,9 +12,6 @@ const userSchema = new Schema(
       type: Boolean,
       default: true,
     },
-    companyName: {
-      type: String,
-    },
     language: {
       type: String,
     },
@@ -90,12 +87,67 @@ const userSchema = new Schema(
     token: {
       type: String,
     },
-    isPublish: {
-      type: Boolean,
-      default: false, // Set the default value to true if needed
-    },
-    ico: {
+    typeUser: {
       type: String,
+      enum: ['renter', 'owner'],
+      default: 'renter',
+    },
+    billingDetails: {
+      name: {
+        type: String,
+        required: function () {
+          return this.typeUser === 'owner';
+        },
+        match: /^[a-zA-Z\u00C0-\u017F\s]+$/,
+      },
+      street: {
+        type: String,
+        required: function () {
+          return this.typeUser === 'owner';
+        },
+        match: /^[a-zA-Z\u00C0-\u017F\s]+\s\d+\/\d+$/,
+      },
+      city: {
+        type: String,
+        required: function () {
+          return this.typeUser === 'owner';
+        },
+        match: /^[a-zA-Z\u00C0-\u017F\s]+$/,
+      },
+      zip: {
+        type: String,
+        required: function () {
+          return this.typeUser === 'owner';
+        },
+        match: /^\d{5}$/,
+      },
+      сountry: {
+        type: String,
+        default: 'Česká republika',
+        enum: ['Česká republika'],
+      },
+      vatMode: {
+        type: String,
+        required: function () {
+          return this.typeUser === 'owner';
+        },
+        default: 'non_vat_payer',
+        enum: ['non_vat_payer', 'identified_person', 'vat_payer'],
+      },
+      companyID: {
+        type: String,
+        validate: {
+          validator: function (value) {
+            return value === '' || /^[a-zA-Z\u00C0-\u017F\s\d]+$/.test(value);
+          },
+          message: 'Invalid companyID format',
+        },
+      },
+      VATID: {
+        type: String,
+        required: false,
+        match: /^[a-zA-Z\u00C0-\u017F\s\d]+$/,
+      },
     },
   },
   { versionKey: false, timestamps: true }

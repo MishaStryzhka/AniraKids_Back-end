@@ -40,10 +40,10 @@ const login = async (req, res) => {
       avatar: user.avatar,
       firstName: user.firstName,
       lastName: user.lastName,
-      patronymic: user.patronymic,
       companyName: user.companyName,
       ico: user.ico,
       nickname: user.nickname,
+      typeUser: user.typeUser,
     },
     token: token,
   });
