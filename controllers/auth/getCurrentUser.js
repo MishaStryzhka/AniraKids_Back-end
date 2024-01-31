@@ -26,6 +26,7 @@ const getCurrentUser = async (req, res, next) => {
       provider: user.provider,
       typeUser: user.typeUser,
       billingDetails: user.billingDetails,
+      bankAccount: user.bankAccount,
     },
   });
 };

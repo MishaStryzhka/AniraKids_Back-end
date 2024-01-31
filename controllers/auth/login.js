@@ -44,6 +44,9 @@ const login = async (req, res) => {
       ico: user.ico,
       nickname: user.nickname,
       typeUser: user.typeUser,
+
+      billingDetails: user.billingDetails,
+      bankAccount: user.bankAccount,
     },
     token: token,
   });

@@ -9,8 +9,6 @@ const updateCurrentUserBillingDetails = async (req, res, next) => {
     next(HttpError(401, 'Not authorized'));
   }
 
-  console.log('user', user);
-
   //   -> Set / Update User nickname
 
   const updatedUser = await User.findByIdAndUpdate(
@@ -21,27 +19,8 @@ const updateCurrentUserBillingDetails = async (req, res, next) => {
     }
   );
 
-  console.log('updatedUser', updatedUser);
-
   res.status(200).json({
-    user: {
-      userID: updatedUser._id,
-      isFirstLogin: updatedUser.isFirstLogin,
-      avatar: updatedUser.avatar,
-      firstName: updatedUser.firstName,
-      lastName: updatedUser.lastName,
-      nickname: updatedUser.nickname,
-
-      primaryPhoneNumber: updatedUser.primaryPhoneNumber,
-      primaryPhoneNumberVerified: updatedUser.primaryPhoneNumberVerified,
-
-      email: updatedUser.email,
-      emailVerified: updatedUser.emailVerified,
-
-      provider: updatedUser.provider,
-      typeUser: updatedUser.typeUser,
-      billingDetails: updatedUser.billingDetails,
-    },
+    billingDetails: updatedUser.billingDetails,
   });
 };
 
