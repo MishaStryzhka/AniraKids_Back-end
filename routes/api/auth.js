@@ -15,6 +15,7 @@ const {
   refreshEmailSchema,
   updateSchema,
   updateBillingDetailsSchema,
+  updateBankAccountSchema,
 } = require('../../schemas/users');
 
 const router = express.Router();
@@ -57,6 +58,13 @@ router.patch(
   authenticate,
   validateBody(updateBillingDetailsSchema),
   ctrl.updateCurrentUserBillingDetails
+);
+
+router.patch(
+  '/current/update-bank-account',
+  authenticate,
+  validateBody(updateBankAccountSchema),
+  ctrl.updateCurrentUserBankAccount
 );
 
 router.patch(

@@ -4,6 +4,7 @@ const updateSchema = require('./updateSchema');
 const refreshPasswordSchema = require('./refreshPasswordSchema');
 const refreshEmailSchema = require('./refreshEmailSchema');
 const updateBillingDetailsSchema = require('./updateBillingDetailsSchema');
+const updateBankAccountSchema = require('./updateBankAccountSchema');
 
 module.exports = {
   loginSchema,
@@ -12,4 +13,5 @@ module.exports = {
   refreshPasswordSchema,
   refreshEmailSchema,
   updateBillingDetailsSchema,
+  updateBankAccountSchema,
 };

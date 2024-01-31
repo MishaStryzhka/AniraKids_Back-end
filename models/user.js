@@ -149,6 +149,44 @@ const userSchema = new Schema(
         match: /^[a-zA-Z\u00C0-\u017F\s\d]+$/,
       },
     },
+    bankAccount: {
+      accountName: {
+        type: String,
+        required: true,
+        validate: {
+          validator: value => /^[a-zA-Z\u00C0-\u017F\s]+$/.test(value),
+          message: 'Account name must contain only letters and spaces',
+        },
+      },
+      accountNumber: {
+        type: String,
+        required: true,
+        validate: {
+          validator: value => /^\d{10}\/\d{4}$/.test(value),
+          message: 'Invalid account number format (e.g., 1234567890/2010)',
+        },
+      },
+      IBAN: {
+        type: String,
+        required: true,
+        validate: {
+          validator: value => /^[A-Z]{2}\d{2}[A-Z\d]{11,30}$/.test(value),
+          message: 'Invalid IBAN format (e.g., CZ6508000000192000145399)',
+        },
+      },
+      swiftBIC: {
+        type: String,
+        required: true,
+        validate: {
+          validator: value => /^[A-Z]{6}[A-Z\d]{2}([A-Z\d]{3})?$/.test(value),
+          message: 'Invalid SWIFT/BIC format (e.g., KOMBCZPP)',
+        },
+      },
+      currency: {
+        type: String,
+        required: true,
+      },
+    },
   },
   { versionKey: false, timestamps: true }
 );
