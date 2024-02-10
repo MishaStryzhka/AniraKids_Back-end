@@ -15,6 +15,7 @@ const fs = require('fs/promises');
 
 const authRouter = require('./routes/api/auth');
 const settingsRouter = require('./routes/api/settings');
+const productRouter = require('./routes/api/product');
 
 const path = require('path');
 
@@ -50,7 +51,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/users', authRouter);
 app.use('/api/settings', settingsRouter);
-// app.use('/api/doctors', doctorsRouter);
+app.use('/api/product', productRouter);
 
 // app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 

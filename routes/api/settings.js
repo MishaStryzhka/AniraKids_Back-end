@@ -1,20 +1,6 @@
 const express = require('express');
 
-const {
-  validateBody,
-  authenticate,
-  passport,
-  upload,
-  validateQuery,
-} = require('../../middlewares');
-
-const {
-  registerSchema,
-  loginSchema,
-  refreshPasswordSchema,
-  refreshEmailSchema,
-  updateSchema,
-} = require('../../schemas/users');
+const { authenticate, validateQuery } = require('../../middlewares');
 
 const router = express.Router();
 
