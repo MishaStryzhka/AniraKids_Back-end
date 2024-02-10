@@ -22,6 +22,10 @@ const storage = new CloudinaryStorage({
 
     if (file.fieldname === 'avatar') {
       folder = 'AniraKids_Avatars';
+    } else if (file.fieldname === 'photos') {
+      folder = 'AniraKids_Products';
+    } else if (file.fieldname === 'certificates') {
+      folder = 'DentistPortal_Certificates';
     } else {
       folder = 'misc';
     }
