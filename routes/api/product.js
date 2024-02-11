@@ -5,6 +5,7 @@ const {
   //   validateQuery,
   validateBody,
   upload,
+  // imageProcessingMiddleware,
 } = require('../../middlewares');
 
 const router = express.Router();
@@ -16,6 +17,7 @@ router.post(
   '/addProduct',
   authenticate,
   upload.fields([{ name: 'photos', maxCount: 10 }]),
+  // imageProcessingMiddleware,
   validateBody(productSchema),
   ctrl.addProdukt
 );
