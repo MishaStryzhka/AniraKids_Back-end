@@ -5,6 +5,7 @@ const validateQuery = require('./validateQuery');
 const validateId = require('./validateId');
 const uploadCloud = require('./uploadCloud');
 const passport = require('./passport-authenticate');
+const imageProcessingMiddleware = require('./imageProcessingMiddleware');
 
 module.exports = {
   validateBody,
@@ -14,4 +15,5 @@ module.exports = {
   validateId,
   uploadCloud,
   passport,
+  imageProcessingMiddleware,
 };
