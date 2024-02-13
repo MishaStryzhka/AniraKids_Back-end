@@ -11,7 +11,7 @@ const updateCurrentUser = async (req, res, next) => {
 
   // -> Set / Update User nickname
   const { nickname } = req.body;
-  if (nickname) {
+  if (nickname && nickname !== user.nickname) {
     const userByNickname = await User.findOne({ nickname });
     if (userByNickname) {
       next(HttpError(409, 'Nickname must be unique'));

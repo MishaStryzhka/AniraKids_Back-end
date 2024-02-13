@@ -98,7 +98,7 @@ const userSchema = new Schema(
         required: function () {
           return this.typeUser === 'owner';
         },
-        match: /^[a-zA-Z\u00C0-\u017F\s]+$/,
+        match: /^[a-zA-Z\u00C0-\u017F\s.]+$/,
       },
       street: {
         type: String,
@@ -152,7 +152,9 @@ const userSchema = new Schema(
     bankAccount: {
       accountName: {
         type: String,
-        required: true,
+        required: function () {
+          return this.typeUser === 'owner';
+        },
         validate: {
           validator: value => /^[a-zA-Z\u00C0-\u017F\s]+$/.test(value),
           message: 'Account name must contain only letters and spaces',
@@ -160,7 +162,9 @@ const userSchema = new Schema(
       },
       accountNumber: {
         type: String,
-        required: true,
+        required: function () {
+          return this.typeUser === 'owner';
+        },
         validate: {
           validator: value => /^\d{10}\/\d{4}$/.test(value),
           message: 'Invalid account number format (e.g., 1234567890/2010)',
@@ -168,7 +172,9 @@ const userSchema = new Schema(
       },
       IBAN: {
         type: String,
-        required: true,
+        required: function () {
+          return this.typeUser === 'owner';
+        },
         validate: {
           validator: value => /^[A-Z]{2}\d{2}[A-Z\d]{11,30}$/.test(value),
           message: 'Invalid IBAN format (e.g., CZ6508000000192000145399)',
@@ -176,7 +182,9 @@ const userSchema = new Schema(
       },
       swiftBIC: {
         type: String,
-        required: true,
+        required: function () {
+          return this.typeUser === 'owner';
+        },
         validate: {
           validator: value => /^[A-Z]{6}[A-Z\d]{2}([A-Z\d]{3})?$/.test(value),
           message: 'Invalid SWIFT/BIC format (e.g., KOMBCZPP)',
@@ -184,7 +192,9 @@ const userSchema = new Schema(
       },
       currency: {
         type: String,
-        required: true,
+        required: function () {
+          return this.typeUser === 'owner';
+        },
       },
     },
   },

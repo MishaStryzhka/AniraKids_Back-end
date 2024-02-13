@@ -13,6 +13,7 @@ const updateCurrentUserBillingDetails = require('./updateCurrentUserBillingDetai
 
 const googleAuth = require('./googleAuth');
 const updateCurrentUserBankAccount = require('./updateCurrentUserBankAccount');
+const verifiedEmail = require('./verifiedEmail/verifiedEmail');
 
 module.exports = {
   register: ctrlWrapper(register),
@@ -28,4 +29,5 @@ module.exports = {
   confirmEmail: ctrlWrapper(confirmEmail),
   updateCurrentUserBillingDetails: ctrlWrapper(updateCurrentUserBillingDetails),
   updateCurrentUserBankAccount: ctrlWrapper(updateCurrentUserBankAccount),
+  verifiedEmail: ctrlWrapper(verifiedEmail),
 };

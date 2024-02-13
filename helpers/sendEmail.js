@@ -4,11 +4,11 @@ const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // Функція для відправки листа
-const sendConfirmationEmail = ({to, text, html}) => {
+const sendEmail = ({ to, text, html, subject }) => {
   const msg = {
     to: to,
     from: 'no-reply@anirakids.com', // Ваша електронна пошта, яку ви вказали при реєстрації на SendGrid
-    subject: 'Підтвердження пошти',
+    subject,
     text: text,
     html: html,
   };
@@ -23,11 +23,11 @@ const sendConfirmationEmail = ({to, text, html}) => {
     });
 };
 
-module.exports = sendConfirmationEmail;
+module.exports = sendEmail;
 
-//================
-//=====SEZNAM.CZ==
-//================
+// ================
+// =====SEZNAM.CZ==
+// ================
 
 // const nodemailer = require('nodemailer');
 
