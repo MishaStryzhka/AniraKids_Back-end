@@ -3,7 +3,7 @@ const Joi = require('joi');
 const updateBillingDetailsSchema = Joi.object({
   name: Joi.string()
     .required()
-    .regex(/^[a-zA-Z\u00C0-\u017F\s]+$/)
+    .regex(/^[a-zA-Z\u00C0-\u017F\s.]+$/)
     .messages({
       'string.base': 'Name must be a string',
       'string.empty': 'Name is required',

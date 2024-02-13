@@ -1,5 +1,5 @@
-const { HttpError, sendConfirmationEmail } = require('../../helpers');
-// const sendEmail = require('../../helpers/sendConfirmationEmail');
+const { HttpError, sendEmail } = require('../../helpers');
+// const sendEmail = require('../../helpers/sendEmail');
 const { User } = require('../../models');
 
 const refreshEmail = async (req, res) => {
@@ -12,7 +12,7 @@ const refreshEmail = async (req, res) => {
     throw HttpError(409, 'Email in use');
   }
 
-  sendConfirmationEmail({
+  sendEmail({
     to: email,
     text: `Добрий день ${user?.name ? user?.name : ''},
 

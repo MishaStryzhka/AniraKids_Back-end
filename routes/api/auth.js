@@ -73,6 +73,8 @@ router.patch(
   validateQuery(refreshEmailSchema),
   ctrl.refreshEmail
 );
+
+router.patch('/current/verifiedEmail', authenticate, ctrl.verifiedEmail);
 router.post('/current/confirmEmail', authenticate, ctrl.confirmEmail);
 
 module.exports = router;

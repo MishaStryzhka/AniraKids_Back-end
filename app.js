@@ -47,6 +47,8 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '/index.html'));
 });
 
+app.use('/styles', express.static('public'));
+
 // **********************************************************************
 
 app.use('/api/users', authRouter);

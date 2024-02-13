@@ -11,13 +11,14 @@ const updateCurrentUserBankAccount = async (req, res, next) => {
 
   const updatedUser = await User.findByIdAndUpdate(
     _id,
-    { bankAccount: { ...req.body }, isFirstLogin: false },
+    { bankAccount: { ...req.body }, typeUser: 'owner' },
     {
       new: true,
     }
   );
 
   res.status(200).json({
+    typeUser: updatedUser.typeUser,
     bankAccount: updatedUser.bankAccount,
   });
 };
