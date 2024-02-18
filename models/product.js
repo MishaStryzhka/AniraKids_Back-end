@@ -19,6 +19,8 @@ const subjectOptions = [
   'unicors-&-rainbows',
 ];
 
+const outfitsOptions = ['for-girls', 'for-boys', 'for-babies'];
+
 const productSchema = new Schema(
   {
     brand: String,
@@ -118,10 +120,19 @@ const productSchema = new Schema(
     },
     subject: {
       type: String,
-      enum: subjectOptions,
-      required: function () {
-        return this.category === 'children`s category';
+      enum: {
+        values: subjectOptions,
+        message: 'Invalid subject value',
       },
+      required: false,
+    },
+    outfits: {
+      type: String,
+      enum: {
+        values: outfitsOptions,
+        message: 'Invalid subject value',
+      },
+      required: false,
     },
   },
   { versionKey: false, timestamps: true }

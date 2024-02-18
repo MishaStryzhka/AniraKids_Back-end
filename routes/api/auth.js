@@ -77,4 +77,10 @@ router.patch(
 router.patch('/current/verifiedEmail', authenticate, ctrl.verifiedEmail);
 router.post('/current/confirmEmail', authenticate, ctrl.confirmEmail);
 
+router.patch('/favorites/add/:productId', authenticate, ctrl.addToFavorites);
+router.delete(
+  '/favorites/remove/:productId',
+  authenticate,
+  ctrl.removeFromFavorites
+);
 module.exports = router;

@@ -45,6 +45,8 @@ const login = async (req, res) => {
       nickname: user.nickname,
       typeUser: user.typeUser,
 
+      favorites: user?.favorites || [],
+
       billingDetails: user.billingDetails,
       bankAccount: user.bankAccount,
     },

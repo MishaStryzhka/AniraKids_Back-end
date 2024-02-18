@@ -17,6 +17,8 @@ const getCurrentUser = async (req, res, next) => {
       lastName: user.lastName,
       nickname: user.nickname,
 
+      favorites: user.favorites,
+
       primaryPhoneNumber: user.primaryPhoneNumber,
       primaryPhoneNumberVerified: user.primaryPhoneNumberVerified,
 
