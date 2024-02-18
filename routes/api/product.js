@@ -28,6 +28,8 @@ router.get(
   ctrl.getCurrentUserProducts
 );
 
+router.get('/getProducts', ctrl.getProducts);
+
 // DELETE /api/product/:id
 router.delete('/:id', authenticate, ctrl.removeProductById);
 

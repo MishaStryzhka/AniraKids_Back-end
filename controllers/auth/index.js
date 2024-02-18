@@ -14,6 +14,8 @@ const updateCurrentUserBillingDetails = require('./updateCurrentUserBillingDetai
 const googleAuth = require('./googleAuth');
 const updateCurrentUserBankAccount = require('./updateCurrentUserBankAccount');
 const verifiedEmail = require('./verifiedEmail/verifiedEmail');
+const addToFavorites = require('./addToFavorites');
+const removeFromFavorites = require('./removeFromFavorites');
 
 module.exports = {
   register: ctrlWrapper(register),
@@ -30,4 +32,6 @@ module.exports = {
   updateCurrentUserBillingDetails: ctrlWrapper(updateCurrentUserBillingDetails),
   updateCurrentUserBankAccount: ctrlWrapper(updateCurrentUserBankAccount),
   verifiedEmail: ctrlWrapper(verifiedEmail),
+  addToFavorites: ctrlWrapper(addToFavorites),
+  removeFromFavorites: ctrlWrapper(removeFromFavorites),
 };

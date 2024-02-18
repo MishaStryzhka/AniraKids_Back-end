@@ -24,6 +24,7 @@ const addProdukt = async (req, res, next) => {
     familyLook: req.body.familyLook,
     isPregnancy: req.body.isPregnancy,
     subject: req.body.subject,
+    outfits: req.body.outfits,
     childSize: req.body.childSize,
     age: req.body.age,
     toys: req.body.toys,

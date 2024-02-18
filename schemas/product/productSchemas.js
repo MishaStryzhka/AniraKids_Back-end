@@ -7,17 +7,6 @@ const categoryOptions = [
   'decoration category',
 ];
 
-const subjectOptions = [
-  'Christmas',
-  'Ukrainian-symbols',
-  'Animals',
-  'ballet-&-princesses',
-  'Dinosaurs',
-  'Flowers-&-butterflies',
-  'Hearts',
-  'unicors-&-rainbows',
-];
-
 const productSchema = Joi.object({
   brand: Joi.string(),
   videoUrl: Joi.string()
@@ -60,11 +49,8 @@ const productSchema = Joi.object({
     is: Joi.valid('women`s category', 'men`s category'),
     then: Joi.required(),
   }),
-  subject: Joi.string().when('category', {
-    is: 'children`s category',
-    then: Joi.string().valid(...subjectOptions),
-    otherwise: Joi.string().allow(''),
-  }),
+  subject: Joi.string(),
+  outfits: Joi.string(),
   color: Joi.string().required().messages({
     'string.empty': 'Required field',
     'any.required': 'Required field',
