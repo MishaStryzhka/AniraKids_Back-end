@@ -17,7 +17,6 @@ router.post(
   '/addProduct',
   authenticate,
   upload.fields([{ name: 'photos', maxCount: 10 }]),
-  // imageProcessingMiddleware,
   validateBody(productSchema),
   ctrl.addProdukt
 );
@@ -29,6 +28,8 @@ router.get(
 );
 
 router.get('/getProducts', ctrl.getProducts);
+router.get('/getFavorites', authenticate, ctrl.getFavorites);
+router.get('/getProductById/:id', ctrl.getProductById);
 
 // DELETE /api/product/:id
 router.delete('/:id', authenticate, ctrl.removeProductById);

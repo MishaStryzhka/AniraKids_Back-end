@@ -64,10 +64,7 @@ const productSchema = Joi.object({
     then: Joi.required(),
   }),
   decor: Joi.string(),
-  toys: Joi.string().when('category', {
-    is: 'decoration category',
-    then: Joi.required(),
-  }),
+  toys: Joi.string(),
   rental: Joi.boolean(),
   sale: Joi.boolean(),
   rentalPrice: Joi.number().when('rental', {

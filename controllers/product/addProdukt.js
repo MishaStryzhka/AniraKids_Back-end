@@ -1,8 +1,6 @@
 const Product = require('../../models/product');
 
 const addProdukt = async (req, res, next) => {
-  console.log('req.body', req.body);
-
   if (req.files.photos) {
     req.body.photos = [];
     req.files.photos.map(el =>
@@ -12,8 +10,6 @@ const addProdukt = async (req, res, next) => {
       })
     );
   }
-
-  console.log('req.body', req.body);
 
   const product = await Product.create({
     videoUrl: req.body.videoUrl,
