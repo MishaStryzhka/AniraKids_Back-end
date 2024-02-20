@@ -1,6 +1,5 @@
 const { Schema, model } = require('mongoose');
 const { handleMongooseError } = require('../helpers');
-const Product = require('./product');
 
 // eslint-disable-next-line no-useless-escape
 const emailRegexp = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
@@ -197,7 +196,7 @@ const userSchema = new Schema(
         },
       },
     },
-    favorites: [{ type: Schema.Types.ObjectId, ref: Product, unique: true }],
+    favorites: [{ type: Schema.Types.ObjectId, ref: 'product', unique: true }],
   },
   { versionKey: false, timestamps: true }
 );
