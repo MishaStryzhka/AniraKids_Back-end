@@ -1,5 +1,6 @@
 const { Schema, model } = require('mongoose');
 const { handleMongooseError } = require('../helpers');
+const Product = require('./product');
 // const { boolean } = require('joi');
 
 // eslint-disable-next-line no-useless-escape
@@ -197,7 +198,7 @@ const userSchema = new Schema(
         },
       },
     },
-    favorites: [{ type: Schema.Types.ObjectId, ref: 'Product', unique: true }],
+    favorites: [{ type: Schema.Types.ObjectId, ref: Product, unique: true }],
   },
   { versionKey: false, timestamps: true }
 );

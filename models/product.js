@@ -1,5 +1,6 @@
 const { Schema, model } = require('mongoose');
-const { handleMongooseError } = require('../helpers');
+const { handleMongooseError, addsPopularity } = require('../helpers');
+const User = require('./user');
 
 const categoryOptions = [
   'women`s category',
@@ -82,12 +83,7 @@ const productSchema = new Schema(
       },
     },
     decor: String,
-    toys: {
-      type: String,
-      required: function () {
-        return this.category === 'decoration category';
-      },
-    },
+    toys: String,
     rental: Boolean,
     sale: Boolean,
     rentalPrice: {
@@ -115,7 +111,7 @@ const productSchema = new Schema(
     ],
     owner: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: User,
       required: true,
     },
     subject: {
@@ -134,11 +130,29 @@ const productSchema = new Schema(
       },
       required: false,
     },
+    viewsCount: {
+      type: Number,
+      default: 0,
+    },
+    rentCount: {
+      type: Number,
+      default: 0,
+    },
+    rating: {
+      type: Number,
+      default: 0,
+    },
+    popularity: {
+      type: Number,
+      default: 0,
+    },
   },
   { versionKey: false, timestamps: true }
 );
 
 productSchema.post('save', handleMongooseError);
+
+productSchema.pre('save', addsPopularity);
 
 const Product = model('Product', productSchema);
 
