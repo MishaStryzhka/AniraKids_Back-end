@@ -1,6 +1,5 @@
 const { Schema, model } = require('mongoose');
 const { handleMongooseError, addsPopularity } = require('../helpers');
-const User = require('./user');
 
 const categoryOptions = [
   'women`s category',
@@ -111,7 +110,7 @@ const productSchema = new Schema(
     ],
     owner: {
       type: Schema.Types.ObjectId,
-      ref: User,
+      ref: 'user',
       required: true,
     },
     subject: {
@@ -154,6 +153,6 @@ productSchema.post('save', handleMongooseError);
 
 productSchema.pre('save', addsPopularity);
 
-const Product = model('Product', productSchema);
+const Product = model('product', productSchema);
 
 module.exports = Product;
