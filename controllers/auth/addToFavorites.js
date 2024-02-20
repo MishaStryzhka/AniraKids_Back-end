@@ -18,7 +18,7 @@ const addToFavorites = async (req, res, next) => {
       user._id,
       { $push: { favorites: productId } },
       { new: true }
-    ).populate('favorites');
+    );
 
     if (!result) {
       next(HttpError(404, 'Not found'));
