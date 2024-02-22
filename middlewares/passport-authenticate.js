@@ -12,7 +12,7 @@ const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, BASE_URL, BASE_ONRENDER_URL } =
 const googleParams = {
   clientID: GOOGLE_CLIENT_ID,
   clientSecret: GOOGLE_CLIENT_SECRET,
-  callbackURL: `https://anirakids.cz`,
+  callbackURL: `${BASE_ONRENDER_URL}/api/users/google/callback`,
 
   passReqToCallback: true,
 };
