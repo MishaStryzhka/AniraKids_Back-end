@@ -29,11 +29,16 @@ router.get(
 
 router.get(
   '/google/callback',
-  passport.authenticate('google', { session: false }),
+  // passport.authenticate('google', { session: false }),
   ctrl.googleAuth
 );
 
 router.post('/register', validateBody(registerSchema), ctrl.register);
+router.post(
+  '/authByGoogle',
+  // validateBody(registerSchema),
+  ctrl.authByGoogle
+);
 router.post('/login', validateBody(loginSchema), ctrl.login);
 router.post('/logout', authenticate, ctrl.logout);
 router.get('/current', authenticate, ctrl.getCurrentUser);
