@@ -17,6 +17,7 @@ const verifiedEmail = require('./verifiedEmail/verifiedEmail');
 const addToFavorites = require('./addToFavorites');
 const removeFromFavorites = require('./removeFromFavorites');
 const authByGoogle = require('./authByGoogle');
+const authBySeznam = require('./authBySeznam');
 
 module.exports = {
   register: ctrlWrapper(register),
@@ -36,4 +37,5 @@ module.exports = {
   addToFavorites: ctrlWrapper(addToFavorites),
   removeFromFavorites: ctrlWrapper(removeFromFavorites),
   authByGoogle: ctrlWrapper(authByGoogle),
+  authBySeznam: ctrlWrapper(authBySeznam),
 };

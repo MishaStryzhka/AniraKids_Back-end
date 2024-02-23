@@ -39,6 +39,11 @@ router.post(
   // validateBody(registerSchema),
   ctrl.authByGoogle
 );
+router.post(
+  '/authBySeznam',
+  // validateBody(registerSchema),
+  ctrl.authBySeznam
+);
 router.post('/login', validateBody(loginSchema), ctrl.login);
 router.post('/logout', authenticate, ctrl.logout);
 router.get('/current', authenticate, ctrl.getCurrentUser);
