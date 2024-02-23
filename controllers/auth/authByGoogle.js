@@ -34,8 +34,6 @@ const authByGoogle = async (req, res) => {
 
   const { createdAt, updatedAt, token: _, ...user } = dataUser._doc;
 
-  console.log('user', user);
-
   res.status(201).json({
     user,
     token,
