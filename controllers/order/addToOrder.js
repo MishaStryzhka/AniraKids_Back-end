@@ -15,18 +15,18 @@ const addToOrder = async (req, res) => {
   if (!currentOrder) {
     currentOrder = new Order({
       userId,
-      items: [{ productId, serviceType, price, quantity: 1, owner }],
+      items: [{ product: productId, serviceType, price, quantity: 1, owner }],
     });
   } else if (
-    currentOrder.items.some(item => item.productId.toString() === productId)
+    currentOrder.items.some(item => item.product.toString() === productId)
   ) {
     const existingItem = currentOrder.items.find(
-      item => item.productId.toString() === productId
+      item => item.product.toString() === productId
     );
     existingItem.quantity++;
   } else {
     currentOrder.items.push({
-      productId,
+      product: productId,
       serviceType,
       price,
       quantity: 1,
