@@ -7,7 +7,7 @@ const categoryOptions = [
   'decoration category',
 ];
 
-const productSchema = Joi.object({
+const addProductSchemas = Joi.object({
   brand: Joi.string(),
   videoUrl: Joi.string()
     .pattern(
@@ -67,7 +67,11 @@ const productSchema = Joi.object({
   toys: Joi.string(),
   rental: Joi.boolean(),
   sale: Joi.boolean(),
-  rentalPrice: Joi.number().when('rental', {
+  dailyRentalPrice: Joi.number().when('rental', {
+    is: true,
+    then: Joi.required(),
+  }),
+  hourlyRentalPrice: Joi.number().when('rental', {
     is: true,
     then: Joi.required(),
   }),
@@ -82,4 +86,4 @@ const productSchema = Joi.object({
   }),
 });
 
-module.exports = productSchema;
+module.exports = addProductSchemas;

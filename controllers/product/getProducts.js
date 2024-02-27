@@ -12,7 +12,8 @@ const getProducts = async (req, res, next) => {
   if (price) {
     const [minPrice, maxPrice] = price.split('-').map(Number);
     query.$or = [
-      { rentalPrice: { $gte: minPrice, $lte: maxPrice } },
+      { dailyRentalPrice: { $gte: minPrice, $lte: maxPrice } },
+      { hourlyRentalPrice: { $gte: minPrice, $lte: maxPrice } },
       { salePrice: { $gte: minPrice, $lte: maxPrice } },
     ];
   }
@@ -35,7 +36,8 @@ const getProducts = async (req, res, next) => {
   const products = await Product.find(query)
     .sort(sortCriteria)
     .skip(skip)
-    .limit(pageSize);
+    .limit(pageSize)
+    .populate('owner', 'nickname avatar rating ratingCount');
 
   const totalProducts = await Product.find(query)
     .sort(sortCriteria)

@@ -196,7 +196,16 @@ const userSchema = new Schema(
         },
       },
     },
+    rating: {
+      type: Number,
+      default: 5,
+    },
+    ratingCount: {
+      type: Number,
+      default: 0,
+    },
     favorites: [{ type: Schema.Types.ObjectId, ref: 'product', unique: true }],
+    cart: [{ type: Schema.Types.ObjectId, ref: 'order', unique: true }],
   },
   { versionKey: false, timestamps: true }
 );

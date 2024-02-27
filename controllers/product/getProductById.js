@@ -6,7 +6,7 @@ const getProductById = async (req, res, next) => {
 
   const product = await Product.findById(id).populate(
     'owner',
-    'nickname avatar'
+    'nickname avatar rating ratingCount'
   );
 
   res.status(201).json({ product });

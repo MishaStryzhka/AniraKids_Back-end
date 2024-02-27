@@ -85,7 +85,13 @@ const productSchema = new Schema(
     toys: String,
     rental: Boolean,
     sale: Boolean,
-    rentalPrice: {
+    dailyRentalPrice: {
+      type: Number,
+      required: function () {
+        return this.rental === true;
+      },
+    },
+    hourlyRentalPrice: {
       type: Number,
       required: function () {
         return this.rental === true;
@@ -134,10 +140,6 @@ const productSchema = new Schema(
       default: 0,
     },
     rentCount: {
-      type: Number,
-      default: 0,
-    },
-    rating: {
       type: Number,
       default: 0,
     },
