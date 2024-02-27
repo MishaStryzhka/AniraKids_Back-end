@@ -15,7 +15,8 @@ const getCurrentUserProducts = async (req, res, next) => {
 
   const products = await Product.find({ owner: _id })
     .skip(skip)
-    .limit(pageSize);
+    .limit(pageSize)
+    .populate('owner', 'nickname avatar rating ratingCount');
 
   const totalProducts = await Product.find({ owner: _id });
 

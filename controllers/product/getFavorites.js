@@ -6,11 +6,23 @@ const getFavorites = async (req, res, next) => {
   //   const skip = (page - 1) * pageSize;
 
   const { favorites: products } = await User.findById(user._id)
-    .populate('favorites')
+    .populate({
+      path: 'favorites',
+      populate: {
+        path: 'owner',
+        select: 'nickname avatar rating ratingCount',
+      },
+    })
     .select('favorites');
 
   const totalProducts = await User.findById(user._id)
-    .populate('favorites')
+    .populate({
+      path: 'favorites',
+      populate: {
+        path: 'owner',
+        select: 'nickname avatar rating ratingCount',
+      },
+    })
     .select('favorites');
 
   res.status(201).json({ totalProducts: totalProducts.length, products });

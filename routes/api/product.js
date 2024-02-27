@@ -11,13 +11,13 @@ const {
 const router = express.Router();
 
 const ctrl = require('../../controllers/product');
-const { productSchema } = require('../../schemas/product');
+const { addProductSchemas } = require('../../schemas/product');
 
 router.post(
   '/addProduct',
   authenticate,
   upload.fields([{ name: 'photos', maxCount: 10 }]),
-  validateBody(productSchema),
+  validateBody(addProductSchemas),
   ctrl.addProdukt
 );
 
