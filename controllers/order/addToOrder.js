@@ -11,7 +11,6 @@ const addToOrder = async (req, res) => {
     items: { $elemMatch: { owner: owner, serviceType: serviceType } },
   });
 
-  // Якщо замовлення не знайдено, створюємо нове
   if (!currentOrder) {
     currentOrder = new Order({
       userId,
