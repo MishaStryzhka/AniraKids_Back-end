@@ -4,7 +4,7 @@ const router = express.Router();
 
 const ctrl = require('../../controllers/order');
 const { authenticate, validateBody } = require('../../middlewares');
-const addToOrderSchema = require('../../schemas/order/addToOrderSchemas');
+const { addToOrderSchema, setQuantitySchema } = require('../../schemas/order');
 
 router.post(
   '/add',
@@ -13,6 +13,19 @@ router.post(
   ctrl.addToOrder
 );
 
-router.get('/getOrders', authenticate, ctrl.getOrders);
+router.get('/get_orders', authenticate, ctrl.getOrders);
+router.patch(
+  '/set_quantity',
+  authenticate,
+  validateBody(setQuantitySchema),
+  ctrl.setQuantity
+);
+
+router.delete('/remove_orders', authenticate, ctrl.removeOrder);
+router.delete(
+  '/remove_product_from_order',
+  authenticate,
+  ctrl.removeProductFromOrder
+);
 
 module.exports = router;
