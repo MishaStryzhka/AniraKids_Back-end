@@ -28,6 +28,7 @@ router.get(
 );
 
 router.get('/getProducts', ctrl.getProducts);
+router.get('/getPopular', ctrl.getPopular);
 router.get('/getFavorites', authenticate, ctrl.getFavorites);
 router.get('/getProductById/:id', ctrl.getProductById);
 

@@ -147,6 +147,21 @@ const productSchema = new Schema(
       type: Number,
       default: 0,
     },
+    rentalPeriods: {
+      type: [
+        {
+          startDate: {
+            type: Date,
+            required: true,
+          },
+          endDate: {
+            type: Date,
+            required: true,
+          },
+        },
+      ],
+      default: [],
+    },
   },
   { versionKey: false, timestamps: true }
 );
