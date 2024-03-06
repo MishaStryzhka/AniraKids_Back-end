@@ -12,6 +12,7 @@ const getPopular = async (req, res, next) => {
 
   for (const category of categoryOptions) {
     const popularProducts = await Product.find({ category: category })
+      .populate('owner', 'nickname avatar rating ratingCount')
       .sort({ popularity: -1 }) // Сортування товарів за зменшенням популярності
       .limit(4) // Обмеження результату чотирма записами
       .exec();
