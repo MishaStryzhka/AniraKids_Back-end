@@ -1,0 +1,5 @@
+
+OPTIONS /api/users/current 06-03-2024_07:00:58
+GET /api/users/current 06-03-2024_07:00:58
+OPTIONS /api/product/getPopular 06-03-2024_07:00:58
+GET /api/product/getPopular 06-03-2024_07:00:58

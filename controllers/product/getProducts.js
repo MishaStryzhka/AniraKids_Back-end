@@ -1,4 +1,3 @@
-const { format } = require('date-fns');
 const { Product } = require('../../models');
 
 const getProducts = async (req, res, next) => {
@@ -69,18 +68,6 @@ const getProducts = async (req, res, next) => {
   }
 
   const skip = (page - 1) * pageSize;
-
-  // const result = await Product.findByIdAndUpdate('65d4c3ef464235f70a32ee56', {
-  //   rentalPeriods: [
-  //     {
-  //       startDate: new Date('2024-03-10'), // Початкова дата оренди
-  //       endDate: new Date('2024-03-15'), // Кінцева дата оренди
-  //     },
-  //   ],
-  // });
-  // console.log('result', result);
-
-  console.log('query', query);
 
   const products = await Product.find({ ...query })
     .sort(sortCriteria)
