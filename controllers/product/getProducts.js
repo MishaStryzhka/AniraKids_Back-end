@@ -2,6 +2,9 @@ const { Product } = require('../../models');
 
 const getProducts = async (req, res, next) => {
   const {
+    age,
+    childSize,
+    color,
     page = 1,
     pageSize = 9,
     type,
@@ -10,7 +13,24 @@ const getProducts = async (req, res, next) => {
     rentalPeriods,
     ...query
   } = req.query;
-  console.log('rentalPeriods', rentalPeriods);
+
+  // age
+  if (age) {
+    const paramsAge = age.split(',');
+    query.age = { $in: paramsAge };
+  }
+
+  // childSize
+  if (childSize) {
+    const paramsChildSize = childSize.split(',');
+    query.childSize = { $in: paramsChildSize };
+  }
+
+  // color
+  if (color) {
+    const paramsColor = color.split(',');
+    query.color = { $in: paramsColor };
+  }
 
   // type rent or sale
   if (rentalPeriods) {
