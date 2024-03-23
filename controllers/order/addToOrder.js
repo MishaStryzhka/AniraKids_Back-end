@@ -1,20 +1,34 @@
+const { calculateDays } = require('../../helpers');
 const Order = require('../../models/order');
 
 const addToOrder = async (req, res) => {
   const {
-    body: { productId, serviceType, price, owner },
+    body: { productId, serviceType, price, owner, rentalPeriods },
     user: { _id: userId },
   } = req;
 
+  console.log('rentalPeriods', rentalPeriods);
+
   let currentOrder = await Order.findOne({
     userId: userId,
-    items: { $elemMatch: { owner: owner, serviceType: serviceType } },
+    owner: owner,
+    serviceType: serviceType,
+    rentalPeriods: rentalPeriods,
   });
 
   if (!currentOrder) {
     currentOrder = new Order({
       userId,
-      items: [{ product: productId, serviceType, price, quantity: 1, owner }],
+      serviceType,
+      items: [
+        {
+          product: productId,
+          price,
+          quantity: rentalPeriods ? calculateDays(rentalPeriods) : 1,
+        },
+      ],
+      owner,
+      rentalPeriods,
     });
   } else if (
     currentOrder.items.some(item => item.product.toString() === productId)
@@ -26,10 +40,8 @@ const addToOrder = async (req, res) => {
   } else {
     currentOrder.items.push({
       product: productId,
-      serviceType,
       price,
       quantity: 1,
-      owner,
     });
   }
   await currentOrder.save();

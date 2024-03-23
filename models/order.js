@@ -8,20 +8,21 @@ const cartItemSchema = new mongoose.Schema({
     ref: 'product',
     required: true,
   },
-  serviceType: { type: String, enum: ['buy', 'rent'], required: true },
   quantity: { type: Number, default: 1 },
   price: { type: Number, required: true },
-  owner: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'user',
-    required: true,
-  },
 });
 
 const orderSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: true },
   items: [cartItemSchema],
   createdAt: { type: Date, default: Date.now },
+  rentalPeriods: { type: String },
+  serviceType: { type: String, enum: ['buy', 'rent'], required: true },
+  owner: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'user',
+    required: true,
+  },
 });
 
 orderSchema.post('save', handleMongooseError);

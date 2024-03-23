@@ -3,20 +3,18 @@ const { Order } = require('../../models');
 const getOrders = async (req, res, next) => {
   const { _id: userId } = req.user;
 
-  const orders = await Order.find({ userId }).populate({
-    path: 'items',
-    select: 'product serviceType quantity price owner',
-    populate: [
-      {
-        path: 'owner',
-        select: 'nickname',
-      },
-      {
-        path: 'product',
-        select: 'photos name price',
-      },
-    ],
-  });
+  const orders = await Order.find({ userId })
+    .populate({
+      path: 'items',
+      select: 'product quantity price',
+      populate: [
+        {
+          path: 'product',
+          select: 'photos name price',
+        },
+      ],
+    })
+    .populate('owner', 'nickname');
   console.log('orders', orders);
 
   const totalOrders = await Order.find({ userId }).length;

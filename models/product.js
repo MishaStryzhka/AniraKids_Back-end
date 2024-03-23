@@ -162,6 +162,11 @@ const productSchema = new Schema(
       ],
       default: [],
     },
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'active',
+    },
   },
   { versionKey: false, timestamps: true }
 );
