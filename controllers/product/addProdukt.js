@@ -35,6 +35,8 @@ const addProdukt = async (req, res, next) => {
     photos: req.body.photos,
     isAddPhoto: req.body.isAddPhoto,
     owner: req.user._id,
+    allowPickup: req.body.allowPickup,
+    pickupAddress: JSON.parse(req.body.pickupAddress),
   });
 
   res.status(201).json({ product });

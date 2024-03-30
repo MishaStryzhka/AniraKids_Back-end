@@ -79,6 +79,8 @@ const addProductSchemas = Joi.object({
     is: true,
     then: Joi.required(),
   }),
+  allowPickup: Joi.boolean(),
+  pickupAddress: Joi.string(),
   keyWord: Joi.string(),
   isAddPhoto: Joi.string().required().messages({
     'string.empty': 'Required field',

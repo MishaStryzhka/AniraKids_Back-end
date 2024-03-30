@@ -167,6 +167,8 @@ const productSchema = new Schema(
       enum: ['active', 'inactive'],
       default: 'active',
     },
+    allowPickup: Boolean,
+    pickupAddress: Object,
   },
   { versionKey: false, timestamps: true }
 );
