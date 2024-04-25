@@ -15,7 +15,6 @@ const getOrders = async (req, res, next) => {
       ],
     })
     .populate('owner', 'nickname');
-  console.log('orders', orders);
 
   const totalOrders = await Order.find({ userId }).length;
 

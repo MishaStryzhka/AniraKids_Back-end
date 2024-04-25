@@ -3,17 +3,24 @@ const Order = require('../../models/order');
 
 const addToOrder = async (req, res) => {
   const {
-    body: { productId, serviceType, price, owner, rentalPeriods },
+    body: {
+      productId,
+      serviceType,
+      price,
+      owner,
+      rentalPeriods,
+      typeRent,
+      pickupAddress,
+    },
     user: { _id: userId },
   } = req;
-
-  console.log('rentalPeriods', rentalPeriods);
 
   let currentOrder = await Order.findOne({
     userId: userId,
     owner: owner,
     serviceType: serviceType,
     rentalPeriods: rentalPeriods,
+    typeRent: typeRent,
   });
 
   if (!currentOrder) {
@@ -29,6 +36,9 @@ const addToOrder = async (req, res) => {
       ],
       owner,
       rentalPeriods,
+      pickupAddress,
+      typeRent,
+      // expireAt:
     });
   } else if (
     currentOrder.items.some(item => item.product.toString() === productId)

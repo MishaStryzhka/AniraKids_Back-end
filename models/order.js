@@ -18,7 +18,13 @@ const orderSchema = new mongoose.Schema({
   items: [cartItemSchema],
   createdAt: { type: Date, default: Date.now },
   rentalPeriods: { type: String },
+  pickupAddress: { type: Object },
   serviceType: { type: String, enum: ['buy', 'rent'], required: true },
+  typeRent: {
+    type: String,
+    enum: ['celebration', 'photosession'],
+    required: true,
+  },
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'user',

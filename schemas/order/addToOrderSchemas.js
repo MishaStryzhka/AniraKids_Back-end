@@ -9,6 +9,11 @@ const addToOrderSchema = Joi.object({
     is: 'rent',
     then: Joi.string().required(),
   }),
+  pickupAddress: Joi.object(),
+  typeRent: Joi.alternatives().conditional('serviceType', {
+    is: 'rent',
+    then: Joi.string().valid('celebration', 'photosession').required(),
+  }),
 });
 
 module.exports = addToOrderSchema;
