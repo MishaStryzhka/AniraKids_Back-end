@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { handleMongooseError } = require('../helpers');
+const handleMongooseRemoveInvalidOrder = require('../helpers/handleMongooseRemoveInvalidOrder');
 
 // Schema for an item in the cart
 const cartItemSchema = new mongoose.Schema({
@@ -23,7 +24,14 @@ const orderSchema = new mongoose.Schema({
     ref: 'user',
     required: true,
   },
+  status: {
+    type: String,
+    default: 'create',
+    enum: ['create', 'approved by owner', 'paid'],
+  },
 });
+
+orderSchema.post('save', handleMongooseRemoveInvalidOrder);
 
 orderSchema.post('save', handleMongooseError);
 
