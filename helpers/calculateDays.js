@@ -13,7 +13,7 @@ const calculateDays = rentalPeriods => {
   const difference = differenceInDays(endDate, startDate);
 
   // Повертаємо кількість днів
-  return difference;
+  return difference + 1;
 };
 
 module.exports = calculateDays;

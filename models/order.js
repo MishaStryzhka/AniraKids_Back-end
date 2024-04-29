@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { handleMongooseError } = require('../helpers');
+const { handleMongooseError, calculateDays } = require('../helpers');
 const handleMongooseRemoveInvalidOrder = require('../helpers/handleMongooseRemoveInvalidOrder');
 
 // Schema for an item in the cart
@@ -20,6 +20,9 @@ const orderSchema = new mongoose.Schema({
   rentalPeriods: { type: String },
   pickupAddress: { type: Object },
   serviceType: { type: String, enum: ['buy', 'rent'], required: true },
+  totalPrice: { type: Number },
+  totalOrderPrice: { type: Number },
+  quantityDays: { type: Number },
   typeRent: {
     type: String,
     enum: ['celebration', 'photosession'],
@@ -35,6 +38,27 @@ const orderSchema = new mongoose.Schema({
     default: 'create',
     enum: ['create', 'approved by owner', 'paid'],
   },
+});
+
+orderSchema.pre('save', function (next) {
+  const itemsTotalPrice = this.items.reduce(
+    (total, item) => total + item.quantity * item.price,
+    0
+  );
+  this.totalPrice = itemsTotalPrice;
+  next();
+});
+
+orderSchema.pre('save', function (next) {
+  const quantityDays = calculateDays(this.rentalPeriods);
+  this.quantityDays = quantityDays;
+  next();
+});
+
+orderSchema.pre('save', function (next) {
+  const totalOrderPrice = calculateDays(this.rentalPeriods) * this.totalPrice;
+  this.totalOrderPrice = totalOrderPrice;
+  next();
 });
 
 orderSchema.post('save', handleMongooseRemoveInvalidOrder);

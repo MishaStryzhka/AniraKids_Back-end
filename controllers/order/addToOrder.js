@@ -1,7 +1,7 @@
 const { calculateDays } = require('../../helpers');
 const Order = require('../../models/order');
 
-const addToOrder = async (req, res) => {
+const addToOrder = async (req, res, next) => {
   const {
     body: {
       productId,
@@ -43,10 +43,17 @@ const addToOrder = async (req, res) => {
   } else if (
     currentOrder.items.some(item => item.product.toString() === productId)
   ) {
-    const existingItem = currentOrder.items.find(
-      item => item.product.toString() === productId
-    );
-    existingItem.quantity++;
+    if (serviceType === 'rent') {
+      res.status(409).json({
+        message: 'Product already exists in the order',
+        orderId: currentOrder._id,
+      });
+    } else {
+      const existingItem = currentOrder.items.find(
+        item => item.product.toString() === productId
+      );
+      existingItem.quantity++;
+    }
   } else {
     currentOrder.items.push({
       product: productId,
