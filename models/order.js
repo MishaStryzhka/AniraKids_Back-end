@@ -1,6 +1,13 @@
 const mongoose = require('mongoose');
-const { handleMongooseError, calculateDays } = require('../helpers');
-const handleMongooseRemoveInvalidOrder = require('../helpers/handleMongooseRemoveInvalidOrder');
+const {
+  removeOrderIdInUsersCart,
+  setOrderIdInUsersCart,
+  setQuantityDays,
+  setTotalOrderPrice,
+  handleMongooseRemoveInvalidOrder,
+  setTotalPriceProducts,
+} = require('../helpers');
+const handleMongooseError = require('../helpers/handleMongooseError');
 
 // Schema for an item in the cart
 const cartItemSchema = new mongoose.Schema({
@@ -40,26 +47,15 @@ const orderSchema = new mongoose.Schema({
   },
 });
 
-orderSchema.pre('save', function (next) {
-  const itemsTotalPrice = this.items.reduce(
-    (total, item) => total + item.quantity * item.price,
-    0
-  );
-  this.totalPrice = itemsTotalPrice;
-  next();
-});
+orderSchema.pre(['save', 'findOneAndUpdate'], setOrderIdInUsersCart);
 
-orderSchema.pre('save', function (next) {
-  const quantityDays = calculateDays(this.rentalPeriods);
-  this.quantityDays = quantityDays;
-  next();
-});
+orderSchema.pre('deleteOne', removeOrderIdInUsersCart);
 
-orderSchema.pre('save', function (next) {
-  const totalOrderPrice = calculateDays(this.rentalPeriods) * this.totalPrice;
-  this.totalOrderPrice = totalOrderPrice;
-  next();
-});
+orderSchema.pre(['save', 'findOneAndUpdate'], setQuantityDays);
+
+orderSchema.pre(['save', 'findOneAndUpdate'], setTotalPriceProducts);
+
+orderSchema.pre(['save', 'findOneAndUpdate'], setTotalOrderPrice);
 
 orderSchema.post('save', handleMongooseRemoveInvalidOrder);
 

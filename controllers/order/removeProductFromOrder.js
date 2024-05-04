@@ -17,7 +17,9 @@ const removeProductFromOrder = async (req, res, next) => {
 
   await order.save();
 
-  res.status(200).json({ message: 'Product successfully removed from order' });
+  res
+    .status(200)
+    .json({ message: 'Product successfully removed from order', order });
 };
 
 module.exports = removeProductFromOrder;

@@ -29,6 +29,8 @@ const getCurrentUser = async (req, res, next) => {
       typeUser: user.typeUser,
       billingDetails: user.billingDetails,
       bankAccount: user.bankAccount,
+
+      cart: user.cart,
     },
   });
 };

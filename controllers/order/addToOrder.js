@@ -1,4 +1,3 @@
-const { calculateDays } = require('../../helpers');
 const Order = require('../../models/order');
 
 const addToOrder = async (req, res, next) => {
@@ -31,14 +30,13 @@ const addToOrder = async (req, res, next) => {
         {
           product: productId,
           price,
-          quantity: rentalPeriods ? calculateDays(rentalPeriods) : 1,
+          quantity: 1,
         },
       ],
       owner,
       rentalPeriods,
       pickupAddress,
       typeRent,
-      // expireAt:
     });
   } else if (
     currentOrder.items.some(item => item.product.toString() === productId)

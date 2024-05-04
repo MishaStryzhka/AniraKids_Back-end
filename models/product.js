@@ -1,5 +1,6 @@
 const { Schema, model } = require('mongoose');
-const { handleMongooseError, addsPopularity } = require('../helpers');
+const { addsPopularity } = require('../helpers');
+const handleMongooseError = require('../helpers/handleMongooseError');
 
 const categoryOptions = [
   'women`s category',
