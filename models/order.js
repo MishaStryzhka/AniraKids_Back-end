@@ -33,7 +33,6 @@ const orderSchema = new mongoose.Schema({
   typeRent: {
     type: String,
     enum: ['celebration', 'photosession'],
-    required: true,
   },
   owner: {
     type: mongoose.Schema.Types.ObjectId,

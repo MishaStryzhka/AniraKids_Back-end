@@ -89,13 +89,13 @@ const getProducts = async (req, res, next) => {
 
   const skip = (page - 1) * pageSize;
 
-  const products = await Product.find({ ...query })
+  const products = await Product.find({ ...query, status: 'active' })
     .sort(sortCriteria)
     .skip(skip)
     .limit(pageSize)
     .populate('owner', 'nickname avatar rating ratingCount');
 
-  const totalProducts = await Product.find(query)
+  const totalProducts = await Product.find({ ...query, status: 'active' })
     .sort(sortCriteria)
     .skip(skip)
     .limit(pageSize).length;

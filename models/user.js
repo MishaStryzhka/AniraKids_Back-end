@@ -207,6 +207,7 @@ const userSchema = new Schema(
     },
     favorites: [{ type: Schema.Types.ObjectId, ref: 'product', unique: true }],
     cart: [{ type: Schema.Types.ObjectId, ref: 'order', unique: true }],
+    pickupAddresses: [Object],
   },
   { versionKey: false, timestamps: true }
 );

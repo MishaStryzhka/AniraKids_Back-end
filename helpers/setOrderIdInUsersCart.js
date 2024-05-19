@@ -8,7 +8,7 @@ const setOrderIdInUsersCart = async function (next) {
       throw new Error('User not found');
     }
 
-    if (!user.cart.includes(this._id)) {
+    if (!user?.cart?.includes(this._id)) {
       user.cart.push(this._id);
       await user.save();
     }
