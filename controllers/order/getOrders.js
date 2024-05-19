@@ -10,7 +10,7 @@ const getOrders = async (req, res, next) => {
       populate: [
         {
           path: 'product',
-          select: 'photos name price',
+          select: 'photos name price status',
         },
       ],
     })
