@@ -1,10 +1,10 @@
 const Joi = require('joi');
 
 const categoryOptions = [
-  'women`s category',
-  'men`s category',
-  'children`s category',
-  'decoration category',
+  'forWomen', // 'women`s category'
+  'forMen', // 'men`s category'
+  'forChildren', // 'children`s category'
+  'decorAndToys', // 'decoration category'
 ];
 
 const addProductSchemas = Joi.object({
@@ -46,7 +46,7 @@ const addProductSchemas = Joi.object({
   familyLook: Joi.string(),
   isPregnancy: Joi.boolean(),
   size: Joi.string().when('category', {
-    is: Joi.valid('women`s category', 'men`s category'),
+    is: Joi.valid('forWomen', 'forMen'),
     then: Joi.required(),
   }),
   subject: Joi.string(),
@@ -56,11 +56,11 @@ const addProductSchemas = Joi.object({
     'any.required': 'Required field',
   }),
   age: Joi.string().when('category', {
-    is: 'children`s category',
+    is: 'forChildren',
     then: Joi.required(),
   }),
   childSize: Joi.string().when('category', {
-    is: 'children`s category',
+    is: 'forChildren',
     then: Joi.required(),
   }),
   decor: Joi.string(),

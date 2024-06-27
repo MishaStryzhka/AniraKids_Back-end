@@ -3,10 +3,10 @@ const { addsPopularity } = require('../helpers');
 const handleMongooseError = require('../helpers/handleMongooseError');
 
 const categoryOptions = [
-  'women`s category',
-  'men`s category',
-  'children`s category',
-  'decoration category',
+  'forWomen', // 'women`s category'
+  'forMen', // 'men`s category'
+  'forChildren', // 'children`s category'
+  'decorAndToys', // 'decoration category'
 ];
 
 const subjectOptions = [
