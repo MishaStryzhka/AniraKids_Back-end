@@ -4,15 +4,10 @@ const setQuantity = async (req, res, next) => {
   const { _id: userId } = req.user;
   const { productId, quantity } = req.body;
 
-  const updatedOrder = await Order.findOneAndUpdate(
-    { userId, 'items._id': productId },
-    {
-      $set: {
-        'items.$.quantity': quantity,
-      },
-    },
-    { new: true, upsert: true }
-  ).populate({
+  const order = await Order.findOne({
+    userId,
+    'items._id': productId,
+  }).populate({
     path: 'items',
     select: 'product serviceType quantity price owner',
     populate: [
@@ -27,11 +22,20 @@ const setQuantity = async (req, res, next) => {
     ],
   });
 
-  const updatedItem = updatedOrder.items.find(
-    item => item._id.toString() === productId
-  );
+  if (!order) {
+    next(HttpError(404, 'Order not found'));
+  }
 
-  res.status(201).json({ updatedItem });
+  // Оновлення кількості товарів в замовленні
+  const updatedItem = order.items.find(item => item._id.equals(productId));
+
+  if (updatedItem) {
+    updatedItem.quantity = quantity;
+    await order.save();
+    res.status(201).json({ order, updatedItem });
+  } else {
+    next(HttpError(404, 'Item not found in order'));
+  }
 };
 
 module.exports = setQuantity;

@@ -11,7 +11,9 @@ const removeOrderIdInUsersCart = async function (next) {
     if (!user) {
       throw new Error('User not found');
     }
-    user.cart = user.cart.filter(cartOrder => !cartOrder.equals(order._id));
+    user.cart = user.cart.filter(cartOrder => {
+      return !cartOrder?.equals(order._id);
+    });
     await user.save();
 
     next();

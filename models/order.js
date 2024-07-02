@@ -17,7 +17,11 @@ const cartItemSchema = new mongoose.Schema({
     required: true,
   },
   quantity: { type: Number, default: 1 },
-  price: { type: Number, required: true },
+  price: {
+    dailyRentalPrice: { type: Number },
+    hourlyRentalPrice: { type: Number },
+    salePrice: { type: Number },
+  },
 });
 
 const orderSchema = new mongoose.Schema({
@@ -30,6 +34,7 @@ const orderSchema = new mongoose.Schema({
   totalPrice: { type: Number },
   totalOrderPrice: { type: Number },
   quantityDays: { type: Number },
+  quantityHours: { type: Number },
   typeRent: {
     type: String,
     enum: ['celebration', 'photosession'],

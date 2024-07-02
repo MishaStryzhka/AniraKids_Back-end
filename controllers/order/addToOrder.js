@@ -1,3 +1,4 @@
+const { User } = require('../../models');
 const Order = require('../../models/order');
 
 const addToOrder = async (req, res, next) => {
@@ -33,6 +34,7 @@ const addToOrder = async (req, res, next) => {
           quantity: 1,
         },
       ],
+      quantityHours: typeRent === 'photosession' ? 5 : null,
       owner,
       rentalPeriods,
       pickupAddress,
@@ -59,8 +61,12 @@ const addToOrder = async (req, res, next) => {
       quantity: 1,
     });
   }
+
   await currentOrder.save();
-  res.status(200).json(currentOrder);
+
+  const user = await User.findById(userId);
+
+  res.status(200).json({ currentOrder, userCart: user.cart });
 };
 
 module.exports = addToOrder;

@@ -2,7 +2,7 @@ const Joi = require('joi');
 
 const addToOrderSchema = Joi.object({
   productId: Joi.string().required(),
-  price: Joi.number().required(),
+  price: Joi.required(),
   owner: Joi.string().required(),
   serviceType: Joi.string().valid('buy', 'rent').required(),
   rentalPeriods: Joi.alternatives().conditional('serviceType', {
