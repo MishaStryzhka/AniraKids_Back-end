@@ -1,4 +1,3 @@
-const { User } = require('../../models');
 const Order = require('../../models/order');
 
 const addToOrder = async (req, res, next) => {
@@ -64,9 +63,7 @@ const addToOrder = async (req, res, next) => {
 
   await currentOrder.save();
 
-  const user = await User.findById(userId);
-
-  res.status(200).json({ currentOrder, userCart: user.cart });
+  res.status(200).json({ currentOrder });
 };
 
 module.exports = addToOrder;
