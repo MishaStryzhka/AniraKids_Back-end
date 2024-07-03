@@ -1,3 +1,4 @@
+const { HttpError } = require('../../helpers');
 const { Order } = require('../../models');
 
 const setQuantity = async (req, res, next) => {
@@ -7,20 +8,22 @@ const setQuantity = async (req, res, next) => {
   const order = await Order.findOne({
     userId,
     'items._id': productId,
-  }).populate({
-    path: 'items',
-    select: 'product serviceType quantity price owner',
-    populate: [
-      {
-        path: 'owner',
-        select: 'nickname',
-      },
-      {
-        path: 'product',
-        select: 'photos name price',
-      },
-    ],
-  });
+  })
+    .populate({
+      path: 'items',
+      select: 'product serviceType quantity price owner',
+      populate: [
+        {
+          path: 'owner',
+          select: 'nickname',
+        },
+        {
+          path: 'product',
+          select: 'photos name price status',
+        },
+      ],
+    })
+    .populate('owner', 'nickname');
 
   if (!order) {
     next(HttpError(404, 'Order not found'));
