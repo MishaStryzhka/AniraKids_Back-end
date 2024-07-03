@@ -1,19 +1,50 @@
 const setTotalPriceProducts = function (next) {
-  // Перевірка, чи this.items є масивом і чи містить елементи
-  if (!Array.isArray(this.items) || this.items.length === 0) {
-    throw new Error('Items array is empty or not an array');
+  console.log('this', this);
+  const { serviceType, typeRent, quantityDays, quantityHours } = this;
+
+  // ==================================
+  // =========== celebration ==========
+  // ==================================
+
+  if (serviceType === 'rent' && typeRent === 'celebration') {
+    // Обчислення загальної вартості продуктів
+    const itemsTotalPrice = this.items.reduce((total, item) => {
+      return total + item.quantity * item.price.dailyRentalPrice * quantityDays; // Обчислюємо загальну вартість для кожного продукту
+    }, 0);
+    // Оновлення поля totalPrice у документі
+    this.totalPrice = itemsTotalPrice;
   }
 
-  // Обчислення загальної вартості продуктів
-  const itemsTotalPrice = this.items.reduce((total, item) => {
-    const itemPrice = (item.price && item.price.salePrice) || 0; // Отримуємо ціну продукту з урахуванням можливих варіантів
-    return total + item.quantity * itemPrice; // Обчислюємо загальну вартість для кожного продукту
-  }, 0);
+  // ==================================
+  // =========== photosession =========
+  // ==================================
 
-  // Оновлення поля totalPrice у документі
-  this.totalPrice = itemsTotalPrice;
+  if (serviceType === 'rent' && typeRent === 'photosession') {
+    // Обчислення загальної вартості продуктів
+    const itemsTotalPrice = this.items.reduce((total, item) => {
+      console.log('item', item);
 
-  console.log('this', this);
+      return (
+        total + item.quantity * item.price.hourlyRentalPrice * quantityHours
+      ); // Обчислюємо загальну вартість для кожного продукту
+    }, 0);
+    // Оновлення поля totalPrice у документі
+    this.totalPrice = itemsTotalPrice;
+  }
+
+  // ==================================
+  // ============== buy ===============
+  // ==================================
+
+  if (serviceType === 'buy') {
+    // Обчислення загальної вартості продуктів
+    const itemsTotalPrice = this.items.reduce((total, item) => {
+      return total + item.quantity * item.price.salePrice; // Обчислюємо загальну вартість для кожного продукту
+    }, 0);
+
+    // Оновлення поля totalPrice у документі
+    this.totalPrice = itemsTotalPrice;
+  }
 
   next(); // Викликаємо наступну функцію у потоці
 };
