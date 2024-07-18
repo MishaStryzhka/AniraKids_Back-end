@@ -2,12 +2,10 @@ const { HttpError } = require('../../helpers');
 const { Order } = require('../../models');
 
 const setQuantityHours = async (req, res, next) => {
-  const { _id: userId } = req.user;
   const { orderId, quantityHours } = req.body;
 
   const order = await Order.findOne({
-    userId,
-    orderId,
+    _id: orderId,
   })
     .populate({
       path: 'items',
