@@ -2,6 +2,8 @@ const { User } = require('../../models');
 const Product = require('../../models/product');
 
 const addProdukt = async (req, res, next) => {
+  console.log('req.files.photos', req.files.photos);
+
   if (req.files.photos && req.files.photos.length > 0) {
     req.body.photos = req.files.photos.map(el => ({
       path: el.path,
@@ -20,10 +22,13 @@ const addProdukt = async (req, res, next) => {
     ...req.body,
     dailyRentalPrice: parseFloat(req.body.dailyRentalPrice) || null,
     hourlyRentalPrice: parseFloat(req.body.hourlyRentalPrice) || null,
+    deposit: parseFloat(req.body.deposit) || null,
     salePrice: parseFloat(req.body.salePrice) || null,
     owner: req.user._id,
     pickupAddress,
   });
+
+  console.log('product', product);
 
   res.status(201).json({ product });
 };

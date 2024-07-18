@@ -9,6 +9,7 @@ const categoryOptions = [
 
 const addProductSchemas = Joi.object({
   brand: Joi.string(),
+  metaData: Joi.string(),
   videoUrl: Joi.string()
     .pattern(
       /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})$/
@@ -72,6 +73,10 @@ const addProductSchemas = Joi.object({
     then: Joi.required(),
   }),
   hourlyRentalPrice: Joi.number().when('rental', {
+    is: true,
+    then: Joi.required(),
+  }),
+  deposit: Joi.number().when('rental', {
     is: true,
     then: Joi.required(),
   }),

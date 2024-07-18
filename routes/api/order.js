@@ -8,6 +8,7 @@ const {
   addToOrderSchema,
   setQuantitySchema,
   setQuantityHoursSchema,
+  orderConfirmByUserSchema,
 } = require('../../schemas/order');
 
 router.post(
@@ -29,6 +30,12 @@ router.patch(
   authenticate,
   validateBody(setQuantityHoursSchema),
   ctrl.setQuantityHours
+);
+router.patch(
+  '/confirm_by_user/:orderId',
+  authenticate,
+  validateBody(orderConfirmByUserSchema),
+  ctrl.orderConfirmByUser
 );
 
 router.delete('/remove_orders', authenticate, ctrl.removeOrder);

@@ -14,6 +14,8 @@ const addToOrder = async (req, res, next) => {
     user: { _id: userId },
   } = req;
 
+  console.log('pickupAddress', pickupAddress);
+
   let currentOrder = await Order.findOne({
     userId: userId,
     owner: owner,

@@ -20,6 +20,13 @@ router.post(
   validateBody(addProductSchemas),
   ctrl.addProdukt
 );
+router.patch(
+  '/updateProduct/:productId',
+  authenticate,
+  upload.fields([{ name: 'photos', maxCount: 10 }]),
+  validateBody(addProductSchemas),
+  ctrl.updateProdukt
+);
 
 router.get(
   '/getCurrentUserProducts',

@@ -71,13 +71,13 @@ const productSchema = new Schema(
       required: true,
     },
     age: {
-      type: String,
+      type: Array,
       required: function () {
         return this.category === 'children`s category';
       },
     },
     childSize: {
-      type: String,
+      type: Array,
       required: function () {
         return this.category === 'children`s category';
       },
@@ -93,6 +93,12 @@ const productSchema = new Schema(
       },
     },
     hourlyRentalPrice: {
+      type: Number,
+      required: function () {
+        return this.rental === true;
+      },
+    },
+    deposit: {
       type: Number,
       required: function () {
         return this.rental === true;
