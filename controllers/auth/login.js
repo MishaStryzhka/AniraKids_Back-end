@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const geoip = require('geoip-lite');
 
 const { HttpError } = require('../../helpers');
 const { User } = require('../../models');
