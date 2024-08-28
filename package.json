@@ -19,6 +19,7 @@
     "dotenv": "^16.3.1",
     "express": "4.17.1",
     "express-session": "^1.17.3",
+    "geoip-lite": "^1.4.10",
     "joi": "^17.9.2",
     "jsonwebtoken": "^9.0.0",
     "jwt-decode": "^4.0.0",

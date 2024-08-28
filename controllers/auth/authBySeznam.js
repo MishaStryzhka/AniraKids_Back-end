@@ -1,6 +1,7 @@
 const { default: axios } = require('axios');
 const { User } = require('../../models');
 const jwt = require('jsonwebtoken');
+const geoip = require('geoip-lite');
 
 const { SECRET_KEY, SEZNAM_CLIENT_SECRET, SEZNAM_CLIENT_ID } = process.env;
 
@@ -21,28 +22,61 @@ const authBySeznam = async (req, res) => {
 
   const { account_name: email } = resSeznam.data;
 
-  let dataUser = await User.findOne({ email });
-  if (!dataUser) {
+  let user = await User.findOne({ email });
+  if (!user) {
     await User.create({
       email,
       provider: 'seznam',
     });
 
-    dataUser = User.findOne({ email });
+    user = User.findOne({ email });
   }
 
   const payload = {
-    id: dataUser._id,
+    id: user._id,
   };
 
   const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '23h' });
 
-  await User.findByIdAndUpdate(dataUser._id, { token });
+  // ================ existing Device ====================
+  const deviceInfo = {
+    userAgent: req.headers['user-agent'],
+    platform: req.headers['sec-ch-ua-platform'],
+    host: req.headers.host,
+  };
 
-  const { createdAt, updatedAt, token: _, ...user } = dataUser._doc;
+  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const geo = geoip.lookup(ip);
+
+  if (geo) {
+    deviceInfo.location = {
+      country: geo.country,
+      city: geo.city,
+    };
+  } else {
+    deviceInfo.location = 'Geolocation could not be determined.';
+  }
+
+  const existingDeviceIndex = user.tokens.findIndex(
+    item =>
+      item.device.userAgent === deviceInfo.userAgent &&
+      item.device.platform === deviceInfo.platform &&
+      item.device.host === deviceInfo.host
+  );
+
+  if (existingDeviceIndex !== -1) {
+    user.tokens[existingDeviceIndex].token = token;
+    user.tokens[existingDeviceIndex].lastLogin = new Date();
+  } else {
+    user.tokens.push({ token, device: deviceInfo, lastLogin: new Date() });
+  }
+
+  await user.save();
+
+  const { createdAt, updatedAt, tokens, token: _, ...userData } = user._doc;
 
   res.status(201).json({
-    user,
+    user: userData,
     token,
   });
 };

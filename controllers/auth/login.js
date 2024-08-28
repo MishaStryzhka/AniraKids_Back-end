@@ -29,7 +29,41 @@ const login = async (req, res) => {
 
   const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '23h' });
 
-  await User.findByIdAndUpdate(user._id, { token });
+  // ================ existing Device ====================
+  const deviceInfo = {
+    userAgent: req.headers['user-agent'],
+    platform: req.headers['sec-ch-ua-platform'],
+    host: req.headers.host,
+  };
+
+  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const geo = geoip.lookup(ip);
+
+  if (geo) {
+    deviceInfo.location = {
+      country: geo.country,
+      city: geo.city,
+    };
+  } else {
+    deviceInfo.location = 'Geolocation could not be determined.';
+  }
+
+  const existingDeviceIndex = user.tokens.findIndex(
+    item =>
+      item.device.userAgent === deviceInfo.userAgent &&
+      item.device.platform === deviceInfo.platform &&
+      item.device.host === deviceInfo.host
+  );
+
+  if (existingDeviceIndex !== -1) {
+    user.tokens[existingDeviceIndex].token = token;
+    user.tokens[existingDeviceIndex].lastLogin = new Date();
+  } else {
+    user.tokens.push({ token, device: deviceInfo, lastLogin: new Date() });
+  }
+
+  await user.save();
+
   req.user = user;
 
   res.status(201).json({

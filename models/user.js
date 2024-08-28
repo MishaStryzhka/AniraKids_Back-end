@@ -87,6 +87,13 @@ const userSchema = new Schema(
     token: {
       type: String,
     },
+    tokens: [
+      {
+        token: { type: String, required: true },
+        device: { type: Object, required: true },
+        lastLogin: { type: Date, default: Date.now },
+      },
+    ],
     typeUser: {
       type: String,
       enum: ['renter', 'owner'],

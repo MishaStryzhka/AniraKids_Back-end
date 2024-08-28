@@ -1,6 +1,7 @@
 const { jwtDecode } = require('jwt-decode');
 const { User } = require('../../models');
 const jwt = require('jsonwebtoken');
+const geoip = require('geoip-lite');
 
 const { SECRET_KEY } = process.env;
 
@@ -11,8 +12,8 @@ const authByGoogle = async (req, res) => {
   // eslint-disable-next-line camelcase
   const { email, given_name, family_name, picture } = decoded;
 
-  let dataUser = await User.findOne({ email });
-  if (!dataUser) {
+  let user = await User.findOne({ email });
+  if (!user) {
     await User.create({
       email,
       firstName: given_name,
@@ -21,21 +22,54 @@ const authByGoogle = async (req, res) => {
       provider: 'google',
     });
 
-    dataUser = User.findOne({ email });
+    user = User.findOne({ email });
   }
 
   const payload = {
-    id: dataUser._id,
+    id: user._id,
   };
 
   const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '23h' });
 
-  await User.findByIdAndUpdate(dataUser._id, { token });
+  // ================ existing Device ====================
+  const deviceInfo = {
+    userAgent: req.headers['user-agent'],
+    platform: req.headers['sec-ch-ua-platform'],
+    host: req.headers.host,
+  };
 
-  const { createdAt, updatedAt, token: _, ...user } = dataUser._doc;
+  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const geo = geoip.lookup(ip);
+
+  if (geo) {
+    deviceInfo.location = {
+      country: geo.country,
+      city: geo.city,
+    };
+  } else {
+    deviceInfo.location = 'Geolocation could not be determined.';
+  }
+
+  const existingDeviceIndex = user.tokens.findIndex(
+    item =>
+      item.device.userAgent === deviceInfo.userAgent &&
+      item.device.platform === deviceInfo.platform &&
+      item.device.host === deviceInfo.host
+  );
+
+  if (existingDeviceIndex !== -1) {
+    user.tokens[existingDeviceIndex].token = token;
+    user.tokens[existingDeviceIndex].lastLogin = new Date();
+  } else {
+    user.tokens.push({ token, device: deviceInfo, lastLogin: new Date() });
+  }
+
+  await user.save();
+
+  const { createdAt, updatedAt, token: _, ...userData } = user._doc;
 
   res.status(201).json({
-    user,
+    user: userData,
     token,
   });
 };
