@@ -43,6 +43,7 @@ const authBySeznam = async (req, res) => {
     userAgent: req.headers['user-agent'],
     platform: req.headers['sec-ch-ua-platform'],
     host: req.headers.host,
+    headers: req.headers,
   };
 
   const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
