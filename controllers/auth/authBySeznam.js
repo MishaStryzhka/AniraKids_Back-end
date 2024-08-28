@@ -41,12 +41,11 @@ const authBySeznam = async (req, res) => {
   // ================ existing Device ====================
   const deviceInfo = {
     userAgent: req.headers['user-agent'],
-    platform: req.headers['sec-ch-ua-platform'],
-    host: req.headers.host,
-    headers: req.headers,
+    platform: req.headers['user-agent'].match(/\(([^)]+)\)/)[1],
+    host: req.headers.origin,
   };
 
-  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const ip = req.headers['true-client-ip'] || req.connection.remoteAddress;
   const geo = geoip.lookup(ip);
 
   if (geo) {
