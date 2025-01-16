@@ -13,8 +13,9 @@ const addToOrder = async (req, res, next) => {
     },
     user: { _id: userId },
   } = req;
+  console.log('price', price);
 
-  console.log('pickupAddress', pickupAddress);
+  // console.log('pickupAddress', pickupAddress);
 
   let currentOrder = await Order.findOne({
     userId: userId,
