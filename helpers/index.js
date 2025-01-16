@@ -8,6 +8,7 @@ const removeOrderIdInUsersCart = require('./removeOrderIdInUsersCart');
 const sendEmail = require('./sendEmail');
 const setOrderIdInUsersCart = require('./setOrderIdInUsersCart');
 const setQuantityDays = require('./setQuantityDays');
+const setTotalOrderDeposit = require('./setTotalOrderDeposit');
 const setTotalOrderPrice = require('./setTotalOrderPrice');
 const setTotalPriceProducts = require('./setTotalPriceProducts');
 
@@ -24,4 +25,5 @@ module.exports = {
   setQuantityDays,
   setTotalOrderPrice,
   setTotalPriceProducts,
+  setTotalOrderDeposit,
 };

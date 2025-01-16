@@ -1,5 +1,4 @@
 const setTotalPriceProducts = function (next) {
-  console.log('this', this);
   const { serviceType, typeRent, quantityDays, quantityHours } = this;
 
   // ==================================

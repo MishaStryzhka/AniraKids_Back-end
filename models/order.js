@@ -6,6 +6,7 @@ const {
   setTotalOrderPrice,
   handleMongooseRemoveInvalidOrder,
   setTotalPriceProducts,
+  setTotalOrderDeposit,
 } = require('../helpers');
 const handleMongooseError = require('../helpers/handleMongooseError');
 
@@ -21,6 +22,7 @@ const cartItemSchema = new mongoose.Schema({
     dailyRentalPrice: { type: Number },
     hourlyRentalPrice: { type: Number },
     salePrice: { type: Number },
+    deposit: { type: Number },
   },
 });
 
@@ -42,6 +44,7 @@ const orderSchema = new mongoose.Schema({
   pickupAddress: { type: Object },
   serviceType: { type: String, enum: ['buy', 'rent'], required: true },
   totalPrice: { type: Number },
+  totalDeposit: { type: Number },
   totalOrderPrice: { type: Number },
   quantityDays: { type: Number },
   quantityHours: { type: Number },
@@ -95,6 +98,8 @@ orderSchema.pre(['save', 'findOneAndUpdate'], setQuantityDays);
 orderSchema.pre(['save', 'findOneAndUpdate'], setTotalPriceProducts);
 
 orderSchema.pre(['save', 'findOneAndUpdate'], setTotalOrderPrice);
+
+orderSchema.pre(['save', 'findOneAndUpdate'], setTotalOrderDeposit);
 
 orderSchema.post('save', handleMongooseRemoveInvalidOrder);
 
