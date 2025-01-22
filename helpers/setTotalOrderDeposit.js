@@ -1,5 +1,3 @@
-const calculateDays = require('./calculateDays');
-
 const setTotalOrderDeposit = function (next) {
   if (this.serviceType === 'rent') {
     console.log('qqq');

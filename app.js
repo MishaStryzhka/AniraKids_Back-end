@@ -3,6 +3,8 @@ const logger = require('morgan');
 const cors = require('cors');
 const moment = require('moment');
 
+require('./cron'); // Імпорт CRON-завдань
+
 // const passport = require('passport');
 // const session = require('express-session');
 
