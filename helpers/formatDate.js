@@ -1,6 +1,6 @@
 const formatDate = date => {
-  const qwe = date.split('.');
-  return `${qwe[1]}.${qwe[0]}.${qwe[2]}`;
+  const dateArray = date.split('.');
+  return `${dateArray[1]}.${dateArray[0]}.${dateArray[2]}`;
 }; // 'MM.dd.yyyy'
 
 module.exports = formatDate;

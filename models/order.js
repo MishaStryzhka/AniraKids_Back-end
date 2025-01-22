@@ -40,7 +40,23 @@ const orderSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: true },
   items: [cartItemSchema],
   createdAt: { type: Date, default: Date.now },
-  rentalPeriods: { type: String },
+  rentalPeriods: {
+    type: String,
+    validate: {
+      validator: function (v) {
+        // Поле обов'язкове тільки якщо serviceType === 'rent'
+        if (this.serviceType === 'rent') {
+          return /^(\d{2}\.\d{2}\.\d{4})(-\d{2}\.\d{2}\.\d{4})?$/.test(v);
+        }
+        return true; // Якщо serviceType !== 'rent', валідація проходить
+      },
+      message:
+        'Invalid rentalPeriods format. Use DD.MM.YYYY or DD.MM.YYYY-DD.MM.YYYY.',
+    },
+    required: function () {
+      return this.serviceType === 'rent'; // Поле обов'язкове, якщо serviceType === 'rent'
+    },
+  },
   pickupAddress: { type: Object },
   serviceType: { type: String, enum: ['buy', 'rent'], required: true },
   totalPrice: { type: Number },
@@ -62,6 +78,7 @@ const orderSchema = new mongoose.Schema({
     default: 'create',
     enum: [
       'create',
+      'abandoned',
       'pending',
       'pending by owner',
       'approved by owner',
@@ -146,3 +163,6 @@ module.exports = Order;
 // 8. Інші Можливі Статуси
 // --- on hold - замовлення на паузі (можливо через клієнтське звернення або інші причини).
 // --- issue reported - повідомлення про проблему із замовленням.
+
+// 9. Незавершені Замовлення
+// --- abandoned - замовлення залишене (користувач почав створення, але не завершив до закінчення терміну дії).
