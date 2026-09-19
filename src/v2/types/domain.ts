@@ -173,6 +173,8 @@ export interface Reservation {
   reservationNumber: string;
   customerId?: Types.ObjectId;
   guestAccessTokenHash?: string;
+  idempotencyKeyHash?: string;
+  idempotencyRequestHash?: string;
   customerSnapshot: CustomerSnapshot;
   items: ReservationItem[];
   rentalMode: RentalMode;

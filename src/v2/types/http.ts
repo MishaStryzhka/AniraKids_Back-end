@@ -1,5 +1,9 @@
 import type { Types } from 'mongoose';
 
+import type {
+  TrustedReservationIdempotencyContext,
+} from '../services/reservation.types';
+
 export interface JsonResponse {
   status(code: number): JsonResponse;
   json(body: unknown): unknown;
@@ -10,6 +14,8 @@ export interface HttpRequest {
   headers: Record<string, string | string[] | undefined>;
   authenticatedUserId?: Types.ObjectId;
   reservationRequestNow?: Date;
+  reservationIdempotencyKey?: string;
+  reservationIdempotency?: TrustedReservationIdempotencyContext;
 }
 
 export type HttpNext = (error?: unknown) => unknown;
