@@ -1,6 +1,6 @@
 import type { DateOnlyString } from '../types/domain';
 
-const DATE_ONLY_PATTERN = /^(\\d{4})-(\\d{2})-(\\d{2})$/;
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const BUSINESS_TIME_ZONE = 'Europe/Prague';
 
