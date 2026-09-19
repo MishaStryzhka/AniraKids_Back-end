@@ -10,6 +10,7 @@ const {
   toPublicCreateReservationResponse,
 } = require('../build/v2/http/reservation-response');
 const {
+  normalizeReservationEmail,
   parseOptionalBearerAuthorization,
   rejectMalformedOptionalAuthorization,
   reservationApiEnabled,
@@ -266,6 +267,11 @@ const createFakeResponse = () => ({
 });
 
 const checkOptionalAuthAndFeatureFlag = () => {
+  assertEqual(
+    normalizeReservationEmail('  ANNA@EXAMPLE.CZ  '),
+    'anna@example.cz',
+    'active pending email normalization must trim and lowercase'
+  );
   assertEqual(
     parseOptionalBearerAuthorization(undefined).kind,
     'guest',
