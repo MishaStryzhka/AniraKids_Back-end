@@ -153,9 +153,13 @@ export const createReservationAtomically = async (
   );
   const session = await InventoryItemV2Model.db.startSession();
 
+  let createdReservation: HydratedDocument<Reservation> | undefined;
+
   try {
-    const reservation = await session.withTransaction(
+    await session.withTransaction(
       async () => {
+        createdReservation = undefined;
+
         const lockedIds = await acquireInventoryItemSerializationPoints(
           inventoryItemIds,
           session
@@ -173,8 +177,7 @@ export const createReservationAtomically = async (
         const reservationDocument = new ReservationV2Model(reservationData);
 
         await reservationDocument.save({ session });
-
-        return reservationDocument;
+        createdReservation = reservationDocument;
       },
       {
         readConcern: {
@@ -186,11 +189,11 @@ export const createReservationAtomically = async (
       }
     );
 
-    if (!reservation) {
+    if (!createdReservation) {
       throw new Error('Reservation transaction completed without a document');
     }
 
-    return reservation;
+    return createdReservation;
   } finally {
     await session.endSession();
   }
@@ -204,9 +207,13 @@ export const createAvailabilityBlockAtomically = async (
   const now = resolveNow(input.now);
   const session = await InventoryItemV2Model.db.startSession();
 
+  let createdBlock: HydratedDocument<AvailabilityBlock> | undefined;
+
   try {
-    const block = await session.withTransaction(
+    await session.withTransaction(
       async () => {
+        createdBlock = undefined;
+
         const [lockedInventoryItemId] =
           await acquireInventoryItemSerializationPoints(
             [input.inventoryItemId],
@@ -225,8 +232,7 @@ export const createAvailabilityBlockAtomically = async (
         const blockDocument = new AvailabilityBlockV2Model(blockData);
 
         await blockDocument.save({ session });
-
-        return blockDocument;
+        createdBlock = blockDocument;
       },
       {
         readConcern: {
@@ -238,13 +244,13 @@ export const createAvailabilityBlockAtomically = async (
       }
     );
 
-    if (!block) {
+    if (!createdBlock) {
       throw new Error(
         'Availability block transaction completed without a document'
       );
     }
 
-    return block;
+    return createdBlock;
   } finally {
     await session.endSession();
   }
