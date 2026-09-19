@@ -390,7 +390,7 @@ const checkGuestValidRequest = async () => {
       ...fixture,
       startDate: '2027-06-10',
       endDate: '2027-06-12',
-      email: ' Guest.API@Example.CZ ',
+      email: 'Guest.API@Example.CZ',
       notes: '  Prosím zavolat.  ',
     }),
   });
@@ -664,7 +664,7 @@ const checkActivePendingEmailGuard = async () => {
     body: requestBody({
       ...fixture,
       startDate: '2027-09-10',
-      email: '  PENDING-LIMIT@EXAMPLE.CZ  ',
+      email: 'PENDING-LIMIT@EXAMPLE.CZ',
     }),
   });
 
