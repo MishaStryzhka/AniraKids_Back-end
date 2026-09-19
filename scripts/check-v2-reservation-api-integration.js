@@ -843,18 +843,46 @@ const main = async () => {
 
     server = await startServer(createTestApp());
 
-    await checkGuestValid(server);
-    await checkTrustedFieldInjection(server);
-    await checkInvalidAndPastDates(server);
-    await checkNotFoundMismatchAndNoInventory(server);
-    await checkInvalidBearerDoesNotFallback(server);
-    await checkAuthenticatedUser(server);
-    await checkMissingAuthorizationGuest(server);
-    await checkPendingEmailGuard(server);
-    await checkExpiredPendingDoesNotCount(server);
-    await checkDisabledApiNoWrite(server);
+    const group = process.argv[2] ?? 'all';
 
-    console.log('Phase 1G reservation API integration checks passed');
+    const groups = {
+      basics: async () => {
+        await checkGuestValid(server);
+        await checkTrustedFieldInjection(server);
+        await checkInvalidAndPastDates(server);
+        await checkNotFoundMismatchAndNoInventory(server);
+      },
+      auth: async () => {
+        await checkInvalidBearerDoesNotFallback(server);
+        await checkAuthenticatedUser(server);
+        await checkMissingAuthorizationGuest(server);
+      },
+      pending: async () => {
+        await checkPendingEmailGuard(server);
+        await checkExpiredPendingDoesNotCount(server);
+      },
+      disabled: async () => {
+        await checkDisabledApiNoWrite(server);
+      },
+    };
+
+    if (group === 'all') {
+      for (const runGroup of Object.values(groups)) {
+        await runGroup();
+      }
+    } else {
+      const runGroup = groups[group];
+
+      if (!runGroup) {
+        throw new Error(`Unknown Phase 1G integration test group: ${group}`);
+      }
+
+      await runGroup();
+    }
+
+    console.log(
+      `Phase 1G reservation API integration checks passed: ${group}`
+    );
   } finally {
     if (server) {
       await closeServer(server);
