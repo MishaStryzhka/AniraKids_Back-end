@@ -13,7 +13,8 @@
     "vercel-build": "npm run typecheck && npm run build:v2 && npm run check:v2-models && npm run check:v2-utils && npm run check:v2-availability",
     "check:v2-utils": "node scripts/check-v2-utils.js",
     "check:v2-availability": "node scripts/check-v2-availability.js",
-    "check:v2-availability:integration": "npm run build:v2 && node scripts/check-v2-availability-integration.js"
+    "check:v2-availability:integration": "npm run build:v2 && node scripts/check-v2-availability-integration.js",
+    "check:v2-concurrency:integration": "npm run build:v2 && node scripts/check-v2-concurrency-integration.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.0",
