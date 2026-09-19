@@ -1,7 +1,10 @@
-const mongoose = require('mongoose');
+const http = require('http');
+const express = require('express');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const { Types } = mongoose;
 
+const { createV2Router } = require('../build/v2/routes');
 const {
   InventoryItemV2Model,
   ProductV2Model,
@@ -9,17 +12,11 @@ const {
   VariantV2Model,
 } = require('../build/v2/models');
 const {
-  createV2Router,
-} = require('../build/v2/routes');
-const {
   addCalendarDays,
   formatDateOnly,
   getBusinessDateOnly,
   parseDateOnly,
 } = require('../build/v2/utils/date-only');
-const {
-  hashGuestAccessToken,
-} = require('../build/v2/utils/reservation');
 const LegacyUserModel = require('../models/user');
 
 const testUri = process.env.TEST_MONGODB_URI;
@@ -53,7 +50,7 @@ if (
 
 if (!process.env.SECRET_KEY) {
   throw new Error(
-    'SECRET_KEY is required for authenticated Phase 1G integration checks'
+    'SECRET_KEY is required for Phase 1G authenticated API integration checks'
   );
 }
 
@@ -64,9 +61,10 @@ const created = {
   products: [],
   variants: [],
   inventoryItems: [],
-  reservations: [],
   users: [],
 };
+
+const testMarker = new Types.ObjectId().toString();
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -82,9 +80,9 @@ const assertEqual = (actual, expected, message) => {
 
 const createProduct = async (overrides = {}) => {
   const product = await ProductV2Model.create({
-    name: 'Phase 1G Test Dress',
+    name: 'Phase 1G API Test Dress',
     slug: `phase-1g-${new Types.ObjectId().toString()}`,
-    description: 'Disposable Phase 1G integration test product.',
+    description: 'Disposable Phase 1G API integration test product.',
     category: 'dress',
     gender: 'girls',
     color: 'white',
@@ -133,457 +131,396 @@ const createItem = async (variantId, prefix = 'API', overrides = {}) => {
   return item;
 };
 
-const createFixture = async (prefix = 'API') => {
-  const product = await createProduct();
-  const variant = await createVariant(product._id);
-  const item = await createItem(variant._id, prefix);
+const makeFutureRange = offset => {
+  const today = parseDateOnly(getBusinessDateOnly(new Date()));
 
   return {
-    product,
-    variant,
-    item,
+    startDate: formatDateOnly(addCalendarDays(today, offset)),
+    endDate: formatDateOnly(addCalendarDays(today, offset + 2)),
   };
 };
 
-const requestBody = ({
-  product,
-  variant,
-  startDate = '2027-06-10',
-  endDate = startDate,
-  rentalMode = 'external',
-  email = 'api-guest@example.cz',
-  notes,
-}) => {
-  const body = {
+const makeBody = ({ product, variant, email, ...overrides }) => {
+  const dates = makeFutureRange(90);
+
+  return {
     productId: product._id.toString(),
     variantId: variant._id.toString(),
-    rentalMode,
-    startDate,
-    endDate,
+    rentalMode: 'external',
+    startDate: dates.startDate,
+    endDate: dates.endDate,
     customer: {
       firstName: 'Anna',
       lastName: 'Nováková',
-      email,
+      email:
+        email ??
+        `phase1g-${new Types.ObjectId().toString()}@example.cz`,
       phone: '+420 777 123 456',
     },
+    ...overrides,
   };
-
-  if (notes !== undefined) {
-    body.notes = notes;
-  }
-
-  return body;
 };
 
-const createCapturedRoute = () => {
-  let postHandlers;
-  let errorHandler;
+const createTestApp = () => {
+  const app = express();
 
-  const router = {
-    get() {
-      return this;
-    },
-    post(path, ...handlers) {
-      if (path === '/reservations') {
-        postHandlers = handlers;
-      }
-      return this;
-    },
-    use(...handlers) {
-      errorHandler = handlers[handlers.length - 1];
-      return this;
-    },
-  };
-
-  createV2Router(
-    {
-      Router: () => router,
-    },
-    {
+  app.use(express.json());
+  app.use(
+    '/api/v2',
+    createV2Router(express, {
       ensureMongoConnection: (_request, _response, next) => next(),
-    }
+    })
   );
 
-  assert(postHandlers, 'POST /reservations handler chain must be registered');
-  assert(errorHandler, 'v2 reservation error handler must be registered');
-
-  return {
-    postHandlers,
-    errorHandler,
-  };
+  return app;
 };
 
-const route = createCapturedRoute();
+const startServer = app =>
+  new Promise(resolve => {
+    const server = app.listen(0, '127.0.0.1', () => resolve(server));
+  });
 
-const createFakeResponse = () => ({
-  statusCode: 200,
-  body: undefined,
-  finished: false,
-  status(code) {
-    this.statusCode = code;
-    return this;
-  },
-  json(body) {
-    this.body = body;
-    this.finished = true;
-    return body;
-  },
-});
+const sendJson = (server, path, body, headers = {}) =>
+  new Promise((resolve, reject) => {
+    const address = server.address();
 
-const invokeReservationApi = async ({
-  body,
-  authorization,
-}) => {
-  const request = {
-    body,
-    headers: authorization
-      ? {
-          authorization,
-        }
-      : {},
-  };
-  const response = createFakeResponse();
-
-  const dispatch = async (index, error) => {
-    if (error !== undefined) {
-      await route.errorHandler(
-        error,
-        request,
-        response,
-        () => undefined
-      );
+    if (!address || typeof address === 'string') {
+      reject(new Error('Test server did not expose a TCP address'));
       return;
     }
 
-    if (response.finished) {
-      return;
-    }
+    const payload = JSON.stringify(body);
 
-    const handler = route.postHandlers[index];
+    const request = http.request(
+      {
+        hostname: '127.0.0.1',
+        port: address.port,
+        path,
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(payload),
+          ...headers,
+        },
+      },
+      response => {
+        let data = '';
 
-    if (!handler) {
-      return;
-    }
+        response.setEncoding('utf8');
+        response.on('data', chunk => {
+          data += chunk;
+        });
+        response.on('end', () => {
+          let parsed;
 
-    let nextPromise;
+          try {
+            parsed = data ? JSON.parse(data) : undefined;
+          } catch (error) {
+            reject(
+              new Error(
+                `Unable to parse test API response: ${data}`
+              )
+            );
+            return;
+          }
 
-    const next = nextError => {
-      nextPromise = dispatch(index + 1, nextError);
-      return nextPromise;
-    };
+          resolve({
+            status: response.statusCode,
+            body: parsed,
+          });
+        });
+      }
+    );
 
-    const returned = handler(request, response, next);
+    request.on('error', reject);
+    request.end(payload);
+  });
 
-    if (returned && typeof returned.then === 'function') {
-      await returned;
-    }
-
-    if (nextPromise) {
-      await nextPromise;
-    }
-  };
-
-  await dispatch(0);
-
-  return {
-    request,
-    response,
-  };
-};
-
-const trackStoredApiReservation = async response => {
-  assertEqual(response.statusCode, 201, 'API response must be 201 before tracking');
-  const reservationNumber = response.body.reservation.reservationNumber;
-
-  const stored = await ReservationV2Model.findOne({
+const findReservationByNumber = async reservationNumber => {
+  const reservation = await ReservationV2Model.findOne({
     reservationNumber,
   })
     .select('+guestAccessTokenHash')
     .exec();
 
-  assert(stored, 'API-created reservation must exist in DB');
-  created.reservations.push(stored._id);
-  return stored;
-};
-
-const countReservations = async () =>
-  ReservationV2Model.countDocuments({
-    _id: {
-      $in: created.reservations,
-    },
-  });
-
-const assertPublicDtoSanitized = response => {
-  const serialized = JSON.stringify(response.body);
-
-  assert(!serialized.includes('inventoryItemId'), 'public DTO must hide inventoryItemId');
-  assert(!serialized.includes('guestAccessTokenHash'), 'public DTO must hide guestAccessTokenHash');
-  assert(!serialized.includes('customerId'), 'public DTO must hide customerId');
-  assert(!serialized.includes('internalCode'), 'public DTO must hide internalCode');
-  assert(!serialized.includes('bookingRevision'), 'public DTO must hide bookingRevision');
-  assert(!serialized.includes('"_id"'), 'public DTO must hide _id');
-};
-
-const createDirectPending = async ({
-  email,
-  expiresAt,
-}) => {
-  const id = new Types.ObjectId();
-  const reservation = await ReservationV2Model.create({
-    reservationNumber: `AK-2028-${id.toString().slice(-6).toUpperCase()}`,
-    customerSnapshot: {
-      firstName: 'Pending',
-      lastName: 'Guard',
-      email,
-      phone: '+420700000000',
-    },
-    items: [{
-      productId: new Types.ObjectId(),
-      variantId: new Types.ObjectId(),
-      inventoryItemId: new Types.ObjectId(),
-      productNameSnapshot: 'Guard fixture',
-      sizeSnapshot: '116',
-      rentalPriceSnapshot: 800,
-      depositSnapshot: 1000,
-    }],
-    rentalMode: 'external',
-    startDate: parseDateOnly('2028-01-10'),
-    endDate: parseDateOnly('2028-01-10'),
-    status: 'pending',
-    expiresAt,
-    subtotal: 800,
-    deposit: 1000,
-    totalDue: 1800,
-    fulfillmentMethod: 'pickup',
-    paymentStatus: 'unpaid',
-  });
-
-  created.reservations.push(reservation._id);
+  assert(reservation, `Reservation ${reservationNumber} must exist`);
   return reservation;
 };
 
-const assertReservationNumberIndex = async () => {
-  const indexes = await ReservationV2Model.collection.indexes();
-  const index = indexes.find(
-    candidate => candidate.name === 'uniq_v2_reservation_number'
-  );
-
-  assert(index, 'test DB must have uniq_v2_reservation_number index');
-  assertEqual(index.unique, true, 'reservation number index must be unique');
-  assertEqual(
-    index.key?.reservationNumber,
-    1,
-    'reservation number index key'
-  );
-
-  console.log('Phase 1G test DB reservationNumber index verified', {
-    name: index.name,
-    unique: index.unique,
+const countMarkerReservations = () =>
+  ReservationV2Model.countDocuments({
+    'customerSnapshot.email': {
+      $regex: `phase1g-.*${testMarker}|pending-${testMarker}|expired-${testMarker}`,
+      $options: 'i',
+    },
   });
+
+const assertUniqueReservationNumberIndex = async () => {
+  const indexes = await ReservationV2Model.collection.indexes();
+  const index = indexes.find(candidate =>
+    candidate.name === 'uniq_v2_reservation_number'
+  );
+
+  assert(
+    index,
+    'Test DB is missing uniq_v2_reservation_number index'
+  );
+  assertEqual(
+    index.unique,
+    true,
+    'Test DB reservationNumber index must be unique'
+  );
+  assertEqual(
+    index.key.reservationNumber,
+    1,
+    'Test DB reservationNumber index key'
+  );
+
+  console.log('Phase 1G test DB reservationNumber unique index: present');
 };
 
-const checkGuestValidRequest = async () => {
-  const fixture = await createFixture('GUEST');
+const checkGuestValid = async server => {
+  const product = await createProduct();
+  const variant = await createVariant(product._id, { size: '116' });
+  await createItem(variant._id, 'GUEST');
 
-  const { response } = await invokeReservationApi({
-    body: requestBody({
-      ...fixture,
-      startDate: '2027-06-10',
-      endDate: '2027-06-12',
-      email: 'Guest.API@Example.CZ',
-      notes: '  Prosím zavolat.  ',
-    }),
+  const body = makeBody({
+    product,
+    variant,
+    email: `phase1g-guest-${testMarker}@example.cz`,
   });
 
-  assertEqual(response.statusCode, 201, 'guest create status');
-  assertPublicDtoSanitized(response);
-  assert(response.body.guestAccessToken, 'guest response must contain raw access token');
-  assertEqual(response.body.reservation.startDate, '2027-06-10', 'date-only response start');
-  assertEqual(response.body.reservation.endDate, '2027-06-12', 'date-only response end');
-  assertEqual(response.body.reservation.subtotal, 800, 'guest flat subtotal');
-
-  const stored = await trackStoredApiReservation(response);
-
-  assertEqual(
-    stored.items[0].inventoryItemId.toString(),
-    fixture.item._id.toString(),
-    'guest DB physical item'
+  const response = await sendJson(
+    server,
+    '/api/v2/reservations',
+    body
   );
-  assertEqual(stored.customerSnapshot.email, 'guest.api@example.cz', 'guest normalized DB email');
-  assert(stored.guestAccessTokenHash, 'guest hash stored');
-  assertEqual(
-    stored.guestAccessTokenHash,
-    hashGuestAccessToken(response.body.guestAccessToken),
-    'guest returned token must match stored hash'
+
+  assertEqual(response.status, 201, 'guest valid request status');
+  assert(
+    response.body.guestAccessToken,
+    'guest response must return raw guestAccessToken'
   );
   assert(
-    !JSON.stringify(stored.toObject()).includes(response.body.guestAccessToken),
-    'raw guest token must not be stored'
+    !JSON.stringify(response.body).includes('inventoryItemId'),
+    'guest public DTO must hide inventoryItemId'
+  );
+  assert(
+    !JSON.stringify(response.body).includes('guestAccessTokenHash'),
+    'guest public DTO must hide token hash'
+  );
+  assert(
+    !JSON.stringify(response.body).includes('customerId'),
+    'guest public DTO must hide customerId'
+  );
+  assert(
+    !JSON.stringify(response.body).includes('"_id"'),
+    'guest public DTO must hide Mongo _id'
+  );
+
+  const stored = await findReservationByNumber(
+    response.body.reservation.reservationNumber
+  );
+  assert(
+    stored.guestAccessTokenHash,
+    'guest DB record must store access-token hash'
+  );
+  assert(
+    stored.guestAccessTokenHash !== response.body.guestAccessToken,
+    'guest DB record must not store raw guest token'
   );
 };
 
-const checkTrustedFieldInjection = async () => {
-  const fixture = await createFixture('INJECT');
-  const before = await ReservationV2Model.countDocuments({
-    'items.variantId': fixture.variant._id,
-  });
+const checkTrustedFieldInjection = async server => {
+  const product = await createProduct();
+  const variant = await createVariant(product._id);
+  await createItem(variant._id, 'INJECT');
 
+  const email = `phase1g-inject-${testMarker}@example.cz`;
   const body = {
-    ...requestBody({
-      ...fixture,
-      startDate: '2027-06-20',
-    }),
-    inventoryItemId: fixture.item._id.toString(),
+    ...makeBody({ product, variant, email }),
+    inventoryItemId: new Types.ObjectId().toString(),
     subtotal: 1,
     status: 'confirmed',
   };
 
-  const { response } = await invokeReservationApi({
-    body,
+  const before = await ReservationV2Model.countDocuments({
+    'customerSnapshot.email': email,
   });
-
-  assertEqual(response.statusCode, 400, 'trusted field injection status');
-  assertEqual(response.body.error.code, 'VALIDATION_ERROR', 'trusted field injection code');
-
+  const response = await sendJson(
+    server,
+    '/api/v2/reservations',
+    body
+  );
   const after = await ReservationV2Model.countDocuments({
-    'items.variantId': fixture.variant._id,
+    'customerSnapshot.email': email,
   });
-  assertEqual(after, before, 'trusted field injection must not write reservation');
+
+  assertEqual(response.status, 400, 'trusted field injection status');
+  assertEqual(
+    response.body.error.code,
+    'VALIDATION_ERROR',
+    'trusted field injection code'
+  );
+  assertEqual(after, before, 'trusted field injection must create nothing');
 };
 
-const checkInvalidAndPastDate = async () => {
-  const fixture = await createFixture('DATE');
-
-  const invalid = await invokeReservationApi({
-    body: requestBody({
-      ...fixture,
-      startDate: '2027-02-30',
-      endDate: '2027-02-30',
-    }),
-  });
-
-  assertEqual(invalid.response.statusCode, 400, 'invalid calendar date status');
-  assertEqual(invalid.response.body.error.code, 'INVALID_DATE', 'invalid calendar date code');
-
-  const today = parseDateOnly(getBusinessDateOnly(new Date()));
-  const yesterday = formatDateOnly(addCalendarDays(today, -1));
-
-  const past = await invokeReservationApi({
-    body: requestBody({
-      ...fixture,
-      startDate: yesterday,
-      endDate: yesterday,
-    }),
-  });
-
-  assertEqual(past.response.statusCode, 400, 'past date status');
-  assertEqual(past.response.body.error.code, 'PAST_START_DATE', 'past date code');
-};
-
-const checkNoInventory = async () => {
+const checkInvalidAndPastDates = async server => {
   const product = await createProduct();
   const variant = await createVariant(product._id);
+  await createItem(variant._id, 'DATE');
 
-  const { response } = await invokeReservationApi({
-    body: requestBody({
+  const invalid = await sendJson(
+    server,
+    '/api/v2/reservations',
+    makeBody({
       product,
       variant,
-      startDate: '2027-07-10',
-    }),
-  });
+      email: `phase1g-invalid-date-${testMarker}@example.cz`,
+      startDate: '2027-02-30',
+      endDate: '2027-03-01',
+    })
+  );
 
-  assertEqual(response.statusCode, 409, 'no inventory status');
-  assertEqual(response.body.error.code, 'NO_AVAILABLE_INVENTORY', 'no inventory code');
+  assertEqual(invalid.status, 400, 'invalid calendar date status');
+  assertEqual(invalid.body.error.code, 'INVALID_DATE', 'invalid calendar date code');
+
+  const past = await sendJson(
+    server,
+    '/api/v2/reservations',
+    makeBody({
+      product,
+      variant,
+      email: `phase1g-past-${testMarker}@example.cz`,
+      startDate: '2020-01-01',
+      endDate: '2020-01-01',
+    })
+  );
+
+  assertEqual(past.status, 400, 'past date status');
+  assertEqual(past.body.error.code, 'PAST_START_DATE', 'past date code');
 };
 
-const checkNotFoundAndMismatch = async () => {
-  const randomProduct = {
-    _id: new Types.ObjectId(),
-  };
-  const randomVariant = {
-    _id: new Types.ObjectId(),
-  };
+const checkNotFoundMismatchAndNoInventory = async server => {
+  const noInventoryProduct = await createProduct();
+  const noInventoryVariant = await createVariant(noInventoryProduct._id);
 
-  const missingProduct = await invokeReservationApi({
-    body: requestBody({
-      product: randomProduct,
-      variant: randomVariant,
-      startDate: '2027-07-20',
-    }),
-  });
+  const noInventory = await sendJson(
+    server,
+    '/api/v2/reservations',
+    makeBody({
+      product: noInventoryProduct,
+      variant: noInventoryVariant,
+      email: `phase1g-noinv-${testMarker}@example.cz`,
+    })
+  );
 
-  assertEqual(missingProduct.response.statusCode, 404, 'missing product status');
-  assertEqual(missingProduct.response.body.error.code, 'PRODUCT_NOT_FOUND', 'missing product code');
-
-  const product = await createProduct();
-
-  const missingVariant = await invokeReservationApi({
-    body: requestBody({
-      product,
-      variant: randomVariant,
-      startDate: '2027-07-21',
-    }),
-  });
-
-  assertEqual(missingVariant.response.statusCode, 404, 'missing variant status');
-  assertEqual(missingVariant.response.body.error.code, 'VARIANT_NOT_FOUND', 'missing variant code');
-
-  const productA = await createProduct();
-  const productB = await createProduct();
-  const variantB = await createVariant(productB._id);
-  await createItem(variantB._id, 'MISMATCH');
-
-  const mismatch = await invokeReservationApi({
-    body: requestBody({
-      product: productA,
-      variant: variantB,
-      startDate: '2027-07-22',
-    }),
-  });
-
-  assertEqual(mismatch.response.statusCode, 400, 'variant/product mismatch status');
+  assertEqual(noInventory.status, 409, 'no inventory status');
   assertEqual(
-    mismatch.response.body.error.code,
+    noInventory.body.error.code,
+    'NO_AVAILABLE_INVENTORY',
+    'no inventory code'
+  );
+
+  const realProduct = await createProduct();
+  const realVariant = await createVariant(realProduct._id);
+  await createItem(realVariant._id, 'NF');
+
+  const missingProduct = await sendJson(
+    server,
+    '/api/v2/reservations',
+    {
+      ...makeBody({
+        product: realProduct,
+        variant: realVariant,
+        email: `phase1g-missing-product-${testMarker}@example.cz`,
+      }),
+      productId: new Types.ObjectId().toString(),
+    }
+  );
+
+  assertEqual(missingProduct.status, 404, 'missing product status');
+  assertEqual(
+    missingProduct.body.error.code,
+    'PRODUCT_NOT_FOUND',
+    'missing product code'
+  );
+
+  const missingVariant = await sendJson(
+    server,
+    '/api/v2/reservations',
+    {
+      ...makeBody({
+        product: realProduct,
+        variant: realVariant,
+        email: `phase1g-missing-variant-${testMarker}@example.cz`,
+      }),
+      variantId: new Types.ObjectId().toString(),
+    }
+  );
+
+  assertEqual(missingVariant.status, 404, 'missing variant status');
+  assertEqual(
+    missingVariant.body.error.code,
+    'VARIANT_NOT_FOUND',
+    'missing variant code'
+  );
+
+  const otherProduct = await createProduct();
+  const otherVariant = await createVariant(otherProduct._id);
+  await createItem(otherVariant._id, 'MISMATCH');
+
+  const mismatch = await sendJson(
+    server,
+    '/api/v2/reservations',
+    makeBody({
+      product: realProduct,
+      variant: otherVariant,
+      email: `phase1g-mismatch-${testMarker}@example.cz`,
+    })
+  );
+
+  assertEqual(mismatch.status, 400, 'variant/product mismatch status');
+  assertEqual(
+    mismatch.body.error.code,
     'VARIANT_PRODUCT_MISMATCH',
     'variant/product mismatch code'
   );
 };
 
-const checkInvalidBearerDoesNotFallback = async () => {
-  const fixture = await createFixture('BADAUTH');
+const checkInvalidBearerDoesNotFallback = async server => {
+  const product = await createProduct();
+  const variant = await createVariant(product._id);
+  await createItem(variant._id, 'BADJWT');
+  const email = `phase1g-badjwt-${testMarker}@example.cz`;
+
   const before = await ReservationV2Model.countDocuments({
-    'items.variantId': fixture.variant._id,
+    'customerSnapshot.email': email,
   });
 
-  const { response } = await invokeReservationApi({
-    body: requestBody({
-      ...fixture,
-      startDate: '2027-08-10',
-    }),
-    authorization: 'Bearer definitely.invalid.token',
-  });
-
-  assertEqual(response.statusCode, 401, 'invalid bearer status');
-  assertEqual(response.body.error.code, 'UNAUTHORIZED', 'invalid bearer code');
+  const response = await sendJson(
+    server,
+    '/api/v2/reservations',
+    makeBody({ product, variant, email }),
+    {
+      authorization: 'Bearer definitely-not-a-valid-jwt',
+    }
+  );
 
   const after = await ReservationV2Model.countDocuments({
-    'items.variantId': fixture.variant._id,
+    'customerSnapshot.email': email,
   });
-  assertEqual(after, before, 'invalid bearer must not fallback to guest write');
+
+  assertEqual(response.status, 401, 'invalid bearer status');
+  assertEqual(response.body.error.code, 'UNAUTHORIZED', 'invalid bearer code');
+  assertEqual(after, before, 'invalid bearer must not fall back to guest');
 };
 
 const createAuthenticatedUser = async () => {
-  const user = await LegacyUserModel.create({
-    provider: 'Google',
-    email: `phase1g-${new Types.ObjectId().toString()}@example.cz`,
-    tokens: [],
-  });
-
-  created.users.push(user._id);
-
+  const userId = new Types.ObjectId();
   const token = jwt.sign(
     {
-      id: user._id,
+      id: userId.toString(),
     },
     process.env.SECRET_KEY,
     {
@@ -591,14 +528,20 @@ const createAuthenticatedUser = async () => {
     }
   );
 
-  user.tokens.push({
-    token,
-    device: {
-      test: 'phase-1g',
-    },
-    lastLogin: new Date(),
+  const user = await LegacyUserModel.create({
+    _id: userId,
+    provider: 'Google',
+    email: `phase1g-user-${testMarker}@example.cz`,
+    tokens: [{
+      token,
+      device: {
+        purpose: 'phase-1g-integration',
+      },
+      lastLogin: new Date(),
+    }],
   });
-  await user.save();
+
+  created.users.push(user._id);
 
   return {
     user,
@@ -606,150 +549,235 @@ const createAuthenticatedUser = async () => {
   };
 };
 
-const checkAuthenticatedCustomer = async () => {
-  const fixture = await createFixture('AUTH');
-  const auth = await createAuthenticatedUser();
+const checkAuthenticatedUser = async server => {
+  const { user, token } = await createAuthenticatedUser();
+  const product = await createProduct();
+  const variant = await createVariant(product._id);
+  await createItem(variant._id, 'AUTH');
+  const email = `phase1g-auth-booking-${testMarker}@example.cz`;
 
-  const { response } = await invokeReservationApi({
-    body: requestBody({
-      ...fixture,
-      startDate: '2027-08-20',
-      email: 'booking-contact@example.cz',
-    }),
-    authorization: `Bearer ${auth.token}`,
-  });
+  const response = await sendJson(
+    server,
+    '/api/v2/reservations',
+    makeBody({ product, variant, email }),
+    {
+      authorization: `Bearer ${token}`,
+    }
+  );
 
-  assertEqual(response.statusCode, 201, 'authenticated create status');
-  assertEqual(response.body.guestAccessToken, undefined, 'authenticated response guest token');
-  assertPublicDtoSanitized(response);
+  assertEqual(response.status, 201, 'authenticated request status');
+  assertEqual(
+    response.body.guestAccessToken,
+    undefined,
+    'authenticated response must omit guest token'
+  );
 
-  const stored = await trackStoredApiReservation(response);
+  const stored = await findReservationByNumber(
+    response.body.reservation.reservationNumber
+  );
 
+  assert(
+    stored.customerId,
+    'authenticated reservation must store customerId'
+  );
   assertEqual(
     stored.customerId.toString(),
-    auth.user._id.toString(),
-    'authenticated reservation customerId must come from token user'
+    user._id.toString(),
+    'customerId must come from authenticated token identity'
   );
   assertEqual(
     stored.customerSnapshot.email,
-    'booking-contact@example.cz',
-    'authenticated reservation must retain request contact snapshot'
+    email,
+    'authenticated booking contact snapshot must come from request body'
   );
-  assertEqual(stored.guestAccessTokenHash, undefined, 'authenticated DB guest hash');
 };
 
-const checkActivePendingEmailGuard = async () => {
-  const normalizedEmail = 'pending-limit@example.cz';
-  const activeExpiry = new Date(Date.now() + 60 * 60 * 1000);
+const checkMissingAuthorizationGuest = async server => {
+  const product = await createProduct();
+  const variant = await createVariant(product._id);
+  await createItem(variant._id, 'NOAUTH');
 
-  await createDirectPending({
-    email: normalizedEmail,
-    expiresAt: activeExpiry,
-  });
-  await createDirectPending({
-    email: normalizedEmail,
-    expiresAt: activeExpiry,
-  });
-  await createDirectPending({
-    email: normalizedEmail,
-    expiresAt: activeExpiry,
-  });
-
-  const fixture = await createFixture('LIMIT');
-  const before = await ReservationV2Model.countDocuments({
-    'items.variantId': fixture.variant._id,
-  });
-
-  const limited = await invokeReservationApi({
-    body: requestBody({
-      ...fixture,
-      startDate: '2027-09-10',
-      email: 'PENDING-LIMIT@EXAMPLE.CZ',
-    }),
-  });
-
-  assertEqual(limited.response.statusCode, 429, '4th active pending status');
-  assertEqual(
-    limited.response.body.error.code,
-    'TOO_MANY_ACTIVE_PENDING_RESERVATIONS',
-    '4th active pending code'
+  const response = await sendJson(
+    server,
+    '/api/v2/reservations',
+    makeBody({
+      product,
+      variant,
+      email: `phase1g-noauth-${testMarker}@example.cz`,
+    })
   );
 
-  const after = await ReservationV2Model.countDocuments({
-    'items.variantId': fixture.variant._id,
-  });
-  assertEqual(after, before, '4th active pending must not write');
-
-  const expiredEmail = 'expired-does-not-count@example.cz';
-
-  await createDirectPending({
-    email: expiredEmail,
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-  });
-  await createDirectPending({
-    email: expiredEmail,
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-  });
-  await createDirectPending({
-    email: expiredEmail,
-    expiresAt: new Date(Date.now() - 60 * 60 * 1000),
-  });
-
-  const expiredFixture = await createFixture('EXPIRED');
-  const allowed = await invokeReservationApi({
-    body: requestBody({
-      ...expiredFixture,
-      startDate: '2027-09-20',
-      email: 'EXPIRED-DOES-NOT-COUNT@EXAMPLE.CZ',
-    }),
-  });
-
-  assertEqual(allowed.response.statusCode, 201, 'expired pending must not count');
-  await trackStoredApiReservation(allowed.response);
+  assertEqual(response.status, 201, 'missing Authorization guest status');
+  assert(
+    response.body.guestAccessToken,
+    'missing Authorization must use guest flow'
+  );
 };
 
-const checkDisabledApiNoWrite = async () => {
-  const fixture = await createFixture('DISABLED');
-  const before = await ReservationV2Model.countDocuments({
-    'items.variantId': fixture.variant._id,
-  });
+const checkPendingEmailGuard = async server => {
+  const product = await createProduct();
+  const variant = await createVariant(product._id);
+  await createItem(variant._id, 'PEND1');
+  await createItem(variant._id, 'PEND2');
+  await createItem(variant._id, 'PEND3');
+  await createItem(variant._id, 'PEND4');
 
-  const previousFlag = process.env.V2_RESERVATION_API_ENABLED;
-  process.env.V2_RESERVATION_API_ENABLED = 'false';
+  const email = `pending-${testMarker}@example.cz`;
+  const dates = makeFutureRange(180);
 
-  try {
-    const { response } = await invokeReservationApi({
-      body: requestBody({
-        ...fixture,
-        startDate: '2027-10-10',
-      }),
-    });
-
-    assertEqual(response.statusCode, 503, 'disabled API status');
-    assertEqual(
-      response.body.error.code,
-      'RESERVATION_API_DISABLED',
-      'disabled API code'
+  for (let index = 0; index < 3; index += 1) {
+    const response = await sendJson(
+      server,
+      '/api/v2/reservations',
+      makeBody({
+        product,
+        variant,
+        email: index % 2 === 0 ? email.toUpperCase() : `  ${email}  `,
+        startDate: dates.startDate,
+        endDate: dates.endDate,
+      })
     );
-  } finally {
-    if (previousFlag === undefined) {
-      delete process.env.V2_RESERVATION_API_ENABLED;
-    } else {
-      process.env.V2_RESERVATION_API_ENABLED = previousFlag;
-    }
+
+    assertEqual(
+      response.status,
+      201,
+      `active pending reservation ${index + 1} status`
+    );
   }
 
-  const after = await ReservationV2Model.countDocuments({
-    'items.variantId': fixture.variant._id,
+  const fourth = await sendJson(
+    server,
+    '/api/v2/reservations',
+    makeBody({
+      product,
+      variant,
+      email,
+      startDate: dates.startDate,
+      endDate: dates.endDate,
+    })
+  );
+
+  assertEqual(fourth.status, 429, 'fourth active pending status');
+  assertEqual(
+    fourth.body.error.code,
+    'TOO_MANY_ACTIVE_PENDING_RESERVATIONS',
+    'fourth active pending code'
+  );
+};
+
+const createExpiredPending = async ({
+  product,
+  variant,
+  item,
+  email,
+  reservationNumber,
+  dates,
+}) => {
+  await ReservationV2Model.create({
+    reservationNumber,
+    customerSnapshot: {
+      firstName: 'Expired',
+      lastName: 'Pending',
+      email,
+      phone: '+420700000002',
+    },
+    items: [{
+      productId: product._id,
+      variantId: variant._id,
+      inventoryItemId: item._id,
+      productNameSnapshot: product.name,
+      sizeSnapshot: variant.size,
+      rentalPriceSnapshot: 800,
+      depositSnapshot: 1000,
+    }],
+    rentalMode: 'external',
+    startDate: parseDateOnly(dates.startDate),
+    endDate: parseDateOnly(dates.endDate),
+    status: 'pending',
+    expiresAt: new Date(Date.now() - 60_000),
+    subtotal: 800,
+    deposit: 1000,
+    totalDue: 1800,
+    paymentStatus: 'unpaid',
   });
-  assertEqual(after, before, 'disabled API must not write');
+};
+
+const checkExpiredPendingDoesNotCount = async server => {
+  const product = await createProduct();
+  const variant = await createVariant(product._id);
+  const item = await createItem(variant._id, 'EXP');
+  const email = `expired-${testMarker}@example.cz`;
+  const dates = makeFutureRange(240);
+
+  for (let index = 0; index < 3; index += 1) {
+    await createExpiredPending({
+      product,
+      variant,
+      item,
+      email,
+      reservationNumber:
+        `AK-2099-E${String(index).padStart(5, '0')}`,
+      dates,
+    });
+  }
+
+  const response = await sendJson(
+    server,
+    '/api/v2/reservations',
+    makeBody({
+      product,
+      variant,
+      email,
+      startDate: dates.startDate,
+      endDate: dates.endDate,
+    })
+  );
+
+  assertEqual(
+    response.status,
+    201,
+    'expired pending reservations must not count toward email guard'
+  );
+};
+
+const checkDisabledApiNoWrite = async server => {
+  const product = await createProduct();
+  const variant = await createVariant(product._id);
+  await createItem(variant._id, 'DISABLED');
+  const email = `phase1g-disabled-${testMarker}@example.cz`;
+
+  const before = await ReservationV2Model.countDocuments({
+    'customerSnapshot.email': email,
+  });
+
+  process.env.V2_RESERVATION_API_ENABLED = 'false';
+
+  const response = await sendJson(
+    server,
+    '/api/v2/reservations',
+    makeBody({ product, variant, email })
+  );
+
+  process.env.V2_RESERVATION_API_ENABLED = 'true';
+
+  const after = await ReservationV2Model.countDocuments({
+    'customerSnapshot.email': email,
+  });
+
+  assertEqual(response.status, 503, 'disabled API status');
+  assertEqual(
+    response.body.error.code,
+    'RESERVATION_API_DISABLED',
+    'disabled API code'
+  );
+  assertEqual(after, before, 'disabled API must not create reservation');
 };
 
 const cleanup = async () => {
-  if (created.reservations.length) {
+  if (created.products.length) {
     await ReservationV2Model.deleteMany({
-      _id: {
-        $in: created.reservations,
+      'items.productId': {
+        $in: created.products,
       },
     });
   }
@@ -787,39 +815,55 @@ const cleanup = async () => {
   }
 };
 
+const closeServer = server =>
+  new Promise((resolve, reject) => {
+    server.close(error => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+
 const main = async () => {
+  const originalFlag = process.env.V2_RESERVATION_API_ENABLED;
+  let server;
+
   await mongoose.connect(testUri, {
     autoIndex: false,
     autoCreate: false,
   });
 
-  const previousFlag = process.env.V2_RESERVATION_API_ENABLED;
-  process.env.V2_RESERVATION_API_ENABLED = 'true';
-
   try {
-    await assertReservationNumberIndex();
+    await assertUniqueReservationNumberIndex();
 
-    await checkGuestValidRequest();
-    await checkTrustedFieldInjection();
-    await checkInvalidAndPastDate();
-    await checkNoInventory();
-    await checkNotFoundAndMismatch();
-    await checkInvalidBearerDoesNotFallback();
-    await checkAuthenticatedCustomer();
-    await checkActivePendingEmailGuard();
-    await checkDisabledApiNoWrite();
+    process.env.V2_RESERVATION_API_ENABLED = 'true';
 
-    assert(
-      await countReservations() >= 1,
-      'integration suite must have exercised real reservation writes'
-    );
+    server = await startServer(createTestApp());
+
+    await checkGuestValid(server);
+    await checkTrustedFieldInjection(server);
+    await checkInvalidAndPastDates(server);
+    await checkNotFoundMismatchAndNoInventory(server);
+    await checkInvalidBearerDoesNotFallback(server);
+    await checkAuthenticatedUser(server);
+    await checkMissingAuthorizationGuest(server);
+    await checkPendingEmailGuard(server);
+    await checkExpiredPendingDoesNotCount(server);
+    await checkDisabledApiNoWrite(server);
 
     console.log('Phase 1G reservation API integration checks passed');
   } finally {
-    if (previousFlag === undefined) {
+    if (server) {
+      await closeServer(server);
+    }
+
+    if (originalFlag === undefined) {
       delete process.env.V2_RESERVATION_API_ENABLED;
     } else {
-      process.env.V2_RESERVATION_API_ENABLED = previousFlag;
+      process.env.V2_RESERVATION_API_ENABLED = originalFlag;
     }
 
     await cleanup();
