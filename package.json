@@ -9,7 +9,8 @@
     "build:v2": "tsc -p tsconfig.v2.json",
     "check:v2-models": "node scripts/check-v2-models.js",
     "lint": "eslint . --ext .js",
-    "lint:fix": "eslint . --ext .js --fix"
+    "lint:fix": "eslint . --ext .js --fix",
+    "vercel-build": "npm run typecheck && npm run build:v2 && npm run check:v2-models"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.0",

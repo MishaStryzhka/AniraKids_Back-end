@@ -93,6 +93,19 @@ const validateProductRules = async () => {
     status: 'draft',
   }).validate();
 
+  const activeSaleWithoutPrice = new ProductV2Model({
+    name: 'Sale model',
+    slug: 'sale-model',
+    description: 'Model určený k prodeji.',
+    category: 'dress',
+    gender: 'girls',
+    color: 'white',
+    rentalEnabled: false,
+    saleEnabled: true,
+    status: 'active',
+  });
+  await activeSaleWithoutPrice.validate();
+
   assert(
     hasIndex(ProductV2Schema.indexes(), { slug: 1 }, { unique: true }),
     'ProductV2 must define a unique slug index'
@@ -103,13 +116,13 @@ const validateVariantRules = async () => {
   const variant = new VariantV2Model({
     productId: new Types.ObjectId(),
     size: '116',
-    rentalPriceOverrides: { studio: 0 },
+    rentalPriceOverrides: { external: 0 },
   });
 
   await variant.validate();
   assert(
-    variant.rentalPriceOverrides?.studio === 0,
-    'Variant rental override 0 must remain a valid explicit override'
+    variant.rentalPriceOverrides?.external === 0,
+    'Variant external rental override 0 must remain a valid explicit override'
   );
 
   assert(
@@ -221,10 +234,10 @@ const validateReservationRules = async () => {
     'Reservation must reject endDate before startDate'
   );
 
-  const pendingWithoutExpiry = createReservation({ expiresAt: undefined });
+  const pendingWithNullExpiry = createReservation({ expiresAt: null });
   assert(
-    pendingWithoutExpiry.validateSync()?.errors.expiresAt !== undefined,
-    'Pending Reservation must require expiresAt'
+    pendingWithNullExpiry.validateSync()?.errors.expiresAt !== undefined,
+    'Pending Reservation with expiresAt = null must be invalid'
   );
 
   const invalidMode = createReservation({ rentalMode: 'delivery' });
