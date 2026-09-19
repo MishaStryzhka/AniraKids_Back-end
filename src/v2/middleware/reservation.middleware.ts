@@ -251,13 +251,16 @@ export const optionalLegacyAuth: HttpHandler = async (
   return next();
 };
 
+export const normalizeReservationEmail = (email: string): string =>
+  email.trim().toLowerCase();
+
 export const activePendingEmailGuard: HttpHandler = async (
   request,
   response,
   next
 ) => {
   const body = request.body as ReservationRequestBody;
-  const normalizedEmail = body.customer.email.trim().toLowerCase();
+  const normalizedEmail = normalizeReservationEmail(body.customer.email);
   const now = new Date();
 
   request.reservationRequestNow = now;
