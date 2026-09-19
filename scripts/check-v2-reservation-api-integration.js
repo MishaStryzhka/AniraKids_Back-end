@@ -857,6 +857,12 @@ const main = async () => {
         await checkAuthenticatedUser(server);
         await checkMissingAuthorizationGuest(server);
       },
+      'pending-active': async () => {
+        await checkPendingEmailGuard(server);
+      },
+      'pending-expired': async () => {
+        await checkExpiredPendingDoesNotCount(server);
+      },
       pending: async () => {
         await checkPendingEmailGuard(server);
         await checkExpiredPendingDoesNotCount(server);
