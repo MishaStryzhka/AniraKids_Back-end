@@ -49,16 +49,21 @@ app.use('/styles', express.static('public'));
 
 // **********************************************************************
 
-app.use('/api/v2', createV2Router(express));
-
 const ensureMongoConnection = async (req, res, next) => {
   try {
     await connectMongo();
-    next();
+    return next();
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
+
+app.use(
+  '/api/v2',
+  createV2Router(express, {
+    ensureMongoConnection,
+  })
+);
 
 app.use('/api/users', ensureMongoConnection, authRouter);
 app.use('/api/settings', ensureMongoConnection, settingsRouter);

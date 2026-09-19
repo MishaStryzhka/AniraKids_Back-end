@@ -1,12 +1,36 @@
+import type { Types } from 'mongoose';
+
 export interface JsonResponse {
   status(code: number): JsonResponse;
   json(body: unknown): unknown;
 }
 
-export type HttpHandler = (request: unknown, response: JsonResponse) => unknown;
+export interface HttpRequest {
+  body?: unknown;
+  headers: Record<string, string | string[] | undefined>;
+  authenticatedUserId?: Types.ObjectId;
+  reservationRequestNow?: Date;
+}
+
+export type HttpNext = (error?: unknown) => unknown;
+
+export type HttpHandler = (
+  request: HttpRequest,
+  response: JsonResponse,
+  next: HttpNext
+) => unknown;
+
+export type HttpErrorHandler = (
+  error: unknown,
+  request: HttpRequest,
+  response: JsonResponse,
+  next: HttpNext
+) => unknown;
 
 export interface RouterLike {
-  get(path: string, handler: HttpHandler): RouterLike;
+  get(path: string, ...handlers: HttpHandler[]): RouterLike;
+  post(path: string, ...handlers: HttpHandler[]): RouterLike;
+  use(...handlers: Array<HttpHandler | HttpErrorHandler>): RouterLike;
 }
 
 export interface ExpressLike {
