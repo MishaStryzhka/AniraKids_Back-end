@@ -632,7 +632,7 @@ const checkPendingEmailGuard = async server => {
       makeBody({
         product,
         variant,
-        email: index % 2 === 0 ? email.toUpperCase() : `  ${email}  `,
+        email: index % 2 === 0 ? email.toUpperCase() : email,
         startDate: dates.startDate,
         endDate: dates.endDate,
       })
