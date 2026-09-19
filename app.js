@@ -1,16 +1,17 @@
 const express = require('express');
 const logger = require('morgan');
 const cors = require('cors');
-const moment = require('moment');
-
-require('./cron'); // Імпорт CRON-завдань
-
-// const passport = require('passport');
-// const session = require('express-session');
 
 require('dotenv').config();
 
-const fs = require('fs/promises');
+const isVercel = process.env.VERCEL === '1';
+
+if (!isVercel) {
+  require('./cron');
+}
+
+// const passport = require('passport');
+// const session = require('express-session');
 
 // const swaggerUi = require('swagger-ui-express');
 // const swaggerDocument = require('./swagger.json');
@@ -19,20 +20,14 @@ const authRouter = require('./routes/api/auth');
 const settingsRouter = require('./routes/api/settings');
 const productRouter = require('./routes/api/product');
 const orderRouter = require('./routes/api/order');
+const { createV2Router } = require('./build/v2/routes');
+const { connectMongo } = require('./config/mongodb');
 
 const path = require('path');
 
 const app = express();
 
 const formatsLogger = app.get('env') === 'development' ? 'dev' : 'short';
-
-app.use(async (req, res, next) => {
-  const { method, url } = req;
-  const date = moment().format('DD-MM-YYYY_hh:mm:ss');
-  await fs.appendFile('./public/logs/server.log', `\n${method} ${url} ${date}`);
-
-  next();
-});
 
 app.use(logger(formatsLogger));
 app.use(cors());
@@ -54,10 +49,21 @@ app.use('/styles', express.static('public'));
 
 // **********************************************************************
 
-app.use('/api/users', authRouter);
-app.use('/api/settings', settingsRouter);
-app.use('/api/product', productRouter);
-app.use('/api/order', orderRouter);
+app.use('/api/v2', createV2Router(express));
+
+const ensureMongoConnection = async (req, res, next) => {
+  try {
+    await connectMongo();
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+app.use('/api/users', ensureMongoConnection, authRouter);
+app.use('/api/settings', ensureMongoConnection, settingsRouter);
+app.use('/api/product', ensureMongoConnection, productRouter);
+app.use('/api/order', ensureMongoConnection, orderRouter);
 
 // app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
@@ -66,8 +72,12 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
   const { status = 500, message = 'Server error' } = err;
-  res.status(status).json({ message });
+  return res.status(status).json({ message });
 });
 
 module.exports = app;
