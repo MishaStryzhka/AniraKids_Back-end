@@ -873,8 +873,8 @@ const main = async () => {
     };
 
     if (group === 'all') {
-      for (const runGroup of Object.values(groups)) {
-        await runGroup();
+      for (const groupName of ['basics', 'auth', 'pending', 'disabled']) {
+        await groups[groupName]();
       }
     } else {
       const runGroup = groups[group];
