@@ -10,7 +10,8 @@
     "check:v2-models": "node scripts/check-v2-models.js",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
-    "vercel-build": "npm run typecheck && npm run build:v2 && npm run check:v2-models"
+    "vercel-build": "npm run typecheck && npm run build:v2 && npm run check:v2-models && npm run check:v2-utils",
+    "check:v2-utils": "node scripts/check-v2-utils.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.0",

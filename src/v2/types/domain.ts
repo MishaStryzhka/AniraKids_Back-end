@@ -1,6 +1,18 @@
 import type { Types } from 'mongoose';
 
 export type MoneyAmount = number;
+export type DateOnlyString = string;
+
+export interface ResolvedRentalPricing {
+  rentalPrice: MoneyAmount;
+  deposit: MoneyAmount;
+}
+
+export interface ReservationPricingTotals {
+  subtotal: MoneyAmount;
+  deposit: MoneyAmount;
+  totalDue: MoneyAmount;
+}
 
 export const PRODUCT_STATUSES = ['draft', 'active', 'archived'] as const;
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
