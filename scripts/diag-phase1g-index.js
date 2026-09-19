@@ -12,8 +12,10 @@ if (!db || !/(test|testing|ci|dev)/i.test(db) || /(prod|production)/i.test(db)) 
   await mongoose.connect(uri, { autoIndex: false, autoCreate: false });
   try {
     const indexes = await ReservationV2Model.collection.indexes();
-    const index = indexes.find(item => item.name === 'uniq_v2_reservation_number');
-    if (!index || index.unique !== true || index.key?.reservationNumber !== 1) {
+    const index = indexes.find(
+      item => item.unique === true && item.key?.reservationNumber === 1
+    );
+    if (!index) {
       process.exitCode = 5;
     }
   } finally {
