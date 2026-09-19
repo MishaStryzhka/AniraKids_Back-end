@@ -1,4 +1,8 @@
-import type { FilterQuery, Types } from 'mongoose';
+import type {
+  ClientSession,
+  FilterQuery,
+  Types,
+} from 'mongoose';
 
 import {
   AvailabilityBlockV2Model,
@@ -36,7 +40,10 @@ const resolveNow = (options?: AvailabilityOptions): Date => {
   return now;
 };
 
-const assertAvailabilityRange = (startDate: Date, endDate: Date): void => {
+export const assertAvailabilityRange = (
+  startDate: Date,
+  endDate: Date
+): void => {
   if (
     !isCanonicalDateOnlyDate(startDate) ||
     !isCanonicalDateOnlyDate(endDate)
@@ -91,11 +98,12 @@ const buildAvailabilityBlockQuery = (
   endDate: { $gte: requestedStartDate },
 });
 
-const findBlockedInventoryItemIds = async (
+export const findBlockedInventoryItemIds = async (
   inventoryItemIds: readonly Types.ObjectId[],
   startDate: Date,
   endDate: Date,
-  now: Date
+  now: Date,
+  session?: ClientSession
 ): Promise<Set<string>> => {
   if (inventoryItemIds.length === 0) {
     return new Set();
@@ -103,18 +111,31 @@ const findBlockedInventoryItemIds = async (
 
   const candidateIds = new Set(inventoryItemIds.map(idKey));
 
-  const [reservations, blocks] = await Promise.all([
-    ReservationV2Model.find(
-      buildBlockingReservationQuery(inventoryItemIds, startDate, endDate, now)
-    )
-      .select('items.inventoryItemId')
-      .exec(),
-    AvailabilityBlockV2Model.find(
-      buildAvailabilityBlockQuery(inventoryItemIds, startDate, endDate)
-    )
-      .select('inventoryItemId')
-      .exec(),
-  ]);
+  const reservationQuery = ReservationV2Model.find(
+    buildBlockingReservationQuery(inventoryItemIds, startDate, endDate, now)
+  ).select('items.inventoryItemId');
+
+  const blockQuery = AvailabilityBlockV2Model.find(
+    buildAvailabilityBlockQuery(inventoryItemIds, startDate, endDate)
+  ).select('inventoryItemId');
+
+  if (session) {
+    reservationQuery.session(session);
+    blockQuery.session(session);
+  }
+
+  let reservations;
+  let blocks;
+
+  if (session) {
+    reservations = await reservationQuery.exec();
+    blocks = await blockQuery.exec();
+  } else {
+    [reservations, blocks] = await Promise.all([
+      reservationQuery.exec(),
+      blockQuery.exec(),
+    ]);
+  }
 
   const blockedIds = new Set<string>();
 
