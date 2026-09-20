@@ -43,22 +43,23 @@ export const createReservation: HttpHandler = async (
   try {
     const result = await reservationService.createReservation(
       command,
-      request.reservationRequestNow
-        ? {
-            now: request.reservationRequestNow,
-          }
-        : undefined
+      {
+        now: request.reservationRequestNow,
+        idempotency: request.reservationIdempotency,
+      }
     );
 
     const publicResponse = toPublicCreateReservationResponse(result);
+    const status = result.replayed ? 200 : 201;
 
-    console.log('V2 reservation created', {
+    console.log('V2 reservation response', {
       reservationNumber: publicResponse.reservation.reservationNumber,
-      status: 201,
+      status,
+      replayed: result.replayed === true,
     });
 
     return response
-      .status(201)
+      .status(status)
       .json(publicResponse);
   } catch (error) {
     return next(error);

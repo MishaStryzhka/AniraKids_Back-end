@@ -21,6 +21,7 @@ const settingsRouter = require('./routes/api/settings');
 const productRouter = require('./routes/api/product');
 const orderRouter = require('./routes/api/order');
 const { createV2Router } = require('./build/v2/routes');
+const { createV2CorsOptions } = require('./build/v2/http/cors');
 const { connectMongo } = require('./config/mongodb');
 
 const path = require('path');
@@ -30,7 +31,18 @@ const app = express();
 const formatsLogger = app.get('env') === 'development' ? 'dev' : 'short';
 
 app.use(logger(formatsLogger));
-app.use(cors());
+
+const legacyCors = cors();
+
+app.use('/api/v2', cors(createV2CorsOptions()));
+app.use((req, res, next) => {
+  if (req.path === '/api/v2' || req.path.startsWith('/api/v2/')) {
+    return next();
+  }
+
+  return legacyCors(req, res, next);
+});
+
 app.use(express.json());
 
 // **********************************************************************

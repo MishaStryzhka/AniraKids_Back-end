@@ -6,6 +6,7 @@ import type {
 } from '../types/domain';
 import type {
   CreateReservationResult,
+  CreatedReservation,
 } from '../services/reservation.types';
 import {
   formatDateOnly,
@@ -40,10 +41,10 @@ export interface PublicCreateReservationResponse {
   guestAccessToken?: string;
 }
 
-export const toPublicCreateReservationResponse = (
-  result: CreateReservationResult
+export const toPublicReservationResponse = (
+  reservation: CreatedReservation,
+  guestAccessToken?: string
 ): PublicCreateReservationResponse => {
-  const reservation = result.reservation;
   const item = reservation.items[0];
 
   if (!item) {
@@ -82,9 +83,17 @@ export const toPublicCreateReservationResponse = (
     reservation: publicReservation,
   };
 
-  if (result.guestAccessToken) {
-    response.guestAccessToken = result.guestAccessToken;
+  if (guestAccessToken) {
+    response.guestAccessToken = guestAccessToken;
   }
 
   return response;
 };
+
+export const toPublicCreateReservationResponse = (
+  result: CreateReservationResult
+): PublicCreateReservationResponse =>
+  toPublicReservationResponse(
+    result.reservation,
+    result.guestAccessToken
+  );

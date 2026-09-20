@@ -18,6 +18,7 @@ export type ReservationServiceErrorCode =
   | 'VARIANT_NOT_ACTIVE'
   | 'VARIANT_PRODUCT_MISMATCH'
   | 'NO_AVAILABLE_INVENTORY'
+  | 'IDEMPOTENCY_KEY_REUSED'
   | 'RESERVATION_NUMBER_GENERATION_FAILED';
 
 export class ReservationServiceError extends Error {
@@ -41,13 +42,25 @@ export interface CreateReservationCommand {
   notes?: string;
 }
 
+export interface TrustedReservationIdempotencyContext {
+  keyHash: string;
+  requestHash: string;
+  guestAccessToken?: {
+    rawToken: string;
+    hash: string;
+  };
+}
+
 export interface CreateReservationOptions {
   now?: Date;
+  idempotency?: TrustedReservationIdempotencyContext;
 }
 
 export type CreatedReservation = Omit<
   Reservation,
-  'guestAccessTokenHash'
+  | 'guestAccessTokenHash'
+  | 'idempotencyKeyHash'
+  | 'idempotencyRequestHash'
 > & {
   _id: Types.ObjectId;
 };
@@ -55,4 +68,5 @@ export type CreatedReservation = Omit<
 export interface CreateReservationResult {
   reservation: CreatedReservation;
   guestAccessToken?: string;
+  replayed?: boolean;
 }

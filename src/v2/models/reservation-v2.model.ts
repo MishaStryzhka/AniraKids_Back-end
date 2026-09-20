@@ -113,6 +113,18 @@ export const ReservationV2Schema = new Schema<Reservation>(
       type: String,
       select: false,
     },
+    idempotencyKeyHash: {
+      type: String,
+      immutable: true,
+      select: false,
+      match: /^[a-f0-9]{64}$/,
+    },
+    idempotencyRequestHash: {
+      type: String,
+      immutable: true,
+      select: false,
+      match: /^[a-f0-9]{64}$/,
+    },
     customerSnapshot: {
       type: customerSnapshotSchema,
       required: true,
@@ -216,6 +228,17 @@ export const ReservationV2Schema = new Schema<Reservation>(
 ReservationV2Schema.index(
   { reservationNumber: 1 },
   { unique: true, name: 'uniq_v2_reservation_number' }
+);
+
+ReservationV2Schema.index(
+  { idempotencyKeyHash: 1 },
+  {
+    unique: true,
+    name: 'uniq_v2_reservation_idempotency_key',
+    partialFilterExpression: {
+      idempotencyKeyHash: { $exists: true },
+    },
+  }
 );
 
 ReservationV2Schema.index(

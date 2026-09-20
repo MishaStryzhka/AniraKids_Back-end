@@ -251,6 +251,35 @@ const validateReservationRules = async () => {
     'guestAccessTokenHash must be select:false'
   );
   assert(
+    ReservationV2Schema.path('idempotencyKeyHash').options.select === false,
+    'idempotencyKeyHash must be select:false'
+  );
+  assert(
+    ReservationV2Schema.path('idempotencyKeyHash').options.immutable === true,
+    'idempotencyKeyHash must be immutable'
+  );
+  assert(
+    ReservationV2Schema.path('idempotencyRequestHash').options.select === false,
+    'idempotencyRequestHash must be select:false'
+  );
+  assert(
+    ReservationV2Schema.path('idempotencyRequestHash').options.immutable === true,
+    'idempotencyRequestHash must be immutable'
+  );
+  assert(
+    hasIndex(
+      ReservationV2Schema.indexes(),
+      { idempotencyKeyHash: 1 },
+      {
+        unique: true,
+        partialFilterExpression: {
+          idempotencyKeyHash: { $exists: true },
+        },
+      }
+    ),
+    'ReservationV2 must define partial unique idempotency key index'
+  );
+  assert(
     ReservationV2Schema.path('totalDue') !== undefined,
     'Reservation must persist totalDue'
   );
