@@ -155,7 +155,7 @@ const createLegacyUser = async label => {
 
   const user = await LegacyUserModel.create({
     _id,
-    email: `phase1h3-${label}-${marker}@example.test`,
+    email: `phase1h3-${label}-${marker}@example.cz`,
     provider: 'Google',
     tokens: [
       {
