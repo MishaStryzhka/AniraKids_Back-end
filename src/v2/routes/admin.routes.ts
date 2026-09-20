@@ -14,6 +14,17 @@ import {
   createAdminProductMediaHandlers,
 } from '../controllers/admin-product-media.controller';
 import {
+  cancelAdminReservation,
+  confirmAdminReservation,
+  getAdminReservationCalendar,
+  getAdminReservationDetail,
+  listAdminReservations,
+  prepareAdminReservation,
+  rentAdminReservation,
+  returnAdminReservation,
+  updateAdminReservationNotes,
+} from '../controllers/admin-reservations.controller';
+import {
   activateAdminInventoryItem,
   createAdminAvailabilityBlock,
   deleteAdminAvailabilityBlock,
@@ -31,6 +42,10 @@ import {
   validateAdminCreateProduct,
   validateAdminCreateVariant,
   validateAdminProductListQuery,
+  validateAdminReservationCalendarQuery,
+  validateAdminReservationListQuery,
+  validateAdminCancelReservation,
+  validateAdminUpdateReservationNotes,
   validateAdminUpdateInventoryItem,
   validateAdminUpdateProduct,
   validateAdminUpdateVariant,
@@ -236,5 +251,70 @@ export const registerAdminRoutes = (
     ...guards,
     validateObjectIdParam('availabilityBlockId'),
     deleteAdminAvailabilityBlock
+  );
+
+  router.get(
+    '/admin/reservations',
+    ...guards,
+    validateAdminReservationListQuery,
+    listAdminReservations
+  );
+
+  router.get(
+    '/admin/reservations/calendar',
+    ...guards,
+    validateAdminReservationCalendarQuery,
+    getAdminReservationCalendar
+  );
+
+  router.get(
+    '/admin/reservations/:reservationId',
+    ...guards,
+    validateObjectIdParam('reservationId'),
+    getAdminReservationDetail
+  );
+
+  router.patch(
+    '/admin/reservations/:reservationId/notes',
+    ...guards,
+    validateObjectIdParam('reservationId'),
+    validateAdminUpdateReservationNotes,
+    updateAdminReservationNotes
+  );
+
+  router.post(
+    '/admin/reservations/:reservationId/confirm',
+    ...guards,
+    validateObjectIdParam('reservationId'),
+    confirmAdminReservation
+  );
+
+  router.post(
+    '/admin/reservations/:reservationId/prepare',
+    ...guards,
+    validateObjectIdParam('reservationId'),
+    prepareAdminReservation
+  );
+
+  router.post(
+    '/admin/reservations/:reservationId/rent',
+    ...guards,
+    validateObjectIdParam('reservationId'),
+    rentAdminReservation
+  );
+
+  router.post(
+    '/admin/reservations/:reservationId/return',
+    ...guards,
+    validateObjectIdParam('reservationId'),
+    returnAdminReservation
+  );
+
+  router.post(
+    '/admin/reservations/:reservationId/cancel',
+    ...guards,
+    validateObjectIdParam('reservationId'),
+    validateAdminCancelReservation,
+    cancelAdminReservation
   );
 };

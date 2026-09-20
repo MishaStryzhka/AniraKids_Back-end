@@ -10,6 +10,9 @@ import {
 import {
   InventoryAvailabilityAdminError,
 } from '../services/inventory-availability-admin.types';
+import {
+  ReservationAdminError,
+} from '../services/reservation-admin.types';
 import type {
   HttpErrorHandler,
 } from '../types/http';
@@ -87,6 +90,21 @@ export const mapAdminApiError = (
       case 'DAMAGED_ITEM_CANNOT_BE_ACTIVATED':
       case 'AVAILABILITY_BLOCK_CONFLICT':
       case 'INVENTORY_ITEM_NOT_ACTIVE':
+        return mapped(409, error.code, error.message);
+    }
+  }
+
+  if (error instanceof ReservationAdminError) {
+    switch (error.code) {
+      case 'INVALID_DATE':
+      case 'INVALID_DATE_RANGE':
+      case 'VALIDATION_ERROR':
+        return mapped(400, error.code, error.message);
+      case 'RESERVATION_NOT_FOUND':
+        return mapped(404, error.code, error.message);
+      case 'INVALID_RESERVATION_TRANSITION':
+      case 'RESERVATION_CONFIRMATION_CONFLICT':
+      case 'RESERVATION_INVENTORY_NOT_ACTIVE':
         return mapped(409, error.code, error.message);
     }
   }

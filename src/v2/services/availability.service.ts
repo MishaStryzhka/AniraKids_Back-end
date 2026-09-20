@@ -64,13 +64,22 @@ export const assertAvailabilityRange = (
 
 const idKey = (id: Types.ObjectId): string => id.toString();
 
+export interface FindBlockedInventoryItemOptions {
+  session?: ClientSession;
+  excludeReservationId?: Types.ObjectId;
+}
+
 const buildBlockingReservationQuery = (
   inventoryItemIds: readonly Types.ObjectId[],
   requestedStartDate: Date,
   requestedEndDate: Date,
-  now: Date
+  now: Date,
+  excludeReservationId?: Types.ObjectId
 ): FilterQuery<Reservation> => ({
   'items.inventoryItemId': { $in: inventoryItemIds },
+  ...(excludeReservationId === undefined
+    ? {}
+    : { _id: { $ne: excludeReservationId } }),
   startDate: { $lte: requestedEndDate },
   endDate: {
     $gte: getReservationEndConflictThreshold(requestedStartDate),
@@ -103,7 +112,7 @@ export const findBlockedInventoryItemIds = async (
   startDate: Date,
   endDate: Date,
   now: Date,
-  session?: ClientSession
+  options: FindBlockedInventoryItemOptions = {}
 ): Promise<Set<string>> => {
   if (inventoryItemIds.length === 0) {
     return new Set();
@@ -112,22 +121,28 @@ export const findBlockedInventoryItemIds = async (
   const candidateIds = new Set(inventoryItemIds.map(idKey));
 
   const reservationQuery = ReservationV2Model.find(
-    buildBlockingReservationQuery(inventoryItemIds, startDate, endDate, now)
+    buildBlockingReservationQuery(
+      inventoryItemIds,
+      startDate,
+      endDate,
+      now,
+      options.excludeReservationId
+    )
   ).select('items.inventoryItemId');
 
   const blockQuery = AvailabilityBlockV2Model.find(
     buildAvailabilityBlockQuery(inventoryItemIds, startDate, endDate)
   ).select('inventoryItemId');
 
-  if (session) {
-    reservationQuery.session(session);
-    blockQuery.session(session);
+  if (options.session) {
+    reservationQuery.session(options.session);
+    blockQuery.session(options.session);
   }
 
   let reservations;
   let blocks;
 
-  if (session) {
+  if (options.session) {
     reservations = await reservationQuery.exec();
     blocks = await blockQuery.exec();
   } else {
