@@ -257,14 +257,15 @@ const makeBody = ({
   email,
   startDate,
   endDate,
-  ...overrides
+  rentalMode = 'external',
+  notes,
 }) => {
   const fallback = futureRange(120);
 
-  return {
+  const body = {
     productId: product._id.toString(),
     variantId: variant._id.toString(),
-    rentalMode: 'external',
+    rentalMode,
     startDate: startDate ?? fallback.startDate,
     endDate: endDate ?? fallback.endDate,
     customer: {
@@ -275,8 +276,13 @@ const makeBody = ({
         `phase1g1-${new Types.ObjectId().toString()}@example.cz`,
       phone: '+420 777 123 456',
     },
-    ...overrides,
   };
+
+  if (notes !== undefined) {
+    body.notes = notes;
+  }
+
+  return body;
 };
 
 const createTestApp = () => {
