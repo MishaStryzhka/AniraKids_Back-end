@@ -15,6 +15,7 @@ const {
   validateCreateVariantAdminBody,
   validateUpdateInventoryItemAdminBody,
   validateUpdateProductAdminBody,
+  validateUpdateVariantAdminBody,
 } = require('../build/v2/schemas/admin-catalogue.schema');
 const {
   CatalogueAdminError,
@@ -231,6 +232,14 @@ const checkStrictSchemas = () => {
 
   assert(grouped.value, 'grouped size must be accepted');
   assertEqual(grouped.value.size, '74-80-86', 'grouped size preserved');
+
+  expectValidationFailure(
+    validateUpdateVariantAdminBody,
+    {
+      status: 'inactive',
+    },
+    'variant generic patch status injection'
+  );
 
   expectValidationFailure(
     validateCreateInventoryItemAdminBody,
@@ -456,6 +465,12 @@ const checkRouteRegistration = () => {
     ['PATCH', '/admin/variants/:variantId'],
     ['POST', '/admin/variants/:variantId/inventory-items'],
     ['PATCH', '/admin/inventory-items/:inventoryItemId'],
+    ['POST', '/admin/inventory-items/:inventoryItemId/maintenance'],
+    ['POST', '/admin/inventory-items/:inventoryItemId/activate'],
+    ['POST', '/admin/inventory-items/:inventoryItemId/retire'],
+    ['GET', '/admin/inventory-items/:inventoryItemId/availability-blocks'],
+    ['POST', '/admin/inventory-items/:inventoryItemId/availability-blocks'],
+    ['DELETE', '/admin/availability-blocks/:availabilityBlockId'],
   ];
 
   for (const [method, path] of expected) {
