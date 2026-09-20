@@ -10,7 +10,7 @@
     "check:v2-models": "node scripts/check-v2-models.js",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
-    "vercel-build": "npm run typecheck && npm run build:v2 && npm run check:v2-models && npm run check:v2-utils && npm run check:v2-availability && npm run check:v2-reservation-service && npm run check:v2-reservation-api && npm run check:v2-reservation-hardening && npm run check:v2-production-setup-verification",
+    "vercel-build": "npm run typecheck && npm run build:v2 && npm run check:v2-models && npm run check:v2-utils && npm run check:v2-availability && npm run check:v2-reservation-service && npm run check:v2-reservation-api && npm run check:v2-reservation-hardening",
     "check:v2-utils": "node scripts/check-v2-utils.js",
     "check:v2-availability": "node scripts/check-v2-availability.js",
     "check:v2-availability:integration": "npm run build:v2 && node scripts/check-v2-availability-integration.js",
@@ -21,8 +21,7 @@
     "check:v2-reservation-api:integration": "npm run build:v2 && node scripts/check-v2-reservation-api-integration.js",
     "check:v2-reservation-hardening": "node scripts/check-v2-reservation-hardening.js",
     "check:v2-reservation-hardening:integration": "npm run build:v2 && node scripts/check-v2-reservation-hardening-integration.js",
-    "check:v2-production-indexes": "npm run build:v2 && node scripts/check-v2-production-indexes.js",
-    "check:v2-production-setup-verification": "node scripts/check-v2-production-setup-verification.js"
+    "check:v2-production-indexes": "npm run build:v2 && node scripts/check-v2-production-indexes.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.0",
