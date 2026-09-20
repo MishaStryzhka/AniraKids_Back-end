@@ -1,11 +1,16 @@
 import type {
+  HydratedDocument,
   Types,
 } from 'mongoose';
 
 import {
   ProductV2Model,
+  ReservationV2Model,
   VariantV2Model,
 } from '../models';
+import type {
+  Reservation,
+} from '../types/domain';
 import {
   calculateReservationTotals,
   resolveRentalPricing,
@@ -37,6 +42,7 @@ import {
   type CreateReservationOptions,
   type CreateReservationResult,
   type CreatedReservation,
+  type TrustedReservationIdempotencyContext,
 } from './reservation.types';
 
 const MAX_RESERVATION_NUMBER_ATTEMPTS = 5;
@@ -79,7 +85,10 @@ const parseReservationDates = (
   }
 };
 
-const isReservationNumberDuplicateKeyError = (error: unknown): boolean => {
+const isDuplicateKeyForField = (
+  error: unknown,
+  field: string
+): boolean => {
   if (typeof error !== 'object' || error === null) {
     return false;
   }
@@ -94,35 +103,87 @@ const isReservationNumberDuplicateKeyError = (error: unknown): boolean => {
     return false;
   }
 
-  const hasReservationNumberKey = (value: unknown): boolean =>
+  const hasField = (value: unknown): boolean =>
     typeof value === 'object' &&
     value !== null &&
-    Object.prototype.hasOwnProperty.call(value, 'reservationNumber');
+    Object.prototype.hasOwnProperty.call(value, field);
 
-  return (
-    hasReservationNumberKey(candidate.keyPattern) ||
-    hasReservationNumberKey(candidate.keyValue)
-  );
+  return hasField(candidate.keyPattern) || hasField(candidate.keyValue);
 };
 
 const toSafeReservation = (
-  reservationDocument: Awaited<ReturnType<typeof createReservationAtomically>>
+  reservationDocument: HydratedDocument<Reservation>
 ): CreatedReservation => {
   const reservationObject = reservationDocument.toObject();
   const {
     guestAccessTokenHash: _guestAccessTokenHash,
+    idempotencyKeyHash: _idempotencyKeyHash,
+    idempotencyRequestHash: _idempotencyRequestHash,
     ...safeReservation
   } = reservationObject;
 
   return safeReservation as CreatedReservation;
 };
 
+const toReplayResult = (
+  reservationDocument: HydratedDocument<Reservation>,
+  idempotency: TrustedReservationIdempotencyContext
+): CreateReservationResult => {
+  const result: CreateReservationResult = {
+    reservation: toSafeReservation(reservationDocument),
+    replayed: true,
+  };
+
+  if (idempotency.guestAccessToken) {
+    result.guestAccessToken = idempotency.guestAccessToken.rawToken;
+  }
+
+  return result;
+};
+
 export class ReservationService {
+  async findIdempotentReplay(
+    idempotency: TrustedReservationIdempotencyContext
+  ): Promise<CreateReservationResult | undefined> {
+    const existingReservation = await ReservationV2Model.findOne({
+      idempotencyKeyHash: idempotency.keyHash,
+    })
+      .select('+idempotencyRequestHash')
+      .exec();
+
+    if (!existingReservation) {
+      return undefined;
+    }
+
+    if (
+      existingReservation.idempotencyRequestHash !==
+      idempotency.requestHash
+    ) {
+      throw new ReservationServiceError(
+        'IDEMPOTENCY_KEY_REUSED',
+        'Idempotency key was already used for a different reservation request'
+      );
+    }
+
+    return toReplayResult(existingReservation, idempotency);
+  }
+
   async createReservation(
     command: CreateReservationCommand,
     options?: CreateReservationOptions
   ): Promise<CreateReservationResult> {
     const now = resolveNow(options);
+
+    if (options?.idempotency) {
+      const replay = await this.findIdempotentReplay(
+        options.idempotency
+      );
+
+      if (replay) {
+        return replay;
+      }
+    }
+
     const {
       startDate,
       endDate,
@@ -207,9 +268,21 @@ export class ReservationService {
     const normalizedCustomer = normalizeReservationCustomer(command.customer);
     const normalizedNotes = normalizeReservationNotes(command.notes);
     const expiresAt = calculatePendingExpiresAt(now);
+
     const guestToken = command.customerId
       ? undefined
-      : generateGuestAccessToken();
+      : options?.idempotency?.guestAccessToken ??
+        generateGuestAccessToken();
+
+    if (
+      !command.customerId &&
+      options?.idempotency &&
+      !options.idempotency.guestAccessToken
+    ) {
+      throw new Error(
+        'Guest idempotent reservation requires a trusted guest access token'
+      );
+    }
 
     for (const inventoryItemId of sortedCandidates) {
       let candidateUnavailable = false;
@@ -226,6 +299,8 @@ export class ReservationService {
             reservationNumber,
             customerId: command.customerId,
             guestAccessTokenHash: guestToken?.hash,
+            idempotencyKeyHash: options?.idempotency?.keyHash,
+            idempotencyRequestHash: options?.idempotency?.requestHash,
             customerSnapshot: normalizedCustomer,
             items: [
               {
@@ -264,14 +339,39 @@ export class ReservationService {
           return result;
         } catch (error) {
           if (
+            options?.idempotency &&
+            isDuplicateKeyForField(error, 'idempotencyKeyHash')
+          ) {
+            const replay = await this.findIdempotentReplay(
+              options.idempotency
+            );
+
+            if (replay) {
+              return replay;
+            }
+
+            throw error;
+          }
+
+          if (
             error instanceof ConcurrencyError &&
             error.code === 'INVENTORY_ITEM_NOT_AVAILABLE'
           ) {
+            if (options?.idempotency) {
+              const replay = await this.findIdempotentReplay(
+                options.idempotency
+              );
+
+              if (replay) {
+                return replay;
+              }
+            }
+
             candidateUnavailable = true;
             break;
           }
 
-          if (isReservationNumberDuplicateKeyError(error)) {
+          if (isDuplicateKeyForField(error, 'reservationNumber')) {
             if (numberAttempt + 1 === MAX_RESERVATION_NUMBER_ATTEMPTS) {
               throw new ReservationServiceError(
                 'RESERVATION_NUMBER_GENERATION_FAILED',

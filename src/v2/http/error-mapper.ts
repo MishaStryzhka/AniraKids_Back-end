@@ -7,6 +7,9 @@ import {
 import {
   PricingError,
 } from '../utils/pricing';
+import {
+  IdempotencyConfigurationError,
+} from '../utils/idempotency';
 import type {
   HttpErrorHandler,
 } from '../types/http';
@@ -74,6 +77,12 @@ export const mapReservationApiError = (
           error.code,
           'No inventory is available for the requested dates'
         );
+      case 'IDEMPOTENCY_KEY_REUSED':
+        return mapped(
+          409,
+          error.code,
+          'Idempotency key was already used for a different request'
+        );
       case 'RESERVATION_NUMBER_GENERATION_FAILED':
         return mapped(
           500,
@@ -91,6 +100,14 @@ export const mapReservationApiError = (
       409,
       error.code,
       'Requested inventory is no longer available'
+    );
+  }
+
+  if (error instanceof IdempotencyConfigurationError) {
+    return mapped(
+      503,
+      'RESERVATION_API_CONFIGURATION_ERROR',
+      'Reservation API is not fully configured'
     );
   }
 
