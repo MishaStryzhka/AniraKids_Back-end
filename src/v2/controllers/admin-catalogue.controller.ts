@@ -25,7 +25,13 @@ import type {
 
 const objectIdFromParam = (
   value: string | undefined
-): Types.ObjectId => new Types.ObjectId(value);
+): Types.ObjectId => {
+  if (!value) {
+    throw new Error('Validated route parameter is missing');
+  }
+
+  return new Types.ObjectId(value);
+};
 
 export const listAdminProducts: HttpHandler = async (
   request,

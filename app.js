@@ -53,17 +53,6 @@ app.use(express.json());
 //   res.render('index.ejs');
 // });
 
-if (process.env.VERCEL_ENV === 'preview') {
-  app.get('/__phase1h3-typecheck', (req, res) => {
-    try {
-      const diagnostic = require('./typecheck-diagnostic.json');
-      return res.json(diagnostic);
-    } catch (_error) {
-      return res.status(404).json({ message: 'Diagnostic not available' });
-    }
-  });
-}
-
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '/index.html'));
 });

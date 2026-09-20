@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, type HydratedDocument } from 'mongoose';
 
 import {
   InventoryItemV2Model,
@@ -135,7 +135,7 @@ export const getProductActivationMissingRequirements = (
 };
 
 const applyProductInput = (
-  product: InstanceType<typeof ProductV2Model>,
+  product: HydratedDocument<ProductV2>,
   input: CatalogueProductUpdateInput
 ): void => {
   const scalarFields = [
