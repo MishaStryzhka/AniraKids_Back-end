@@ -1067,6 +1067,50 @@ const main = async () => {
       'utf8'
     );
 
+    if (process.argv.includes('--summary-artifact')) {
+      const publicSummaryPath = path.resolve(
+        process.cwd(),
+        'public',
+        'phase-1h1-summary.json'
+      );
+
+      const safeSummaryArtifact = {
+        generatedAt: manifest.generatedAt,
+        databaseName: manifest.databaseName,
+        summary: manifest.summary,
+        categoryDistribution: summary.categoryDistribution,
+        outfitsDistribution: summary.outfitsDistribution,
+        genderSignalDistribution: summary.genderSignalDistribution,
+        childSizeTopLevelShapes: summary.childSizeTopLevelShapes,
+        childSizeEntryTypes: summary.childSizeEntryTypes,
+        childSizeRepresentativeShapes:
+          summary.childSizeRepresentativeShapes,
+        unmappedLegacyFields: manifest.unmappedLegacyFields,
+        reportOnlyLegacyFields: manifest.reportOnlyLegacyFields,
+        currentV2CatalogueCollections:
+          manifest.currentV2CatalogueCollections,
+        expectedFutureIndexes: manifest.expectedFutureIndexes,
+        reportPaths: {
+          json: path.relative(process.cwd(), JSON_REPORT_PATH),
+          markdown: path.relative(
+            process.cwd(),
+            MARKDOWN_REPORT_PATH
+          ),
+        },
+        inventoryItemsCreated: 0,
+        mongoWrites: 0,
+      };
+
+      fs.mkdirSync(path.dirname(publicSummaryPath), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        publicSummaryPath,
+        `${JSON.stringify(safeSummaryArtifact, null, 2)}\n`,
+        'utf8'
+      );
+    }
+
     console.log(
       'PHASE_1H1_SUMMARY:',
       JSON.stringify(summary)
