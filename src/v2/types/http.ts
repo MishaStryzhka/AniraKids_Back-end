@@ -12,6 +12,8 @@ export interface JsonResponse {
 export interface HttpRequest {
   body?: unknown;
   headers: Record<string, string | string[] | undefined>;
+  params?: Record<string, string | undefined>;
+  query?: Record<string, unknown>;
   authenticatedUserId?: Types.ObjectId;
   reservationRequestNow?: Date;
   reservationIdempotencyKey?: string;
@@ -36,6 +38,7 @@ export type HttpErrorHandler = (
 export interface RouterLike {
   get(path: string, ...handlers: HttpHandler[]): RouterLike;
   post(path: string, ...handlers: HttpHandler[]): RouterLike;
+  patch(path: string, ...handlers: HttpHandler[]): RouterLike;
   use(...handlers: Array<HttpHandler | HttpErrorHandler>): RouterLike;
 }
 

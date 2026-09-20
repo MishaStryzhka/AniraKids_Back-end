@@ -1,8 +1,11 @@
-import { Types } from 'mongoose';
-
 import {
   ReservationV2Model,
 } from '../models';
+import {
+  LegacyAuthConfigurationError,
+  authenticateLegacyBearer,
+  parseBearerAuthorization,
+} from '../auth/legacy-bearer';
 import type {
   HttpHandler,
   HttpRequest,
@@ -14,30 +17,6 @@ import type {
 import {
   validateReservationRequestBody,
 } from '../schemas/reservation.schema';
-
-interface LegacyUserAuthRecord {
-  _id: Types.ObjectId;
-  tokens?: Array<{
-    token?: string;
-  }>;
-}
-
-interface LegacyUserQuery {
-  select(selection: string): LegacyUserQuery;
-  lean(): LegacyUserQuery;
-  exec(): Promise<LegacyUserAuthRecord | null>;
-}
-
-interface LegacyUserModelLike {
-  findById(id: string): LegacyUserQuery;
-}
-
-interface JwtModuleLike {
-  verify(token: string, secret: string): unknown;
-}
-
-const LegacyUserModel = require('../../../models/user') as LegacyUserModelLike;
-const jwt = require('jsonwebtoken') as JwtModuleLike;
 
 type OptionalBearerResult =
   | { kind: 'guest' }
@@ -65,30 +44,15 @@ const sendError = (
 export const parseOptionalBearerAuthorization = (
   authorization: string | string[] | undefined
 ): OptionalBearerResult => {
-  if (authorization === undefined) {
+  const parsed = parseBearerAuthorization(authorization);
+
+  if (parsed.kind === 'missing') {
     return {
       kind: 'guest',
     };
   }
 
-  if (typeof authorization !== 'string') {
-    return {
-      kind: 'invalid',
-    };
-  }
-
-  const match = /^Bearer ([^\s]+)$/i.exec(authorization);
-
-  if (!match) {
-    return {
-      kind: 'invalid',
-    };
-  }
-
-  return {
-    kind: 'bearer',
-    token: match[1],
-  };
+  return parsed;
 };
 
 export const reservationApiEnabled: HttpHandler = (
@@ -149,28 +113,6 @@ export const rejectMalformedOptionalAuthorization: HttpHandler = (
   return next();
 };
 
-const extractJwtUserId = (payload: unknown): string | undefined => {
-  if (
-    typeof payload !== 'object' ||
-    payload === null ||
-    !('id' in payload)
-  ) {
-    return undefined;
-  }
-
-  const id = (payload as { id?: unknown }).id;
-
-  if (typeof id === 'string' && Types.ObjectId.isValid(id)) {
-    return id;
-  }
-
-  if (id instanceof Types.ObjectId) {
-    return id.toHexString();
-  }
-
-  return undefined;
-};
-
 export const optionalLegacyAuth: HttpHandler = async (
   request,
   response,
@@ -193,19 +135,10 @@ export const optionalLegacyAuth: HttpHandler = async (
     );
   }
 
-  const secret = process.env.SECRET_KEY;
-
-  if (!secret) {
-    return next(new Error('JWT authentication is not configured'));
-  }
-
-  let userId: string;
-
   try {
-    const payload = jwt.verify(parsed.token, secret);
-    const extractedUserId = extractJwtUserId(payload);
+    const identity = await authenticateLegacyBearer(parsed.token);
 
-    if (!extractedUserId) {
+    if (!identity) {
       return sendError(
         response,
         401,
@@ -214,41 +147,15 @@ export const optionalLegacyAuth: HttpHandler = async (
       );
     }
 
-    userId = extractedUserId;
-  } catch (_error) {
-    return sendError(
-      response,
-      401,
-      'UNAUTHORIZED',
-      'Unauthorized'
-    );
-  }
-
-  let user: LegacyUserAuthRecord | null;
-
-  try {
-    user = await LegacyUserModel.findById(userId)
-      .select('_id tokens.token')
-      .lean()
-      .exec();
+    request.authenticatedUserId = identity.userId;
+    return next();
   } catch (error) {
+    if (error instanceof LegacyAuthConfigurationError) {
+      return next(new Error('JWT authentication is not configured'));
+    }
+
     return next(error);
   }
-
-  const hasActiveToken =
-    user?.tokens?.some(item => item.token === parsed.token) ?? false;
-
-  if (!user || !hasActiveToken) {
-    return sendError(
-      response,
-      401,
-      'UNAUTHORIZED',
-      'Unauthorized'
-    );
-  }
-
-  request.authenticatedUserId = new Types.ObjectId(user._id);
-  return next();
 };
 
 export const normalizeReservationEmail = (email: string): string =>

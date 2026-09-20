@@ -363,6 +363,10 @@ const checkRouteRegistration = () => {
       registrations.push({ method: 'POST', path, handlers });
       return this;
     },
+    patch(path, ...handlers) {
+      registrations.push({ method: 'PATCH', path, handlers });
+      return this;
+    },
     use(...handlers) {
       registrations.push({ method: 'USE', path: null, handlers });
       return this;
