@@ -420,7 +420,9 @@ const main = () => {
   checkTransitionMatrix();
   checkDamagedRules();
   checkGenericPatchHardening();
-  console.log('Phase 1H.5 lifecycle diagnostic group A passed');
+  checkBlockSchemasAndDates();
+  checkBlockDto();
+  console.log('Phase 1H.5 lifecycle diagnostic groups A+B passed');
 };
 
 main();
