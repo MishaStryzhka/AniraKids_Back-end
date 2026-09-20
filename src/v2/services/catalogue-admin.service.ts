@@ -1,4 +1,4 @@
-import { Types, type HydratedDocument } from 'mongoose';
+import { Types } from 'mongoose';
 
 import {
   InventoryItemV2Model,
@@ -135,7 +135,7 @@ export const getProductActivationMissingRequirements = (
 };
 
 const applyProductInput = (
-  product: HydratedDocument<ProductV2>,
+  product: any,
   input: CatalogueProductUpdateInput
 ): void => {
   const scalarFields = [
@@ -337,7 +337,7 @@ export class CatalogueAdminService {
     productId: Types.ObjectId,
     input: CatalogueProductUpdateInput
   ) {
-    const product = await ProductV2Model.findById(productId).exec();
+    const product: any = await ProductV2Model.findById(productId).exec();
 
     if (!product) {
       throw new CatalogueAdminError(
@@ -423,7 +423,7 @@ export class CatalogueAdminService {
     variantId: Types.ObjectId,
     input: CatalogueVariantUpdateInput
   ) {
-    const variant = await VariantV2Model.findById(variantId).exec();
+    const variant: any = await VariantV2Model.findById(variantId).exec();
 
     if (!variant) {
       throw new CatalogueAdminError(
@@ -499,7 +499,7 @@ export class CatalogueAdminService {
     inventoryItemId: Types.ObjectId,
     input: CatalogueInventoryUpdateInput
   ) {
-    const item = await InventoryItemV2Model.findById(
+    const item: any = await InventoryItemV2Model.findById(
       inventoryItemId
     ).exec();
 
@@ -530,7 +530,7 @@ export class CatalogueAdminService {
   }
 
   async activateProduct(productId: Types.ObjectId) {
-    const product = await ProductV2Model.findById(productId).exec();
+    const product: any = await ProductV2Model.findById(productId).exec();
 
     if (!product) {
       throw new CatalogueAdminError(
@@ -589,7 +589,7 @@ export class CatalogueAdminService {
   }
 
   async archiveProduct(productId: Types.ObjectId) {
-    const product = await ProductV2Model.findById(productId).exec();
+    const product: any = await ProductV2Model.findById(productId).exec();
 
     if (!product) {
       throw new CatalogueAdminError(

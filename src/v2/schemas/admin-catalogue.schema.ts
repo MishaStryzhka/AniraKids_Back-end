@@ -188,7 +188,7 @@ export interface ValidationResult<T> {
 }
 
 const validate = <T>(
-  schema: Joi.ObjectSchema,
+  schema: any,
   input: unknown
 ): ValidationResult<T> => {
   const { value, error } = schema.validate(input, {
