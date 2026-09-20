@@ -1,5 +1,9 @@
 import type { Types } from 'mongoose';
 
+import {
+  formatDateOnly,
+} from '../utils/date-only';
+
 const toPlainObject = (
   input: unknown
 ): Record<string, unknown> => {
@@ -142,3 +146,23 @@ export const toAdminProductListDto = (input: {
   items: input.items.map(toAdminProductDto),
   pagination: input.pagination,
 });
+
+
+export const toAdminAvailabilityBlockDto = (input: unknown) => {
+  const source = toPlainObject(input);
+
+  if (!(source.startDate instanceof Date) || !(source.endDate instanceof Date)) {
+    throw new Error('Availability block dates must be Date values');
+  }
+
+  return {
+    id: toId(source._id),
+    inventoryItemId: toId(source.inventoryItemId),
+    startDate: formatDateOnly(source.startDate),
+    endDate: formatDateOnly(source.endDate),
+    reason: source.reason,
+    ...(source.notes === undefined ? {} : { notes: source.notes }),
+    createdBy: toId(source.createdBy),
+    createdAt: source.createdAt,
+  };
+};

@@ -98,7 +98,17 @@ export interface CreateVariantAdminBody {
   status?: VariantStatus;
 }
 
-export type UpdateVariantAdminBody = Partial<CreateVariantAdminBody>;
+export interface UpdateVariantAdminBody {
+  size?: string;
+  sku?: string;
+  rentalPriceOverrides?: {
+    studio?: number;
+    external?: number;
+  };
+  salePriceOverride?: number;
+  depositOverride?: number;
+  sortOrder?: number;
+}
 
 export interface CreateInventoryItemAdminBody {
   internalCode: string;
@@ -148,7 +158,6 @@ const updateVariantSchema = Joi.object({
   salePriceOverride: money.optional(),
   depositOverride: money.optional(),
   sortOrder: Joi.number().integer().min(0).optional(),
-  status: Joi.string().valid(...VARIANT_STATUSES).optional(),
 })
   .min(1)
   .unknown(false);

@@ -11,6 +11,7 @@ import {
 } from '../models';
 import type {
   AvailabilityBlock,
+  InventoryItem,
   Reservation,
 } from '../types/domain';
 import {
@@ -67,6 +68,39 @@ const sortUniqueInventoryItemIds = (
   );
 };
 
+export const touchInventoryItemSerializationPoint = async (
+  inventoryItemId: Types.ObjectId,
+  session: ClientSession
+): Promise<HydratedDocument<InventoryItem>> => {
+  const item = await InventoryItemV2Model.findOneAndUpdate(
+    {
+      _id: inventoryItemId,
+    },
+    {
+      $inc: {
+        bookingRevision: 1,
+      },
+    },
+    {
+      new: true,
+      session,
+    }
+  )
+    .select(
+      '_id variantId internalCode status condition notes acquiredAt retiredAt createdAt updatedAt'
+    )
+    .exec();
+
+  if (!item) {
+    throw new ConcurrencyError(
+      'INVENTORY_ITEM_NOT_FOUND',
+      `Inventory item not found: ${objectIdKey(inventoryItemId)}`
+    );
+  }
+
+  return item;
+};
+
 export const acquireInventoryItemSerializationPoints = async (
   inventoryItemIds: readonly Types.ObjectId[],
   session: ClientSession
@@ -74,38 +108,13 @@ export const acquireInventoryItemSerializationPoints = async (
   const sortedIds = sortUniqueInventoryItemIds(inventoryItemIds);
 
   for (const inventoryItemId of sortedIds) {
-    const lockedItem = await InventoryItemV2Model.findOneAndUpdate(
-      {
-        _id: inventoryItemId,
-        status: 'active',
-      },
-      {
-        $inc: {
-          bookingRevision: 1,
-        },
-      },
-      {
-        new: true,
-        session,
-      }
-    )
-      .select('_id status')
-      .exec();
+    const item = await touchInventoryItemSerializationPoint(
+      inventoryItemId,
+      session
+    );
 
-    if (lockedItem) {
+    if (item.status === 'active') {
       continue;
-    }
-
-    const existingItem = await InventoryItemV2Model.findById(inventoryItemId)
-      .select('_id status')
-      .session(session)
-      .exec();
-
-    if (!existingItem) {
-      throw new ConcurrencyError(
-        'INVENTORY_ITEM_NOT_FOUND',
-        `Inventory item not found: ${objectIdKey(inventoryItemId)}`
-      );
     }
 
     throw new ConcurrencyError(

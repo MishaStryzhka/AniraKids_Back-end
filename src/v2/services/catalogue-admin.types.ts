@@ -19,7 +19,8 @@ export type CatalogueAdminErrorCode =
   | 'SKU_ALREADY_EXISTS'
   | 'INVENTORY_CODE_ALREADY_EXISTS'
   | 'PRODUCT_NOT_READY'
-  | 'PRODUCT_ARCHIVE_REQUIRES_RESERVATION_REVIEW';
+  | 'PRODUCT_ARCHIVE_REQUIRES_RESERVATION_REVIEW'
+  | 'DAMAGED_ITEM_REQUIRES_MAINTENANCE';
 
 export class CatalogueAdminError extends Error {
   constructor(
@@ -81,7 +82,17 @@ export interface CatalogueVariantCreateInput {
   status?: VariantStatus;
 }
 
-export type CatalogueVariantUpdateInput = Partial<CatalogueVariantCreateInput>;
+export interface CatalogueVariantUpdateInput {
+  size?: string;
+  sku?: string;
+  rentalPriceOverrides?: {
+    studio?: number;
+    external?: number;
+  };
+  salePriceOverride?: number;
+  depositOverride?: number;
+  sortOrder?: number;
+}
 
 export interface CatalogueInventoryCreateInput {
   internalCode: string;

@@ -63,6 +63,17 @@ const trimOrUndefined = (value: string | undefined): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
+export const assertActiveInventoryConditionAllowed = (
+  condition: CatalogueInventoryCreateInput['condition'] | undefined
+): void => {
+  if (condition === 'damaged') {
+    throw new CatalogueAdminError(
+      'DAMAGED_ITEM_REQUIRES_MAINTENANCE',
+      'Damaged inventory item must be moved to maintenance explicitly'
+    );
+  }
+};
+
 export const getProductActivationMissingRequirements = (
   product: Pick<
     ProductV2,
@@ -474,6 +485,8 @@ export class CatalogueAdminService {
       );
     }
 
+    assertActiveInventoryConditionAllowed(input.condition);
+
     try {
       return await InventoryItemV2Model.create({
         variantId,
@@ -508,6 +521,10 @@ export class CatalogueAdminService {
         'INVENTORY_ITEM_NOT_FOUND',
         'Inventory item not found'
       );
+    }
+
+    if (item.status === 'active') {
+      assertActiveInventoryConditionAllowed(input.condition);
     }
 
     if (input.condition !== undefined) {

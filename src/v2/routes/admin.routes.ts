@@ -14,9 +14,19 @@ import {
   createAdminProductMediaHandlers,
 } from '../controllers/admin-product-media.controller';
 import {
+  activateAdminInventoryItem,
+  createAdminAvailabilityBlock,
+  deleteAdminAvailabilityBlock,
+  listAdminAvailabilityBlocks,
+  moveAdminInventoryItemToMaintenance,
+  retireAdminInventoryItem,
+} from '../controllers/admin-inventory-availability.controller';
+import {
   adminApiConfigurationReady,
   adminApiEnabled,
   requireAdminAuth,
+  validateAdminAvailabilityBlockListQuery,
+  validateAdminCreateAvailabilityBlock,
   validateAdminCreateInventoryItem,
   validateAdminCreateProduct,
   validateAdminCreateVariant,
@@ -182,5 +192,49 @@ export const registerAdminRoutes = (
     validateObjectIdParam('inventoryItemId'),
     validateAdminUpdateInventoryItem,
     updateAdminInventoryItem
+  );
+
+  router.post(
+    '/admin/inventory-items/:inventoryItemId/maintenance',
+    ...guards,
+    validateObjectIdParam('inventoryItemId'),
+    moveAdminInventoryItemToMaintenance
+  );
+
+  router.post(
+    '/admin/inventory-items/:inventoryItemId/activate',
+    ...guards,
+    validateObjectIdParam('inventoryItemId'),
+    activateAdminInventoryItem
+  );
+
+  router.post(
+    '/admin/inventory-items/:inventoryItemId/retire',
+    ...guards,
+    validateObjectIdParam('inventoryItemId'),
+    retireAdminInventoryItem
+  );
+
+  router.get(
+    '/admin/inventory-items/:inventoryItemId/availability-blocks',
+    ...guards,
+    validateObjectIdParam('inventoryItemId'),
+    validateAdminAvailabilityBlockListQuery,
+    listAdminAvailabilityBlocks
+  );
+
+  router.post(
+    '/admin/inventory-items/:inventoryItemId/availability-blocks',
+    ...guards,
+    validateObjectIdParam('inventoryItemId'),
+    validateAdminCreateAvailabilityBlock,
+    createAdminAvailabilityBlock
+  );
+
+  router.delete(
+    '/admin/availability-blocks/:availabilityBlockId',
+    ...guards,
+    validateObjectIdParam('availabilityBlockId'),
+    deleteAdminAvailabilityBlock
   );
 };
