@@ -15,6 +15,10 @@ import {
   validateUpdateVariantAdminBody,
   type ValidationResult,
 } from '../schemas/admin-catalogue.schema';
+import {
+  validateCreateAvailabilityBlockAdminBody,
+  validateListAvailabilityBlocksAdminQuery,
+} from '../schemas/admin-inventory-availability.schema';
 import type {
   HttpHandler,
   HttpRequest,
@@ -253,12 +257,38 @@ export const validateAdminCreateInventoryItem =
 export const validateAdminUpdateInventoryItem =
   createBodyValidator(validateUpdateInventoryItemAdminBody);
 
+export const validateAdminCreateAvailabilityBlock =
+  createBodyValidator(validateCreateAvailabilityBlockAdminBody);
+
 export const validateAdminProductListQuery: HttpHandler = (
   request,
   response,
   next
 ) => {
   const result = validateListProductsAdminQuery(
+    request.query ?? {}
+  );
+
+  if (!result.value) {
+    return sendError(
+      response,
+      400,
+      'VALIDATION_ERROR',
+      result.errorMessage ?? 'Invalid query parameters'
+    );
+  }
+
+  request.query = result.value as unknown as Record<string, unknown>;
+  return next();
+};
+
+
+export const validateAdminAvailabilityBlockListQuery: HttpHandler = (
+  request,
+  response,
+  next
+) => {
+  const result = validateListAvailabilityBlocksAdminQuery(
     request.query ?? {}
   );
 
