@@ -1,4 +1,4 @@
-name: Phase 1H.3 Typecheck Diagnostic
+name: Phase 1H.3 Build Diagnostic
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - phase-1h3-admin-api-foundation
 
 jobs:
-  typecheck:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,4 +15,4 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run typecheck
+      - run: npm run vercel-build
