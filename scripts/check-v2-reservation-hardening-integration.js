@@ -24,8 +24,13 @@ const {
   parseDateOnly,
 } = require('../build/v2/utils/date-only');
 const {
+  deriveIdempotentGuestAccessToken,
   hashIdempotencyKey,
+  hashReservationFingerprint,
 } = require('../build/v2/utils/idempotency');
+const {
+  reservationService,
+} = require('../build/v2/services/reservation.service');
 const {
   hashGuestAccessToken,
 } = require('../build/v2/utils/reservation');
@@ -383,6 +388,56 @@ const loadReservationForKey = key =>
       '+guestAccessTokenHash +idempotencyKeyHash +idempotencyRequestHash'
     )
     .exec();
+
+const checkServiceFirstIdempotentCreate = async () => {
+  const fixture = await createFixture(1, 'SVFIRST');
+  const dates = futureRange(124);
+  const customer = {
+    firstName: 'Anna',
+    lastName: 'Nováková',
+    email: `phase1g1-service-${new Types.ObjectId().toString()}@example.cz`,
+    phone: '+420 777 123 456',
+  };
+  const key = randomUUID();
+  const guestAccessToken = deriveIdempotentGuestAccessToken(
+    key,
+    TEST_GUEST_SECRET
+  );
+
+  const requestHash = hashReservationFingerprint({
+    productId: fixture.product._id.toString(),
+    variantId: fixture.variant._id.toString(),
+    rentalMode: 'external',
+    startDate: dates.startDate,
+    endDate: dates.endDate,
+    customer,
+  });
+
+  const result = await reservationService.createReservation(
+    {
+      productId: fixture.product._id,
+      variantId: fixture.variant._id,
+      rentalMode: 'external',
+      startDate: dates.startDate,
+      endDate: dates.endDate,
+      customer,
+    },
+    {
+      idempotency: {
+        keyHash: hashIdempotencyKey(key),
+        requestHash,
+        guestAccessToken,
+      },
+    }
+  );
+
+  assert(result.reservation.reservationNumber, 'service first create reservationNumber');
+  assertEqual(
+    await reservationCountForKey(key),
+    1,
+    'service first create DB count'
+  );
+};
 
 const checkFirstIdempotentCreate = async server => {
   const fixture = await createFixture(1, 'FIRST');
@@ -794,6 +849,9 @@ const main = async () => {
     server = await startServer(createTestApp());
 
     const groups = {
+      'service-first': async () => {
+        await checkServiceFirstIdempotentCreate();
+      },
       first: async () => {
         await checkFirstIdempotentCreate(server);
       },
