@@ -33,32 +33,66 @@ const main = async () => {
   try {
     const collection = mongoose.connection.db.collection('v2_reservations');
 
+    const firstIndex = (await collection.listIndexes().toArray()).find(
+      candidate => candidate.name === 'uniq_v2_reservation_number'
+    );
+
+    const firstExact =
+      firstIndex &&
+      firstIndex.key &&
+      Object.keys(firstIndex.key).length === 1 &&
+      firstIndex.key.reservationNumber === 1 &&
+      firstIndex.unique === true;
+
+    if (!firstExact) {
+      throw new Error(
+        'Prerequisite failed: uniq_v2_reservation_number is not valid'
+      );
+    }
+
     await collection.createIndex(
-      { reservationNumber: 1 },
+      { idempotencyKeyHash: 1 },
       {
         unique: true,
-        name: 'uniq_v2_reservation_number',
+        name: 'uniq_v2_reservation_idempotency_key',
+        partialFilterExpression: {
+          idempotencyKeyHash: {
+            $exists: true,
+          },
+        },
       }
     );
 
     const indexes = await collection.listIndexes().toArray();
     const index = indexes.find(
-      candidate => candidate.name === 'uniq_v2_reservation_number'
+      candidate =>
+        candidate.name === 'uniq_v2_reservation_idempotency_key'
     );
 
     const exactKey =
       index &&
       index.key &&
       Object.keys(index.key).length === 1 &&
-      index.key.reservationNumber === 1;
+      index.key.idempotencyKeyHash === 1;
 
-    if (!index || !exactKey || index.unique !== true) {
+    const exactPartial =
+      index &&
+      index.partialFilterExpression &&
+      index.partialFilterExpression.idempotencyKeyHash &&
+      index.partialFilterExpression.idempotencyKeyHash.$exists === true;
+
+    if (
+      !index ||
+      !exactKey ||
+      index.unique !== true ||
+      !exactPartial
+    ) {
       throw new Error(
-        'Reservation number index verification failed after createIndex'
+        'Idempotency index verification failed after createIndex'
       );
     }
 
-    console.log('Controlled production reservation number index setup passed');
+    console.log('Controlled production idempotency index setup passed');
     console.log('databaseName:', databaseName);
   } finally {
     await mongoose.disconnect();
