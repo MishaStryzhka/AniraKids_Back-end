@@ -387,7 +387,7 @@ const checkRouteRegistration = () => {
 
   assert(health, 'health route must remain registered');
   assert(reservation, 'reservation POST route must be registered');
-  assertEqual(reservation.handlers.length, 7, 'reservation middleware chain length');
+  assertEqual(reservation.handlers.length, 10, 'reservation middleware chain length');
 };
 
 const main = () => {
