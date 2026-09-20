@@ -228,10 +228,7 @@ export class ProductMediaService {
       );
     }
 
-    throw new ProductMediaError(
-      'CLOUDINARY_OPERATION_FAILED',
-      'Product photo attachment could not be completed'
-    );
+    throw new Error('Product photo attachment update failed');
   }
 
   async updateAlt(
@@ -317,7 +314,14 @@ export class ProductMediaService {
       );
     }
 
-    if (!canRemoveProductPhoto(product.status, product.photos.length)) {
+    const hasRemainingDistinctPhoto = product.photos.some(
+      photo => photo.publicId !== publicId
+    );
+
+    if (
+      !canRemoveProductPhoto(product.status, product.photos.length) ||
+      (product.status === 'active' && !hasRemainingDistinctPhoto)
+    ) {
       throw new ProductMediaError(
         'PRODUCT_PHOTO_REQUIRED',
         'Active Product must retain at least one photo'
@@ -335,8 +339,12 @@ export class ProductMediaService {
             },
           },
           {
-            'photos.1': {
-              $exists: true,
+            photos: {
+              $elemMatch: {
+                publicId: {
+                  $ne: publicId,
+                },
+              },
             },
           },
         ],
@@ -371,17 +379,22 @@ export class ProductMediaService {
         );
       }
 
-      if (!canRemoveProductPhoto(latest.status, latest.photos.length)) {
+      const latestHasRemainingDistinctPhoto = latest.photos.some(
+        photo => photo.publicId !== publicId
+      );
+
+      if (
+        !canRemoveProductPhoto(latest.status, latest.photos.length) ||
+        (latest.status === 'active' &&
+          !latestHasRemainingDistinctPhoto)
+      ) {
         throw new ProductMediaError(
           'PRODUCT_PHOTO_REQUIRED',
           'Active Product must retain at least one photo'
         );
       }
 
-      throw new ProductMediaError(
-        'CLOUDINARY_OPERATION_FAILED',
-        'Product photo deletion could not be completed'
-      );
+      throw new Error('Product photo deletion update failed');
     }
 
     try {
