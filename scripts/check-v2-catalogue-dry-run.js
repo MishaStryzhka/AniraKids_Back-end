@@ -1068,12 +1068,6 @@ const main = async () => {
     );
 
     if (process.argv.includes('--summary-artifact')) {
-      const publicSummaryPath = path.resolve(
-        process.cwd(),
-        'public',
-        'phase-1h1-summary.json'
-      );
-
       const safeSummaryArtifact = {
         generatedAt: manifest.generatedAt,
         databaseName: manifest.databaseName,
@@ -1101,12 +1095,24 @@ const main = async () => {
         mongoWrites: 0,
       };
 
-      fs.mkdirSync(path.dirname(publicSummaryPath), {
-        recursive: true,
-      });
+      const diagnosticHtmlPath = path.resolve(
+        process.cwd(),
+        'index.html'
+      );
+      const diagnosticPayload = JSON.stringify(
+        safeSummaryArtifact,
+        null,
+        2
+      )
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
       fs.writeFileSync(
-        publicSummaryPath,
-        `${JSON.stringify(safeSummaryArtifact, null, 2)}\n`,
+        diagnosticHtmlPath,
+        '<!doctype html><meta charset="utf-8"><title>Phase 1H.1 summary</title><pre>' +
+          diagnosticPayload +
+          '</pre>',
         'utf8'
       );
     }
