@@ -1072,65 +1072,6 @@ const main = async () => {
       'utf8'
     );
 
-    if (process.argv.includes('--summary-beacon')) {
-      const https = require('https');
-
-      const safeSummaryArtifact = {
-        generatedAt: manifest.generatedAt,
-        databaseName: manifest.databaseName,
-        summary: manifest.summary,
-        unmappedLegacyFields: manifest.unmappedLegacyFields,
-        currentV2CatalogueCollections:
-          manifest.currentV2CatalogueCollections,
-        inventoryItemsCreated: 0,
-        mongoWrites: 0,
-      };
-
-      const serialized = JSON.stringify(safeSummaryArtifact);
-      const rawChunks = serialized.match(/.{1,700}/g) ?? [];
-      const beaconId =
-        process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ??
-        'phase1h1';
-
-      const sendChunk = (chunk, index) =>
-        new Promise((resolve, reject) => {
-          const encoded = encodeURIComponent(chunk);
-          const request = https.get(
-            'https://anira-kids-back-end.vercel.app/' +
-              '__phase1h1-summary-plain/' +
-              beaconId +
-              '/' +
-              index +
-              '-' +
-              rawChunks.length +
-              '/' +
-              encoded,
-            {
-              timeout: 10000,
-              headers: {
-                'user-agent':
-                  'AniraKids-Phase1H1-ReadOnly-Diagnostic',
-              },
-            },
-            response => {
-              response.resume();
-              response.on('end', resolve);
-            }
-          );
-
-          request.on('timeout', () => {
-            request.destroy(
-              new Error('Phase 1H.1 summary beacon timeout')
-            );
-          });
-          request.on('error', reject);
-        });
-
-      for (let index = 0; index < rawChunks.length; index += 1) {
-        await sendChunk(rawChunks[index], index);
-      }
-    }
-
     console.log(
       'PHASE_1H1_SUMMARY:',
       JSON.stringify(summary)
