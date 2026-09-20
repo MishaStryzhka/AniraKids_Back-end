@@ -259,6 +259,16 @@ ReservationV2Schema.index(
   }
 );
 
+ReservationV2Schema.index(
+  { status: 1, createdAt: -1 },
+  { name: 'idx_v2_reservation_admin_status_created' }
+);
+
+ReservationV2Schema.index(
+  { status: 1, startDate: 1, endDate: 1 },
+  { name: 'idx_v2_reservation_admin_calendar' }
+);
+
 const existingReservationV2Model = models[RESERVATION_V2_MODEL_NAME] as
   | Model<Reservation>
   | undefined;
