@@ -22,7 +22,8 @@
     "check:v2-reservation-hardening": "node scripts/check-v2-reservation-hardening.js",
     "check:v2-reservation-hardening:integration": "npm run build:v2 && node scripts/check-v2-reservation-hardening-integration.js",
     "check:v2-production-indexes": "npm run build:v2 && node scripts/check-v2-production-indexes.js",
-    "check:v2-admin-api": "node scripts/check-v2-admin-api.js"
+    "check:v2-admin-api": "node scripts/check-v2-admin-api.js",
+    "check:v2-admin-api:integration": "npm run build:v2 && node scripts/check-v2-admin-api-integration.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.0",
