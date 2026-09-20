@@ -238,7 +238,8 @@ const checkBlockSchemasAndDates = () => {
     'from/to block list query'
   );
   expectValidationFailure(
-    validateListAvailabilityBlocksAdminQuery({ page: '1' }),
+    validateListAvailabilityBlocksAdminQuery,
+    { page: '1' },
     'block list unknown query'
   );
 
@@ -421,7 +422,11 @@ const main = () => {
   checkDamagedRules();
   checkGenericPatchHardening();
   checkBlockSchemasAndDates();
-  console.log('Phase 1H.5 lifecycle diagnostic block schema passed');
+  checkBlockDto();
+  checkErrorMapping();
+  checkRoutes();
+
+  console.log('Phase 1H.5 inventory lifecycle pure checks passed');
 };
 
 main();
