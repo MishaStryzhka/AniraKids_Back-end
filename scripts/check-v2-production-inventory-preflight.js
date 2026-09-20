@@ -341,6 +341,53 @@ const main = async () => {
         : 'PREFLIGHT_STATE_MISMATCH',
     };
 
+    if (ready && process.argv.includes('--summary-beacon')) {
+      const https = require('https');
+      const serialized = JSON.stringify(report);
+      const rawChunks = serialized.match(/.{1,700}/g) ?? [];
+      const beaconId =
+        process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ??
+        'phase1h5b';
+
+      const sendChunk = (chunk, index) =>
+        new Promise((resolve, reject) => {
+          const encoded = encodeURIComponent(chunk);
+          const request = https.get(
+            'https://anira-kids-back-end.vercel.app/' +
+              '__phase1h5b-preflight-plain/' +
+              beaconId +
+              '/' +
+              index +
+              '-' +
+              rawChunks.length +
+              '/' +
+              encoded,
+            {
+              timeout: 10000,
+              headers: {
+                'user-agent':
+                  'AniraKids-Phase1H5B-ReadOnly-Preflight',
+              },
+            },
+            response => {
+              response.resume();
+              response.on('end', resolve);
+            }
+          );
+
+          request.on('timeout', () => {
+            request.destroy(
+              new Error('Phase 1H.5B preflight summary beacon timeout')
+            );
+          });
+          request.on('error', reject);
+        });
+
+      for (let index = 0; index < rawChunks.length; index += 1) {
+        await sendChunk(rawChunks[index], index);
+      }
+    }
+
     console.log(JSON.stringify(report, null, 2));
 
     if (!ready) {
