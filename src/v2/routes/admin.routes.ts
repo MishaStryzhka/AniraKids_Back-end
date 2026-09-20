@@ -11,6 +11,9 @@ import {
   updateAdminVariant,
 } from '../controllers/admin-catalogue.controller';
 import {
+  createAdminProductMediaHandlers,
+} from '../controllers/admin-product-media.controller';
+import {
   adminApiConfigurationReady,
   adminApiEnabled,
   requireAdminAuth,
@@ -23,6 +26,17 @@ import {
   validateAdminUpdateVariant,
   validateObjectIdParam,
 } from '../middleware/admin.middleware';
+import {
+  productMediaConfigurationReady,
+  validateAdminCompleteProductPhoto,
+  validateAdminDeleteProductPhoto,
+  validateAdminReorderProductPhotos,
+  validateAdminUpdateProductPhotoAlt,
+} from '../middleware/product-media.middleware';
+import {
+  productMediaService,
+  type ProductMediaService,
+} from '../services/product-media.service';
 import type {
   HttpHandler,
   RouterLike,
@@ -30,6 +44,7 @@ import type {
 
 export interface AdminRouteDependencies {
   ensureMongoConnection: HttpHandler;
+  productMediaService?: ProductMediaService;
 }
 
 const commonAdminGuards = (
@@ -46,6 +61,9 @@ export const registerAdminRoutes = (
   dependencies: AdminRouteDependencies
 ): void => {
   const guards = commonAdminGuards(dependencies);
+  const mediaHandlers = createAdminProductMediaHandlers(
+    dependencies.productMediaService ?? productMediaService
+  );
 
   router.get(
     '/admin/products',
@@ -74,6 +92,50 @@ export const registerAdminRoutes = (
     validateObjectIdParam('productId'),
     validateAdminUpdateProduct,
     updateAdminProduct
+  );
+
+  router.post(
+    '/admin/products/:productId/photos/sign',
+    ...guards,
+    productMediaConfigurationReady,
+    validateObjectIdParam('productId'),
+    mediaHandlers.signProductPhotoUpload
+  );
+
+  router.post(
+    '/admin/products/:productId/photos/complete',
+    ...guards,
+    productMediaConfigurationReady,
+    validateObjectIdParam('productId'),
+    validateAdminCompleteProductPhoto,
+    mediaHandlers.completeProductPhotoUpload
+  );
+
+  router.patch(
+    '/admin/products/:productId/photos/order',
+    ...guards,
+    productMediaConfigurationReady,
+    validateObjectIdParam('productId'),
+    validateAdminReorderProductPhotos,
+    mediaHandlers.reorderProductPhotos
+  );
+
+  router.patch(
+    '/admin/products/:productId/photos',
+    ...guards,
+    productMediaConfigurationReady,
+    validateObjectIdParam('productId'),
+    validateAdminUpdateProductPhotoAlt,
+    mediaHandlers.updateProductPhotoAlt
+  );
+
+  router.delete(
+    '/admin/products/:productId/photos',
+    ...guards,
+    productMediaConfigurationReady,
+    validateObjectIdParam('productId'),
+    validateAdminDeleteProductPhoto,
+    mediaHandlers.deleteProductPhoto
   );
 
   router.post(

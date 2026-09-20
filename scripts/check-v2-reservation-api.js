@@ -367,6 +367,10 @@ const checkRouteRegistration = () => {
       registrations.push({ method: 'PATCH', path, handlers });
       return this;
     },
+    delete(path, ...handlers) {
+      registrations.push({ method: 'DELETE', path, handlers });
+      return this;
+    },
     use(...handlers) {
       registrations.push({ method: 'USE', path: null, handlers });
       return this;

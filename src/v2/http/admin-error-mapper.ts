@@ -1,6 +1,12 @@
 import {
+  ProductMediaConfigurationError,
+} from '../media/product-media.config';
+import {
   CatalogueAdminError,
 } from '../services/catalogue-admin.types';
+import {
+  ProductMediaError,
+} from '../services/product-media.types';
 import type {
   HttpErrorHandler,
 } from '../types/http';
@@ -37,6 +43,33 @@ const mapped = (
 export const mapAdminApiError = (
   error: unknown
 ): MappedAdminApiError => {
+  if (error instanceof ProductMediaConfigurationError) {
+    return mapped(
+      503,
+      'MEDIA_CONFIGURATION_ERROR',
+      'Product media is not fully configured'
+    );
+  }
+
+  if (error instanceof ProductMediaError) {
+    switch (error.code) {
+      case 'MEDIA_CONFIGURATION_ERROR':
+        return mapped(503, error.code, error.message);
+      case 'PRODUCT_NOT_FOUND':
+      case 'PHOTO_NOT_FOUND':
+        return mapped(404, error.code, error.message);
+      case 'PHOTO_LIMIT_REACHED':
+      case 'PRODUCT_PHOTO_REQUIRED':
+        return mapped(409, error.code, error.message);
+      case 'PHOTO_INVALID_RESOURCE':
+      case 'PHOTO_WRONG_PRODUCT':
+      case 'IMAGE_TOO_LARGE':
+        return mapped(400, error.code, error.message);
+      case 'CLOUDINARY_OPERATION_FAILED':
+        return mapped(502, error.code, error.message);
+    }
+  }
+
   if (error instanceof CatalogueAdminError) {
     switch (error.code) {
       case 'VALIDATION_ERROR':
