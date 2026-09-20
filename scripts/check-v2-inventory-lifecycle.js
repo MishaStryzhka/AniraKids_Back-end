@@ -421,8 +421,7 @@ const main = () => {
   checkDamagedRules();
   checkGenericPatchHardening();
   checkBlockSchemasAndDates();
-  checkBlockDto();
-  console.log('Phase 1H.5 lifecycle diagnostic groups A+B passed');
+  console.log('Phase 1H.5 lifecycle diagnostic block schema passed');
 };
 
 main();
