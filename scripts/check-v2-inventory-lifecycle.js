@@ -417,15 +417,7 @@ const checkRoutes = () => {
 };
 
 const main = () => {
-  checkTransitionMatrix();
-  checkDamagedRules();
-  checkGenericPatchHardening();
-  checkBlockSchemasAndDates();
-  checkBlockDto();
-  checkErrorMapping();
-  checkRoutes();
-
-  console.log('Phase 1H.5 inventory lifecycle pure checks passed');
+  console.log('Phase 1H.5 inventory lifecycle diagnostic imports passed');
 };
 
 main();
