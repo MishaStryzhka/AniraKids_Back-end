@@ -19,6 +19,12 @@ import {
   validateCreateAvailabilityBlockAdminBody,
   validateListAvailabilityBlocksAdminQuery,
 } from '../schemas/admin-inventory-availability.schema';
+import {
+  validateCalendarReservationsAdminQuery,
+  validateCancelReservationAdminBody,
+  validateListReservationsAdminQuery,
+  validateUpdateReservationNotesAdminBody,
+} from '../schemas/admin-reservations.schema';
 import type {
   HttpHandler,
   HttpRequest,
@@ -260,6 +266,12 @@ export const validateAdminUpdateInventoryItem =
 export const validateAdminCreateAvailabilityBlock =
   createBodyValidator(validateCreateAvailabilityBlockAdminBody);
 
+export const validateAdminCancelReservation =
+  createBodyValidator(validateCancelReservationAdminBody);
+
+export const validateAdminUpdateReservationNotes =
+  createBodyValidator(validateUpdateReservationNotesAdminBody);
+
 export const validateAdminProductListQuery: HttpHandler = (
   request,
   response,
@@ -289,6 +301,51 @@ export const validateAdminAvailabilityBlockListQuery: HttpHandler = (
   next
 ) => {
   const result = validateListAvailabilityBlocksAdminQuery(
+    request.query ?? {}
+  );
+
+  if (!result.value) {
+    return sendError(
+      response,
+      400,
+      'VALIDATION_ERROR',
+      result.errorMessage ?? 'Invalid query parameters'
+    );
+  }
+
+  request.query = result.value as unknown as Record<string, unknown>;
+  return next();
+};
+
+
+export const validateAdminReservationListQuery: HttpHandler = (
+  request,
+  response,
+  next
+) => {
+  const result = validateListReservationsAdminQuery(
+    request.query ?? {}
+  );
+
+  if (!result.value) {
+    return sendError(
+      response,
+      400,
+      'VALIDATION_ERROR',
+      result.errorMessage ?? 'Invalid query parameters'
+    );
+  }
+
+  request.query = result.value as unknown as Record<string, unknown>;
+  return next();
+};
+
+export const validateAdminReservationCalendarQuery: HttpHandler = (
+  request,
+  response,
+  next
+) => {
+  const result = validateCalendarReservationsAdminQuery(
     request.query ?? {}
   );
 
