@@ -304,7 +304,7 @@ export const toAdminReservationDetailDto = (
     startDate: formatDateOnly(source.startDate),
     endDate: formatDateOnly(source.endDate),
     status: source.status,
-    ...(expiresAt === null ? {} : { expiresAt }),
+    expiresAt,
     pendingExpired: isPendingReservationExpired(
       {
         status: source.status as any,
