@@ -93,10 +93,14 @@ let reservationSequence = 0;
 
 const nextReservationNumber = () => {
   reservationSequence += 1;
-  return `AK-2026-${reservationSequence
-    .toString(36)
-    .toUpperCase()
-    .padStart(6, '0')}`;
+  const suffix =
+    marker.slice(-4) +
+    reservationSequence
+      .toString(36)
+      .toUpperCase()
+      .padStart(2, '0');
+
+  return `AK-2026-${suffix}`;
 };
 
 const assert = (condition, message) => {
@@ -756,6 +760,39 @@ const checkBasicAdminApi = async (
       `J detail hides ${secret}`
     );
   }
+
+  const missingInventoryItem = await createItem(
+    fixture.variant._id,
+    'BASICMISS'
+  );
+  const missingInventoryReservation = await createReservation({
+    fixture,
+    item: missingInventoryItem,
+    startDate: '2035-06-10',
+    endDate: '2035-06-11',
+    status: 'confirmed',
+  });
+  await InventoryItemV2Model.deleteOne({
+    _id: missingInventoryItem._id,
+  });
+
+  const missingInventoryDetail = await sendJson(
+    server,
+    'GET',
+    `/api/v2/admin/reservations/${missingInventoryReservation._id.toHexString()}`,
+    { token: admin.token }
+  );
+
+  assertEqual(
+    missingInventoryDetail.status,
+    200,
+    'detail survives missing current inventory'
+  );
+  assertEqual(
+    missingInventoryDetail.body.items[0].inventoryCurrent,
+    null,
+    'missing current inventory is represented as null'
+  );
 
   const notes = await sendJson(
     server,
