@@ -868,6 +868,7 @@ const main = async () => {
       productsRequiringGenderReview: 0,
       productsRequiringRentalPriceReview: 0,
       productsRequiringSizeReview: 0,
+      productsWithValidProposedVariants: 0,
       cleanlyMappableProducts: 0,
       slugCollisionGroups: 0,
       slugCollisionProducts: 0,
@@ -984,6 +985,10 @@ const main = async () => {
         summary.productsRequiringSizeReview += 1;
       }
 
+      if (proposal.proposedVariants.length > 0) {
+        summary.productsWithValidProposedVariants += 1;
+      }
+
       increment(
         summary.genderSignalDistribution,
         proposal.proposedProduct.gender ??
@@ -1067,54 +1072,71 @@ const main = async () => {
       'utf8'
     );
 
-    if (process.argv.includes('--summary-artifact')) {
+    if (process.argv.includes('--summary-beacon')) {
+      const https = require('https');
+      const zlib = require('zlib');
+
       const safeSummaryArtifact = {
         generatedAt: manifest.generatedAt,
         databaseName: manifest.databaseName,
         summary: manifest.summary,
-        categoryDistribution: summary.categoryDistribution,
-        outfitsDistribution: summary.outfitsDistribution,
-        genderSignalDistribution: summary.genderSignalDistribution,
-        childSizeTopLevelShapes: summary.childSizeTopLevelShapes,
-        childSizeEntryTypes: summary.childSizeEntryTypes,
-        childSizeRepresentativeShapes:
-          summary.childSizeRepresentativeShapes,
         unmappedLegacyFields: manifest.unmappedLegacyFields,
-        reportOnlyLegacyFields: manifest.reportOnlyLegacyFields,
         currentV2CatalogueCollections:
           manifest.currentV2CatalogueCollections,
-        expectedFutureIndexes: manifest.expectedFutureIndexes,
-        reportPaths: {
-          json: path.relative(process.cwd(), JSON_REPORT_PATH),
-          markdown: path.relative(
-            process.cwd(),
-            MARKDOWN_REPORT_PATH
-          ),
-        },
         inventoryItemsCreated: 0,
         mongoWrites: 0,
       };
 
-      const diagnosticHtmlPath = path.resolve(
-        process.cwd(),
-        'index.html'
-      );
-      const diagnosticPayload = JSON.stringify(
-        safeSummaryArtifact,
-        null,
-        2
-      )
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+      const encoded = zlib
+        .deflateRawSync(
+          Buffer.from(
+            JSON.stringify(safeSummaryArtifact),
+            'utf8'
+          )
+        )
+        .toString('base64url');
 
-      fs.writeFileSync(
-        diagnosticHtmlPath,
-        '<!doctype html><meta charset="utf-8"><title>Phase 1H.1 summary</title><pre>' +
-          diagnosticPayload +
-          '</pre>',
-        'utf8'
-      );
+      const chunks = encoded.match(/.{1,1200}/g) ?? [];
+      const beaconId =
+        process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ??
+        'phase1h1';
+
+      const sendChunk = (chunk, index) =>
+        new Promise((resolve, reject) => {
+          const request = https.get(
+            'https://anira-kids-back-end.vercel.app/' +
+              '__phase1h1-summary/' +
+              beaconId +
+              '/' +
+              index +
+              '-' +
+              chunks.length +
+              '/' +
+              chunk,
+            {
+              timeout: 10000,
+              headers: {
+                'user-agent':
+                  'AniraKids-Phase1H1-ReadOnly-Diagnostic',
+              },
+            },
+            response => {
+              response.resume();
+              response.on('end', resolve);
+            }
+          );
+
+          request.on('timeout', () => {
+            request.destroy(
+              new Error('Phase 1H.1 summary beacon timeout')
+            );
+          });
+          request.on('error', reject);
+        });
+
+      for (let index = 0; index < chunks.length; index += 1) {
+        await sendChunk(chunks[index], index);
+      }
     }
 
     console.log(
