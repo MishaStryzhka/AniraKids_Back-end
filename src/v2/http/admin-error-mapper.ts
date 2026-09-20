@@ -7,6 +7,9 @@ import {
 import {
   ProductMediaError,
 } from '../services/product-media.types';
+import {
+  InventoryAvailabilityAdminError,
+} from '../services/inventory-availability-admin.types';
 import type {
   HttpErrorHandler,
 } from '../types/http';
@@ -70,6 +73,24 @@ export const mapAdminApiError = (
     }
   }
 
+  if (error instanceof InventoryAvailabilityAdminError) {
+    switch (error.code) {
+      case 'INVALID_DATE':
+      case 'PAST_BLOCK_DATE':
+      case 'INVALID_INVENTORY_TRANSITION':
+        return mapped(400, error.code, error.message);
+      case 'INVENTORY_ITEM_NOT_FOUND':
+      case 'AVAILABILITY_BLOCK_NOT_FOUND':
+        return mapped(404, error.code, error.message);
+      case 'INVENTORY_HAS_CURRENT_OR_FUTURE_RESERVATION':
+      case 'DAMAGED_ITEM_REQUIRES_MAINTENANCE':
+      case 'DAMAGED_ITEM_CANNOT_BE_ACTIVATED':
+      case 'AVAILABILITY_BLOCK_CONFLICT':
+      case 'INVENTORY_ITEM_NOT_ACTIVE':
+        return mapped(409, error.code, error.message);
+    }
+  }
+
   if (error instanceof CatalogueAdminError) {
     switch (error.code) {
       case 'VALIDATION_ERROR':
@@ -84,6 +105,7 @@ export const mapAdminApiError = (
       case 'INVENTORY_CODE_ALREADY_EXISTS':
       case 'PRODUCT_NOT_READY':
       case 'PRODUCT_ARCHIVE_REQUIRES_RESERVATION_REVIEW':
+      case 'DAMAGED_ITEM_REQUIRES_MAINTENANCE':
         return mapped(
           409,
           error.code,
