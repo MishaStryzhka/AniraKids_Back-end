@@ -1074,7 +1074,6 @@ const main = async () => {
 
     if (process.argv.includes('--summary-beacon')) {
       const https = require('https');
-      const zlib = require('zlib');
 
       const safeSummaryArtifact = {
         generatedAt: manifest.generatedAt,
@@ -1087,32 +1086,25 @@ const main = async () => {
         mongoWrites: 0,
       };
 
-      const encoded = zlib
-        .deflateRawSync(
-          Buffer.from(
-            JSON.stringify(safeSummaryArtifact),
-            'utf8'
-          )
-        )
-        .toString('base64url');
-
-      const chunks = encoded.match(/.{1,1200}/g) ?? [];
+      const serialized = JSON.stringify(safeSummaryArtifact);
+      const rawChunks = serialized.match(/.{1,700}/g) ?? [];
       const beaconId =
         process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ??
         'phase1h1';
 
       const sendChunk = (chunk, index) =>
         new Promise((resolve, reject) => {
+          const encoded = encodeURIComponent(chunk);
           const request = https.get(
             'https://anira-kids-back-end.vercel.app/' +
-              '__phase1h1-summary/' +
+              '__phase1h1-summary-plain/' +
               beaconId +
               '/' +
               index +
               '-' +
-              chunks.length +
+              rawChunks.length +
               '/' +
-              chunk,
+              encoded,
             {
               timeout: 10000,
               headers: {
@@ -1134,8 +1126,8 @@ const main = async () => {
           request.on('error', reject);
         });
 
-      for (let index = 0; index < chunks.length; index += 1) {
-        await sendChunk(chunks[index], index);
+      for (let index = 0; index < rawChunks.length; index += 1) {
+        await sendChunk(rawChunks[index], index);
       }
     }
 
