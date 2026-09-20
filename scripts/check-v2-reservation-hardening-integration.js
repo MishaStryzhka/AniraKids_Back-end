@@ -757,20 +757,59 @@ const main = async () => {
     await assertReservationNumberIndex();
     await ensureTestIdempotencyIndex();
 
+    const group = process.argv[2] ?? 'all';
+
+    if (group === 'index') {
+      console.log('Phase 1G.1 hardening integration index check passed');
+      return;
+    }
+
     server = await startServer(createTestApp());
 
-    const sequential = await checkSequentialReplay(server);
-    await checkConcurrentReplay(server);
-    await checkReusedKeyDifferentSemantics(
-      server,
-      sequential
-    );
-    await checkDifferentKeysNormalSemantics(server);
-    await checkReplayBeforePendingGuard(server);
-    await checkUniqueIndexEnforcement(sequential);
+    const groups = {
+      sequential: async () => {
+        const sequential = await checkSequentialReplay(server);
+        await checkUniqueIndexEnforcement(sequential);
+      },
+      concurrent: async () => {
+        await checkConcurrentReplay(server);
+      },
+      reused: async () => {
+        const sequential = await checkSequentialReplay(server);
+        await checkReusedKeyDifferentSemantics(server, sequential);
+      },
+      different: async () => {
+        await checkDifferentKeysNormalSemantics(server);
+      },
+      pending: async () => {
+        await checkReplayBeforePendingGuard(server);
+      },
+    };
+
+    if (group === 'all') {
+      for (const groupName of [
+        'sequential',
+        'concurrent',
+        'reused',
+        'different',
+        'pending',
+      ]) {
+        await groups[groupName]();
+      }
+    } else {
+      const runGroup = groups[group];
+
+      if (!runGroup) {
+        throw new Error(
+          `Unknown Phase 1G.1 hardening integration group: ${group}`
+        );
+      }
+
+      await runGroup();
+    }
 
     console.log(
-      'Phase 1G.1 reservation hardening integration checks passed'
+      `Phase 1G.1 reservation hardening integration checks passed: ${group}`
     );
   } finally {
     if (server) {
