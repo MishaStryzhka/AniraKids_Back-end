@@ -39,6 +39,7 @@ export interface RouterLike {
   get(path: string, ...handlers: HttpHandler[]): RouterLike;
   post(path: string, ...handlers: HttpHandler[]): RouterLike;
   patch(path: string, ...handlers: HttpHandler[]): RouterLike;
+  delete(path: string, ...handlers: HttpHandler[]): RouterLike;
   use(...handlers: Array<HttpHandler | HttpErrorHandler>): RouterLike;
 }
 
