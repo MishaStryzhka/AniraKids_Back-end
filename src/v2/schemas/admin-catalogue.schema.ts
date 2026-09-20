@@ -246,7 +246,10 @@ export const validateListProductsAdminQuery = (
   );
 
   if (!validation.value) {
-    return validation as ValidationResult<ListProductsAdminQuery>;
+    return {
+      errorMessage:
+        validation.errorMessage ?? 'Invalid query parameters',
+    };
   }
 
   const raw = validation.value;
