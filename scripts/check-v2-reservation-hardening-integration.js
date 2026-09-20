@@ -384,6 +384,33 @@ const loadReservationForKey = key =>
     )
     .exec();
 
+const checkFirstIdempotentCreate = async server => {
+  const fixture = await createFixture(1, 'FIRST');
+  const dates = futureRange(125);
+  const body = makeBody({
+    ...fixture,
+    ...dates,
+  });
+  const key = randomUUID();
+
+  const first = await sendReservation(server, body, key);
+
+  assertEqual(first.status, 201, 'first idempotent create status');
+  assert(
+    first.body?.reservation?.reservationNumber,
+    'first idempotent create must return reservationNumber'
+  );
+  assert(
+    first.body?.guestAccessToken,
+    'first idempotent create must return guest token'
+  );
+  assertEqual(
+    await reservationCountForKey(key),
+    1,
+    'first idempotent create DB count'
+  );
+};
+
 const checkSequentialReplay = async server => {
   const fixture = await createFixture(1, 'SEQ');
   const dates = futureRange(130);
@@ -767,6 +794,9 @@ const main = async () => {
     server = await startServer(createTestApp());
 
     const groups = {
+      first: async () => {
+        await checkFirstIdempotentCreate(server);
+      },
       sequential: async () => {
         const sequential = await checkSequentialReplay(server);
         await checkUniqueIndexEnforcement(sequential);
