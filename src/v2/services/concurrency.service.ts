@@ -138,7 +138,7 @@ const assertInventoryItemsAvailable = async (
     startDate,
     endDate,
     now,
-    session
+    { session }
   );
 
   if (blockedIds.size > 0) {
