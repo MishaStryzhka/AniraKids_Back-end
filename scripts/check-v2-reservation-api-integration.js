@@ -1,4 +1,5 @@
 const http = require('http');
+const { randomUUID } = require('crypto');
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
@@ -65,6 +66,8 @@ const created = {
 };
 
 const testMarker = new Types.ObjectId().toString();
+const TEST_GUEST_TOKEN_SECRET =
+  'phase-1h3-regression-guest-token-secret-at-least-32-bytes';
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -200,6 +203,7 @@ const sendJson = (server, path, body, headers = {}) =>
         headers: {
           'content-type': 'application/json',
           'content-length': Buffer.byteLength(payload),
+          'idempotency-key': randomUUID(),
           ...headers,
         },
       },
@@ -829,6 +833,8 @@ const closeServer = server =>
 
 const main = async () => {
   const originalFlag = process.env.V2_RESERVATION_API_ENABLED;
+  const originalGuestTokenSecret =
+    process.env.V2_GUEST_TOKEN_SECRET;
   let server;
 
   await mongoose.connect(testUri, {
@@ -840,6 +846,8 @@ const main = async () => {
     await assertUniqueReservationNumberIndex();
 
     process.env.V2_RESERVATION_API_ENABLED = 'true';
+    process.env.V2_GUEST_TOKEN_SECRET =
+      TEST_GUEST_TOKEN_SECRET;
 
     server = await startServer(createTestApp());
 
@@ -898,6 +906,13 @@ const main = async () => {
       delete process.env.V2_RESERVATION_API_ENABLED;
     } else {
       process.env.V2_RESERVATION_API_ENABLED = originalFlag;
+    }
+
+    if (originalGuestTokenSecret === undefined) {
+      delete process.env.V2_GUEST_TOKEN_SECRET;
+    } else {
+      process.env.V2_GUEST_TOKEN_SECRET =
+        originalGuestTokenSecret;
     }
 
     await cleanup();
