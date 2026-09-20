@@ -666,101 +666,109 @@ const buildMarkdown = manifest => {
   const summary = manifest.summary;
   const categoryLines = Object.entries(summary.categoryDistribution)
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `- \`${key}\`: ${value}`)
+    .map(([key, value]) => '- `' + key + '`: ' + value)
     .join('\n');
 
   const genderLines = Object.entries(summary.genderSignalDistribution)
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `- \`${key}\`: ${value}`)
+    .map(([key, value]) => '- `' + key + '`: ' + value)
     .join('\n');
 
   const childShapeLines = Object.entries(summary.childSizeEntryTypes)
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `- \`${key}\`: ${value}`)
+    .map(([key, value]) => '- `' + key + '`: ' + value)
     .join('\n');
 
-  return `# AniraKids v2 Catalogue Migration Dry-Run
+  const unmappedLines = manifest.unmappedLegacyFields.length
+    ? manifest.unmappedLegacyFields
+        .map(field => '- `' + field + '`')
+        .join('\n')
+    : '- none discovered';
 
-Generated: ${manifest.generatedAt}  
-Database: ${manifest.databaseName}  
-Mode: **READ-ONLY / NO MIGRATION**
+  const indexLines = manifest.expectedFutureIndexes
+    .map(index => '- `' + index.collection + '.' + index.name + '`')
+    .join('\n');
 
-## Summary
-
-- Total legacy products: **${summary.totalLegacyProducts}**
-- Active / inactive: **${summary.activeLegacyProducts} / ${summary.inactiveLegacyProducts}**
-- Rental products: **${summary.rentalProducts}**
-- Sale products: **${summary.saleProducts}**
-- Rental + sale: **${summary.rentalAndSaleProducts}**
-- Cleanly mappable without manual review: **${summary.cleanlyMappableProducts}**
-- Require category review: **${summary.productsRequiringCategoryReview}**
-- Require gender review: **${summary.productsRequiringGenderReview}**
-- Require rental price review: **${summary.productsRequiringRentalPriceReview}**
-- Require size review: **${summary.productsRequiringSizeReview}**
-- Brand conflicts: **${summary.brandConflicts}**
-- Slug collision groups: **${summary.slugCollisionGroups}**
-- Invalid photo entries: **${summary.invalidPhotoEntries}**
-- Products with legacy rental periods: **${summary.productsWithLegacyRentalPeriods}**
-- Proposed ProductV2 drafts: **${summary.proposedProductDrafts}**
-- Proposed VariantV2 sizes: **${summary.proposedVariantCount}**
-- InventoryItemV2 created/proposed: **0 / 0**
-
-## Legacy category distribution
-
-${categoryLines || '- none'}
-
-## Gender signal distribution
-
-${genderLines || '- none'}
-
-## childSize entry shapes
-
-${childShapeLines || '- none'}
-
-Representative structural shapes only:
-
-```json
-${JSON.stringify(summary.childSizeRepresentativeShapes, null, 2)}
-```
-
-## Brand field presence
-
-```json
-${JSON.stringify(summary.brandPresence, null, 2)}
-```
-
-## Size / photo / rental-period discovery
-
-- Products with childSize: **${summary.productsWithChildSize}**
-- Products with size: **${summary.productsWithSize}**
-- Products missing both: **${summary.productsMissingBothSizeSources}**
-- Products with photos: **${summary.productsWithPhotos}**
-- Products with malformed photo entries: **${summary.productsWithMalformedPhotos}**
-- Products with rentalPeriods: **${summary.productsWithLegacyRentalPeriods}**
-
-## Unmapped legacy fields
-
-${manifest.unmappedLegacyFields.length
-  ? manifest.unmappedLegacyFields.map(field => `- \`${field}\``).join('\n')
-  : '- none discovered'}
-
-These fields are not copied into ProductV2 in Phase 1H.1.
-
-## Future controlled indexes — NOT created
-
-${manifest.expectedFutureIndexes
-  .map(index => `- \`${index.collection}.${index.name}\``)
-  .join('\n')}
-
-## Safety
-
-- ProductV2 status proposals are always `draft`.
-- Legacy daily/hourly prices are reference-only and are never converted to studio/external flat prices.
-- Legacy rentalPeriods are reference-only and are not migrated to Reservations or AvailabilityBlocks.
-- Size proposals never imply physical quantity.
-- Every proposed variant has unresolved physical inventory: `confirmedQuantity: null`.
-- No ProductV2, VariantV2, InventoryItemV2, ReservationV2, index, migration, or seed write is performed.
-`;
+  return [
+    '# AniraKids v2 Catalogue Migration Dry-Run',
+    '',
+    'Generated: ' + manifest.generatedAt + '  ',
+    'Database: ' + manifest.databaseName + '  ',
+    'Mode: **READ-ONLY / NO MIGRATION**',
+    '',
+    '## Summary',
+    '',
+    '- Total legacy products: **' + summary.totalLegacyProducts + '**',
+    '- Active / inactive: **' + summary.activeLegacyProducts + ' / ' + summary.inactiveLegacyProducts + '**',
+    '- Rental products: **' + summary.rentalProducts + '**',
+    '- Sale products: **' + summary.saleProducts + '**',
+    '- Rental + sale: **' + summary.rentalAndSaleProducts + '**',
+    '- Cleanly mappable without manual review: **' + summary.cleanlyMappableProducts + '**',
+    '- Require category review: **' + summary.productsRequiringCategoryReview + '**',
+    '- Require gender review: **' + summary.productsRequiringGenderReview + '**',
+    '- Require rental price review: **' + summary.productsRequiringRentalPriceReview + '**',
+    '- Require size review: **' + summary.productsRequiringSizeReview + '**',
+    '- Brand conflicts: **' + summary.brandConflicts + '**',
+    '- Slug collision groups: **' + summary.slugCollisionGroups + '**',
+    '- Invalid photo entries: **' + summary.invalidPhotoEntries + '**',
+    '- Products with legacy rental periods: **' + summary.productsWithLegacyRentalPeriods + '**',
+    '- Proposed ProductV2 drafts: **' + summary.proposedProductDrafts + '**',
+    '- Proposed VariantV2 sizes: **' + summary.proposedVariantCount + '**',
+    '- InventoryItemV2 created/proposed: **0 / 0**',
+    '',
+    '## Legacy category distribution',
+    '',
+    categoryLines || '- none',
+    '',
+    '## Gender signal distribution',
+    '',
+    genderLines || '- none',
+    '',
+    '## childSize entry shapes',
+    '',
+    childShapeLines || '- none',
+    '',
+    'Representative structural shapes only:',
+    '',
+    '~~~json',
+    JSON.stringify(summary.childSizeRepresentativeShapes, null, 2),
+    '~~~',
+    '',
+    '## Brand field presence',
+    '',
+    '~~~json',
+    JSON.stringify(summary.brandPresence, null, 2),
+    '~~~',
+    '',
+    '## Size / photo / rental-period discovery',
+    '',
+    '- Products with childSize: **' + summary.productsWithChildSize + '**',
+    '- Products with size: **' + summary.productsWithSize + '**',
+    '- Products missing both: **' + summary.productsMissingBothSizeSources + '**',
+    '- Products with photos: **' + summary.productsWithPhotos + '**',
+    '- Products with malformed photo entries: **' + summary.productsWithMalformedPhotos + '**',
+    '- Products with rentalPeriods: **' + summary.productsWithLegacyRentalPeriods + '**',
+    '',
+    '## Unmapped legacy fields',
+    '',
+    unmappedLines,
+    '',
+    'These fields are not copied into ProductV2 in Phase 1H.1.',
+    '',
+    '## Future controlled indexes — NOT created',
+    '',
+    indexLines,
+    '',
+    '## Safety',
+    '',
+    '- ProductV2 status proposals are always draft.',
+    '- Legacy daily/hourly prices are reference-only and are never converted to studio/external flat prices.',
+    '- Legacy rentalPeriods are reference-only and are not migrated to Reservations or AvailabilityBlocks.',
+    '- Size proposals never imply physical quantity.',
+    '- Every proposed variant has unresolved physical inventory: confirmedQuantity = null.',
+    '- No ProductV2, VariantV2, InventoryItemV2, ReservationV2, index, migration, or seed write is performed.',
+    '',
+  ].join('\n');
 };
 
 const main = async () => {
