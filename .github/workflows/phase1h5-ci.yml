@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - phase-1h5-inventory-lifecycle
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
