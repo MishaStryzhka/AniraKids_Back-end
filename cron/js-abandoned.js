@@ -36,25 +36,23 @@ const isRentalPeriodAbandoned = rentalPeriods => {
 
 // Функція для оновлення статусу замовлень
 const updateAbandonedOrders = async () => {
-  try {
-    const orders = await Order.find({ status: 'create' });
+  const orders = await Order.find({ status: 'create' });
 
-    let updatedCount = 0;
+  let updatedCount = 0;
 
-    for (const order of orders) {
-      const rentalPeriods = order.rentalPeriods;
+  for (const order of orders) {
+    const rentalPeriods = order.rentalPeriods;
 
-      if (rentalPeriods && isRentalPeriodAbandoned(rentalPeriods)) {
-        order.status = 'abandoned';
-        await order.save();
-        updatedCount++;
-      }
+    if (rentalPeriods && isRentalPeriodAbandoned(rentalPeriods)) {
+      order.status = 'abandoned';
+      await order.save();
+      updatedCount++;
     }
-
-    console.log(`Updated ${updatedCount} orders to 'abandoned' status.`);
-  } catch (error) {
-    console.error('Error updating orders to abandoned:', error);
   }
+
+  console.log(`Updated ${updatedCount} orders to 'abandoned' status.`);
+
+  return updatedCount;
 };
 
 module.exports = updateAbandonedOrders;
