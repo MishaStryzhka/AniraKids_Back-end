@@ -76,7 +76,7 @@ const checkAdminAllowlist = () => {
   assert(parsed.has(first), 'admin allowlist first id');
   assert(parsed.has(second), 'admin allowlist second id');
 
-  for (const invalid of [undefined, '', 'not-an-object-id', `${first},bad`]) {
+  for (const invalid of ['', 'not-an-object-id', `${first},bad`]) {
     let error;
 
     try {
@@ -89,6 +89,31 @@ const checkAdminAllowlist = () => {
       error instanceof AdminApiConfigurationError,
       'invalid admin env must fail as configuration error'
     );
+  }
+
+  const originalIds = process.env.V2_ADMIN_USER_IDS;
+
+  try {
+    delete process.env.V2_ADMIN_USER_IDS;
+
+    let error;
+
+    try {
+      parseAdminUserIds();
+    } catch (caught) {
+      error = caught;
+    }
+
+    assert(
+      error instanceof AdminApiConfigurationError,
+      'missing admin env must fail as configuration error'
+    );
+  } finally {
+    if (originalIds === undefined) {
+      delete process.env.V2_ADMIN_USER_IDS;
+    } else {
+      process.env.V2_ADMIN_USER_IDS = originalIds;
+    }
   }
 };
 
