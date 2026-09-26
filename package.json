@@ -10,7 +10,7 @@
     "check:v2-models": "node scripts/check-v2-models.js",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
-    "vercel-build": "npm run typecheck && npm run build:v2 && npm run check:v2-models && npm run check:v2-utils && npm run check:v2-availability && npm run check:v2-reservation-service && npm run check:v2-reservation-api && npm run check:v2-reservation-hardening && npm run check:v2-admin-api && npm run check:v2-product-media && npm run check:v2-inventory-lifecycle && npm run check:v2-admin-reservations",
+    "vercel-build": "npm run typecheck && npm run build:v2 && npm run check:v2-models && npm run check:v2-utils && npm run check:v2-availability && npm run check:v2-reservation-service && npm run check:v2-reservation-api && npm run check:v2-reservation-hardening && npm run check:v2-admin-api && npm run check:v2-product-media && npm run check:v2-inventory-lifecycle && npm run check:v2-admin-reservations && npm run check:vercel-cron",
     "check:v2-utils": "node scripts/check-v2-utils.js",
     "check:v2-availability": "node scripts/check-v2-availability.js",
     "check:v2-availability:integration": "npm run build:v2 && node scripts/check-v2-availability-integration.js",
@@ -30,7 +30,8 @@
     "check:v2-inventory-lifecycle": "node scripts/check-v2-inventory-lifecycle.js",
     "check:v2-inventory-lifecycle:integration": "npm run build:v2 && node scripts/check-v2-inventory-lifecycle-integration.js",
     "check:v2-admin-reservations": "node scripts/check-v2-admin-reservations.js",
-    "check:v2-admin-reservations:integration": "npm run build:v2 && node scripts/check-v2-admin-reservations-integration.js"
+    "check:v2-admin-reservations:integration": "npm run build:v2 && node scripts/check-v2-admin-reservations-integration.js",
+    "check:vercel-cron": "node scripts/check-vercel-cron.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.0",
