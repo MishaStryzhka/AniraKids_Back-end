@@ -20,6 +20,10 @@ const authRouter = require('./routes/api/auth');
 const settingsRouter = require('./routes/api/settings');
 const productRouter = require('./routes/api/product');
 const orderRouter = require('./routes/api/order');
+const {
+  requireVercelCronAuthorization,
+  runAbandonedOrdersCron,
+} = require('./cron/vercel-http');
 const { createV2Router } = require('./build/v2/routes');
 const { createV2CorsOptions } = require('./build/v2/http/cors');
 const { connectMongo } = require('./config/mongodb');
@@ -75,6 +79,13 @@ app.use(
   createV2Router(express, {
     ensureMongoConnection,
   })
+);
+
+app.get(
+  '/api/internal/cron/update-abandoned-orders',
+  requireVercelCronAuthorization,
+  ensureMongoConnection,
+  runAbandonedOrdersCron
 );
 
 app.use('/api/users', ensureMongoConnection, authRouter);
