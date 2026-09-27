@@ -21,6 +21,7 @@ const {
   CatalogueAdminError,
 } = require('../build/v2/services/catalogue-admin.types');
 const {
+  applyProductInput,
   getProductActivationMissingRequirements,
 } = require('../build/v2/services/catalogue-admin.service');
 const {
@@ -305,6 +306,132 @@ const checkStrictSchemas = () => {
     }).value,
     'allowed inventory patch'
   );
+
+  for (const clearBody of [
+    { category: null },
+    { gender: null },
+    { defaultSalePrice: null },
+    { rentalPrices: { studio: null } },
+    { rentalPrices: { external: null } },
+    { rentalPrices: { studio: null, external: null } },
+  ]) {
+    assert(
+      validateUpdateProductAdminBody(clearBody).value,
+      `product patch clear must be accepted: ${JSON.stringify(clearBody)}`
+    );
+  }
+
+  for (const invalidCreate of [
+    { name: 'Draft', category: null },
+    { name: 'Draft', gender: null },
+    { name: 'Draft', defaultSalePrice: null },
+    { name: 'Draft', rentalPrices: { studio: null } },
+    { name: 'Draft', rentalPrices: { external: null } },
+  ]) {
+    expectValidationFailure(
+      validateCreateProductAdminBody,
+      invalidCreate,
+      `product create null clear ${JSON.stringify(invalidCreate)}`
+    );
+  }
+
+  for (const invalidPatch of [
+    { slug: null },
+    { defaultDeposit: null },
+    { rentalPrices: null },
+  ]) {
+    expectValidationFailure(
+      validateUpdateProductAdminBody,
+      invalidPatch,
+      `product patch forbidden null ${JSON.stringify(invalidPatch)}`
+    );
+  }
+};
+
+const checkProductPatchClearApplication = () => {
+  const product = {
+    category: 'dress',
+    gender: 'girls',
+    defaultSalePrice: 1500,
+    rentalPrices: {
+      studio: 700,
+      external: 900,
+    },
+    seo: {
+      noIndex: true,
+    },
+    set(field, value) {
+      this[field] = value;
+    },
+  };
+
+  applyProductInput(product, {
+    category: null,
+    gender: null,
+    defaultSalePrice: null,
+    rentalPrices: {
+      studio: null,
+    },
+  });
+
+  assertEqual(product.category, undefined, 'category null must clear');
+  assertEqual(product.gender, undefined, 'gender null must clear');
+  assertEqual(
+    product.defaultSalePrice,
+    undefined,
+    'defaultSalePrice null must clear'
+  );
+  assertEqual(
+    product.rentalPrices.studio,
+    undefined,
+    'studio null must clear'
+  );
+  assertEqual(
+    product.rentalPrices.external,
+    900,
+    'omitted external rental price must be preserved'
+  );
+
+  applyProductInput(product, {
+    rentalPrices: {
+      external: null,
+    },
+  });
+
+  assertEqual(
+    product.rentalPrices,
+    undefined,
+    'empty rentalPrices parent must be unset'
+  );
+
+  const preserve = {
+    category: 'dress',
+    rentalPrices: {
+      studio: 600,
+      external: 800,
+    },
+    seo: {
+      noIndex: true,
+    },
+    set(field, value) {
+      this[field] = value;
+    },
+  };
+
+  applyProductInput(preserve, {
+    rentalEnabled: false,
+  });
+
+  assertEqual(
+    preserve.category,
+    'dress',
+    'omitted nullable scalar must be preserved'
+  );
+  assertEqual(
+    preserve.rentalPrices.studio,
+    600,
+    'omitted rentalPrices must be preserved'
+  );
 };
 
 const checkAdminDtoBoundary = () => {
@@ -524,6 +651,7 @@ const main = () => {
   checkFeatureFlagAndConfiguration();
   checkSlugGeneration();
   checkStrictSchemas();
+  checkProductPatchClearApplication();
   checkAdminDtoBoundary();
   checkActivationRequirements();
   checkErrorMapping();
