@@ -145,7 +145,7 @@ export const getProductActivationMissingRequirements = (
   return missing;
 };
 
-const applyProductInput = (
+export const applyProductInput = (
   product: any,
   input: CatalogueProductUpdateInput
 ): void => {
@@ -153,8 +153,6 @@ const applyProductInput = (
     'name',
     'slug',
     'description',
-    'category',
-    'gender',
     'color',
     'occasion',
     'ageTags',
@@ -162,7 +160,6 @@ const applyProductInput = (
     'familyLookGroup',
     'rentalEnabled',
     'saleEnabled',
-    'defaultSalePrice',
     'defaultDeposit',
   ] as const;
 
@@ -172,15 +169,48 @@ const applyProductInput = (
     }
   }
 
+  for (const field of [
+    'category',
+    'gender',
+    'defaultSalePrice',
+  ] as const) {
+    if (input[field] !== undefined) {
+      product.set(
+        field,
+        input[field] === null ? undefined : input[field]
+      );
+    }
+  }
+
   if (input.rentalPrices !== undefined) {
-    product.set('rentalPrices', {
-      studio:
-        input.rentalPrices.studio ??
-        product.rentalPrices?.studio,
-      external:
-        input.rentalPrices.external ??
-        product.rentalPrices?.external,
-    });
+    const nextRentalPrices: {
+      studio?: number;
+      external?: number;
+    } = {};
+
+    const studio =
+      input.rentalPrices.studio === undefined
+        ? product.rentalPrices?.studio
+        : input.rentalPrices.studio;
+    const external =
+      input.rentalPrices.external === undefined
+        ? product.rentalPrices?.external
+        : input.rentalPrices.external;
+
+    if (studio !== undefined && studio !== null) {
+      nextRentalPrices.studio = studio;
+    }
+
+    if (external !== undefined && external !== null) {
+      nextRentalPrices.external = external;
+    }
+
+    product.set(
+      'rentalPrices',
+      Object.keys(nextRentalPrices).length === 0
+        ? undefined
+        : nextRentalPrices
+    );
   }
 
   if (input.seo !== undefined) {
