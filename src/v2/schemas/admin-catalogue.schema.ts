@@ -27,6 +27,11 @@ const rentalPricesSchema = Joi.object({
   external: money.optional(),
 }).unknown(false);
 
+const updateRentalPricesSchema = Joi.object({
+  studio: money.allow(null).optional(),
+  external: money.allow(null).optional(),
+}).unknown(false);
+
 const rentalPriceOverridesSchema = Joi.object({
   studio: money.optional(),
   external: money.optional(),
@@ -83,7 +88,30 @@ export interface CreateProductAdminBody {
   };
 }
 
-export type UpdateProductAdminBody = Partial<CreateProductAdminBody>;
+export interface UpdateProductAdminBody {
+  name?: string;
+  slug?: string;
+  description?: string;
+  category?: ProductCategory | null;
+  gender?: ProductGender | null;
+  color?: string;
+  occasion?: ProductOccasion[];
+  ageTags?: string[];
+  brand?: string;
+  familyLookGroup?: string;
+  rentalEnabled?: boolean;
+  saleEnabled?: boolean;
+  rentalPrices?: {
+    studio?: number | null;
+    external?: number | null;
+  };
+  defaultSalePrice?: number | null;
+  defaultDeposit?: number;
+  seo?: {
+    title?: string;
+    description?: string;
+  };
+}
 
 export interface CreateVariantAdminBody {
   size: string;
@@ -137,7 +165,13 @@ const createProductSchema = Joi.object({
   name: productFields.name.required(),
 }).unknown(false);
 
-const updateProductSchema = Joi.object(productFields)
+const updateProductSchema = Joi.object({
+  ...productFields,
+  category: Joi.string().valid(...PRODUCT_CATEGORIES).allow(null),
+  gender: Joi.string().valid(...PRODUCT_GENDERS).allow(null),
+  rentalPrices: updateRentalPricesSchema,
+  defaultSalePrice: money.allow(null),
+})
   .min(1)
   .unknown(false);
 
