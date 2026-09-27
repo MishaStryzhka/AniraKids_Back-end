@@ -7,6 +7,7 @@ export type ProductMediaErrorCode =
   | 'PHOTO_WRONG_PRODUCT'
   | 'IMAGE_TOO_LARGE'
   | 'PRODUCT_PHOTO_REQUIRED'
+  | 'PHOTO_STATE_CONFLICT'
   | 'CLOUDINARY_OPERATION_FAILED';
 
 export class ProductMediaError extends Error {

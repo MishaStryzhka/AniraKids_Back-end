@@ -1,0 +1,103 @@
+name: ADMIN-FE-02C-01 Backend Media Concurrency
+
+on:
+  push:
+    branches: [admin-fe-02c-01-prereq-media-concurrency]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mongo:
+        image: mongo:7.0.14
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Exact HEAD and scope guard
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git merge-base --is-ancestor 7d470f7056f3a704534dd5edb4777cf886dc22dc HEAD
+          node <<'NODE'
+          const {execFileSync} = require('node:child_process');
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const base = '7d470f7056f3a704534dd5edb4777cf886dc22dc';
+          const allowed = new Set([
+            'src/v2/services/product-media.service.ts',
+            'src/v2/services/product-media.types.ts',
+            'src/v2/http/admin-error-mapper.ts',
+            'scripts/check-v2-product-media.js',
+            'scripts/check-v2-product-media-integration.js',
+            '.github/workflows/admin-fe02c01-media-concurrency-verify.yml',
+          ]);
+          const files = execFileSync('git', ['diff', '--name-only', base, 'HEAD'], {encoding:'utf8'}).trim().split('\n');
+          assert.ok(files.every(file => allowed.has(file)), 'Unexpected file outside approved scope');
+          const path = 'src/v2/services/product-media.service.ts';
+          const original = execFileSync('git', ['show', `${base}:${path}`], {encoding:'utf8'});
+          const current = fs.readFileSync(path, 'utf8');
+          const section = (text, start, end) => text.slice(text.indexOf(start), text.indexOf(end));
+          for (const [start, end] of [
+            ['  async signUpload(', '  async completeUpload('],
+            ['  async completeUpload(', '  async updateAlt('],
+            ['  async removePhoto(', '\nexport const productMediaService'],
+          ]) assert.equal(section(current, start, end), section(original, start, end), `${start} must remain unchanged`);
+          console.log(`EXACT_HEAD=${process.env.GITHUB_SHA}`);
+          console.log('SCOPE_GUARD=PASS; SIGN/COMPLETE/DELETE unchanged');
+          NODE
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript
+        run: npm run typecheck
+      - name: V2 build
+        run: npm run build:v2
+      - name: Admin pure regression
+        run: npm run check:v2-admin-api
+      - name: Media pure and HTTP contracts
+        run: npm run check:v2-product-media
+      - name: Reject unsafe integration targets before connecting
+        run: |
+          node <<'NODE'
+          const {spawnSync} = require('node:child_process');
+          const assert = require('node:assert/strict');
+          const cases = [
+            {name:'missing TEST URI', vars:{}, expected:'TEST_MONGODB_URI is required'},
+            {name:'production DB', vars:{TEST_MONGODB_URI:'mongodb://127.0.0.1:1/AniraKids'}, expected:'non-production'},
+            {name:'implicit DB', vars:{TEST_MONGODB_URI:'mongodb://127.0.0.1:1/'}, expected:'Explicit valid'},
+            {name:'invalid URI redacted', vars:{TEST_MONGODB_URI:'not-a-valid-uri'}, expected:'value redacted'},
+            {name:'same URI', vars:{TEST_MONGODB_URI:'mongodb://127.0.0.1:1/media_ci', MONGODB_URI:'mongodb://127.0.0.1:1/media_ci'}, expected:'same database'},
+            {name:'same DB different credentials', vars:{TEST_MONGODB_URI:'mongodb://test:test@127.0.0.1:1/media_ci', MONGODB_URI:'mongodb://other:other@127.0.0.1:1/media_ci'}, expected:'same database'},
+          ];
+          for (const item of cases) {
+            const env = {...process.env};
+            for (const key of ['TEST_MONGODB_URI','MONGODB_URI','MONGO_URI','DB_HOST']) delete env[key];
+            const result = spawnSync(process.execPath, ['scripts/check-v2-product-media-integration.js'], {env:{...env,...item.vars}, encoding:'utf8', timeout:10000});
+            assert.notEqual(result.status, 0, `${item.name} must fail closed`);
+            assert.ok(result.stderr.includes(item.expected), `${item.name} must fail at the explicit guard`);
+            console.log(`TEST_GUARD_NEGATIVE=PASS: ${item.name}`);
+          }
+          NODE
+      - name: Deterministic media integration on isolated CI MongoDB
+        env:
+          # Job-local disposable DB; no repository or provider secret is used.
+          TEST_MONGODB_URI: mongodb://127.0.0.1:27017/anirakids_media_ci
+        run: npm run check:v2-product-media:integration
+      - name: Full Vercel build and pure regression chain
+        run: npm run vercel-build
