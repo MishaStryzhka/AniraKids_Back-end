@@ -67,7 +67,30 @@ export interface CatalogueProductCreateInput {
   };
 }
 
-export type CatalogueProductUpdateInput = Partial<CatalogueProductCreateInput>;
+export interface CatalogueProductUpdateInput {
+  name?: string;
+  slug?: string;
+  description?: string;
+  category?: ProductCategory | null;
+  gender?: ProductGender | null;
+  color?: string;
+  occasion?: ProductOccasion[];
+  ageTags?: string[];
+  brand?: string;
+  familyLookGroup?: string;
+  rentalEnabled?: boolean;
+  saleEnabled?: boolean;
+  rentalPrices?: {
+    studio?: number | null;
+    external?: number | null;
+  };
+  defaultSalePrice?: number | null;
+  defaultDeposit?: number;
+  seo?: {
+    title?: string;
+    description?: string;
+  };
+}
 
 export interface CatalogueVariantCreateInput {
   size: string;
