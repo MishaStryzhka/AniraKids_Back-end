@@ -66,6 +66,7 @@ export const mapAdminApiError = (
         return mapped(404, error.code, error.message);
       case 'PHOTO_LIMIT_REACHED':
       case 'PRODUCT_PHOTO_REQUIRED':
+      case 'PHOTO_STATE_CONFLICT':
         return mapped(409, error.code, error.message);
       case 'PHOTO_INVALID_RESOURCE':
       case 'PHOTO_WRONG_PRODUCT':

@@ -25,6 +25,7 @@ import {
   normalizeProductPhotoAlt,
   reorderProductPhotosExact,
 } from '../media/product-media.policy';
+import type { ProductPhoto } from '../types/domain';
 import {
   CatalogueAdminError,
 } from './catalogue-admin.types';
@@ -33,6 +34,20 @@ import {
 } from './product-media.types';
 
 const allowedFormats = new Set<string>(PRODUCT_MEDIA_ALLOWED_FORMATS);
+
+// Tuples avoid BSON object-key-order equality. Keep missing, null and empty
+// alt distinct; the initial read is lean so it does not hydrate/normalize them.
+const photoStateSnapshot = (photos: ProductPhoto[]) =>
+  photos.map(photo => [
+    photo.publicId,
+    photo.url,
+    !Object.prototype.hasOwnProperty.call(photo, 'alt')
+      ? 'missing'
+      : photo.alt === null
+        ? 'null'
+        : typeof photo.alt,
+    photo.alt ?? null,
+  ]);
 
 const translateProviderError = (error: unknown): never => {
   if (error instanceof ProductMediaConfigurationError) {
@@ -238,36 +253,51 @@ export class ProductMediaService {
       alt: string;
     }
   ) {
-    const product = await ProductV2Model.findById(productId).exec();
+    const updated = await ProductV2Model.findOneAndUpdate(
+      {
+        _id: productId,
+        'photos.publicId': input.publicId,
+      },
+      {
+        $set: {
+          'photos.$.alt': input.alt.trim(),
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).exec();
 
-    if (!product) {
+    if (updated) {
+      return updated;
+    }
+
+    const productExists = await ProductV2Model.exists({
+      _id: productId,
+    }).exec();
+
+    if (!productExists) {
       throw new ProductMediaError(
         'PRODUCT_NOT_FOUND',
         'Product not found'
       );
     }
 
-    const photo = product.photos.find(
-      item => item.publicId === input.publicId
+    // The target was absent at the write point. Never reinsert it or retry.
+    throw new ProductMediaError(
+      'PHOTO_NOT_FOUND',
+      'Product photo not found'
     );
-
-    if (!photo) {
-      throw new ProductMediaError(
-        'PHOTO_NOT_FOUND',
-        'Product photo not found'
-      );
-    }
-
-    photo.alt = input.alt.trim();
-    product.markModified('photos');
-    return product.save();
   }
 
   async reorderPhotos(
     productId: Types.ObjectId,
     publicIds: string[]
   ) {
-    const product = await ProductV2Model.findById(productId).exec();
+    const product = await ProductV2Model.findById(productId)
+      .lean()
+      .exec();
 
     if (!product) {
       throw new ProductMediaError(
@@ -288,9 +318,60 @@ export class ProductMediaService {
       );
     }
 
-    product.photos = reordered;
-    product.markModified('photos');
-    return product.save();
+    const updated = await ProductV2Model.findOneAndUpdate(
+      {
+        _id: productId,
+        $expr: {
+          $eq: [
+            {
+              $map: {
+                input: '$photos',
+                as: 'photo',
+                in: [
+                  '$$photo.publicId',
+                  '$$photo.url',
+                  { $type: '$$photo.alt' },
+                  { $ifNull: ['$$photo.alt', null] },
+                ],
+              },
+            },
+            // Literal prevents photo strings beginning with '$' being evaluated.
+            { $literal: photoStateSnapshot(product.photos) },
+          ],
+        },
+      },
+      {
+        $set: {
+          photos: reordered,
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).exec();
+
+    if (updated) {
+      return updated;
+    }
+
+    const productExists = await ProductV2Model.exists({
+      _id: productId,
+    }).exec();
+
+    if (!productExists) {
+      throw new ProductMediaError(
+        'PRODUCT_NOT_FOUND',
+        'Product not found'
+      );
+    }
+
+    // A later read cannot explain the earlier CAS miss (S0 -> S1 -> S0).
+    // Existence is enough to classify it; do not perform a second write.
+    throw new ProductMediaError(
+      'PHOTO_STATE_CONFLICT',
+      'Product photos changed; refresh and retry'
+    );
   }
 
   async removePhoto(
