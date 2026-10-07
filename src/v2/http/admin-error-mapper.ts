@@ -112,6 +112,8 @@ export const mapAdminApiError = (
 
   if (error instanceof CatalogueAdminError) {
     switch (error.code) {
+      case 'PRODUCT_STATE_CONFLICT':
+        return mapped(409, error.code, error.message);
       case 'VALIDATION_ERROR':
         return mapped(400, error.code, error.message, error.details);
       case 'PRODUCT_NOT_FOUND':
