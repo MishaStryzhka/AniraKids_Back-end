@@ -22,7 +22,6 @@ jobs:
     timeout-minutes: 15
     env:
       EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-      PRODUCT_CONCURRENCY_EVIDENCE_DIR: ${{ runner.temp }}/product-concurrency-evidence
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,6 +71,8 @@ jobs:
           NODE
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Initialize verification evidence directory
+        run: echo "PRODUCT_CONCURRENCY_EVIDENCE_DIR=$RUNNER_TEMP/product-concurrency-evidence" >> "$GITHUB_ENV"
       - name: TypeScript, build and existing pure regressions
         run: |
           mkdir -p "$PRODUCT_CONCURRENCY_EVIDENCE_DIR"
