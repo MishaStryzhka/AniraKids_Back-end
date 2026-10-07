@@ -434,6 +434,22 @@ const checkProductPatchClearApplication = () => {
   );
 };
 
+const checkSeoLeafOwnership = () => {
+  const { ProductV2Model } = require('../build/v2/models');
+  const product = ProductV2Model.hydrate({
+    name: 'Ready dress', slug: 'ready-dress',
+    seo: { title: 'Title', description: 'Description', noIndex: false },
+  });
+  applyProductInput(product, { seo: { title: ' Updated ' } });
+  assertEqual(product.seo.title, 'Updated', 'SEO title trims');
+  assertEqual(product.seo.description, 'Description', 'SEO description sibling preserved');
+  assertEqual(product.seo.noIndex, false, 'SEO PATCH never restores noIndex');
+  applyProductInput(product, { seo: { description: ' ' } });
+  assertEqual(product.seo.description, undefined, 'empty SEO leaf clears');
+  assertEqual(product.seo.title, 'Updated', 'clear preserves other SEO leaf');
+  assertEqual(product.seo.noIndex, false, 'clear preserves noIndex');
+};
+
 const checkAdminDtoBoundary = () => {
   const dto = toAdminInventoryItemDto({
     _id: new Types.ObjectId(),
@@ -525,6 +541,7 @@ const checkActivationRequirements = () => {
 const checkErrorMapping = () => {
   const cases = [
     ['PRODUCT_NOT_FOUND', 404],
+    ['PRODUCT_STATE_CONFLICT', 409],
     ['VARIANT_NOT_FOUND', 404],
     ['INVENTORY_ITEM_NOT_FOUND', 404],
     ['SLUG_ALREADY_EXISTS', 409],
@@ -542,6 +559,16 @@ const checkErrorMapping = () => {
     assertEqual(result.status, status, `admin error status ${code}`);
     assertEqual(result.body.error.code, code, `admin error code ${code}`);
   }
+
+  const conflict = mapAdminApiError(new CatalogueAdminError(
+    'PRODUCT_STATE_CONFLICT',
+    'Product changed during the operation. Refresh and try again.',
+    ['must-not-leak']
+  ));
+  assertEqual(conflict.status, 409, 'concurrency HTTP status');
+  assertEqual(conflict.body.error.message,
+    'Product changed during the operation. Refresh and try again.', 'concurrency message');
+  assert(!('details' in conflict.body.error), 'concurrency details must be absent');
 
   const notReady = mapAdminApiError(
     new CatalogueAdminError(
@@ -655,6 +682,7 @@ const main = () => {
   checkAdminDtoBoundary();
   checkActivationRequirements();
   checkErrorMapping();
+  checkSeoLeafOwnership();
   checkRouteRegistration();
 
   console.log('Phase 1H.3 admin API pure checks passed');
