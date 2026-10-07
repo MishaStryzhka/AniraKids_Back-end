@@ -1,4 +1,5 @@
 import { getHealth } from '../controllers/health.controller';
+import { registerCatalogueRoutes, catalogueApiErrorHandler } from './catalogue.routes';
 import {
   adminApiErrorHandler,
 } from '../http/admin-error-mapper';
@@ -26,6 +27,9 @@ export const createV2Router = (
   const router = express.Router();
 
   router.get('/health', getHealth);
+
+  registerCatalogueRoutes(router, dependencies);
+  router.use(catalogueApiErrorHandler);
 
   registerAdminRoutes(router, dependencies);
   router.use(adminApiErrorHandler);
