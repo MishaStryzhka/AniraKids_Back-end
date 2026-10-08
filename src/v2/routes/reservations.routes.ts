@@ -1,6 +1,7 @@
 import {
   createReservation,
 } from '../controllers/reservation.controller';
+import { getReservationStatus } from '../controllers/reservation-status.controller';
 import {
   activePendingEmailGuard,
   optionalLegacyAuth,
@@ -26,6 +27,12 @@ export const registerReservationRoutes = (
   router: RouterLike,
   dependencies: ReservationRouteDependencies
 ): void => {
+  router.get(
+    '/reservations/:reservationNumber',
+    reservationApiEnabled,
+    dependencies.ensureMongoConnection,
+    getReservationStatus
+  );
   router.post(
     '/reservations',
     reservationApiEnabled,

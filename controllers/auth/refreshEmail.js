@@ -12,7 +12,7 @@ const refreshEmail = async (req, res) => {
     throw HttpError(409, 'Email in use');
   }
 
-  sendEmail({
+  await sendEmail({
     to: email,
     text: `Добрий день ${user?.name ? user?.name : ''},
 

@@ -4,7 +4,7 @@ const { translations } = require('./translations');
 const verifiedEmail = async (req, res) => {
   const { user } = req;
 
-  sendEmail({
+  await sendEmail({
     to: user.email,
     subject: translations[user.language].email_confirmation,
     html: `<!DOCTYPE html>
