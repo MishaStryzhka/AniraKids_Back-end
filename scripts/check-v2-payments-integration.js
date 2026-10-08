@@ -166,6 +166,50 @@ async function main() {
   assert.equal(publicPaymentSummary({...final.toObject(),advanceRequired:undefined}),null);
   const expired={...final.toObject(),status:'pending',expiresAt:new Date(Date.now()-1)};assert.equal(publicPaymentSummary(expired).paymentInstructions,null);
   evidence.push('IBAN/SPAYD validation; strict input; mandatory refund/fee reasons; unknown fields/types rejected; advance gate; same-id concurrent replay; changed-body conflict; revision race; overpayment/refund bounds; cancellation fee allocation and reversal; immutable audit; legacy flag; no QR for expired/cancelled/confirmed');
+  // Complete rental journeys and late-payment races use only this owned database.
+  const makeBooking = async (name, offset, expiresAt = new Date(Date.now() + 86400000)) => {
+    const day = addCalendarDays(startDate, offset);
+    return Reservation.create({ ...r.toObject(), _id: new mongoose.Types.ObjectId(),
+      reservationNumber: name, startDate: day, endDate: day, expiresAt,
+      status: 'pending', paymentStatus: 'unpaid', paymentRevision: 0, paymentEntries: [] });
+  };
+  for (const [index, method] of ['bank_transfer', 'cash'].entries()) {
+    const booking = await makeBooking(`AK-2030-FULL0${index}`, 10 + index * 5);
+    let revision = 0;
+    const record = async (type, amount, note) => {
+      const result = await recordPayment(booking._id, parsePaymentInput({ operationId: randomUUID(),
+        expectedRevision: revision, type, amount, method, ...(note ? { note } : {}) }), actor);
+      revision = result.revision;
+      return result;
+    };
+    await record('advance_received', 200);
+    await reservationAdminService.confirm(booking._id);
+    await reservationAdminService.prepare(booking._id);
+    await assert.rejects(reservationAdminService.rent(booking._id), e => e.code === 'PAYMENT_RENTAL_REQUIRED');
+    await record('rental_received', 500);
+    await assert.rejects(reservationAdminService.rent(booking._id), e => e.code === 'PAYMENT_RENTAL_REQUIRED');
+    await record('deposit_received', 2000);
+    assert.equal((await reservationAdminService.rent(booking._id)).status, 'rented');
+    assert.equal((await reservationAdminService.returnReservation(booking._id)).status, 'returned');
+    const settled = await record('deposit_refunded', 2000, 'Garment checked and deposit returned');
+    assert.equal(settled.depositHeld, 0); assert.equal(settled.rentalNet, 700);
+    assert.equal((await Reservation.findById(booking._id)).status, 'returned');
+    assert.equal((await Reservation.findById(booking._id)).paymentStatus, 'paid');
+    evidence.push(`Full ${method} lifecycle: advance, confirmation, balance, deposit, handover, return, deposit refund`);
+  }
+  const old = await makeBooking('AK-2030-LATE01', 30, new Date(Date.now() - 1));
+  const replacement = await makeBooking('AK-2030-LATE02', 30);
+  await recordPayment(old._id, parsePaymentInput({operationId:randomUUID(),expectedRevision:0,
+    type:'advance_received',amount:200,method:'bank_transfer',note:'Transfer arrived after hold expired'}),actor);
+  await assert.rejects(reservationAdminService.confirm(old._id), e => e.code === 'RESERVATION_CONFIRMATION_CONFLICT');
+  assert.equal((await Reservation.findById(old._id)).status, 'pending');
+  assert.equal((await Reservation.findById(replacement._id)).status, 'pending');
+  assert.equal(publicPaymentSummary(await Reservation.findById(old._id)).paymentInstructions, null);
+  await reservationAdminService.cancel(old._id, {reason:'Late transfer; selected dates already reserved'});
+  const lateRefund = await recordPayment(old._id, parsePaymentInput({operationId:randomUUID(),expectedRevision:1,
+    type:'rental_refunded',amount:200,method:'bank_transfer',note:'Refund late advance; dates unavailable'}),actor);
+  assert.equal(lateRefund.rentalNet,0); assert.equal(lateRefund.cancellationFee,0);
+  evidence.push('Expired paid hold cannot displace a newer hold; cancellation and full late-payment refund preserve inventory');
   const jwt=require('jsonwebtoken'), User=require('../models/user');
   process.env.SECRET_KEY='owned-payment-fixture-key';process.env.V2_ADMIN_API_ENABLED='true';process.env.V2_ADMIN_USER_IDS=actor;
   const token=jwt.sign({id:actor},process.env.SECRET_KEY);
