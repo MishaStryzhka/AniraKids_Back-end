@@ -1,3 +1,4 @@
+import { publicPaymentSummary } from '../services/payment.service';
 import type {
   FulfillmentMethod,
   PaymentStatus,
@@ -22,6 +23,7 @@ export interface PublicReservationItemDto {
 }
 
 export interface PublicReservationDto {
+  payment?: ReturnType<typeof publicPaymentSummary>;
   reservationNumber: string;
   status: ReservationStatus;
   rentalMode: RentalMode;
@@ -73,6 +75,7 @@ export const toPublicReservationResponse = (
     deposit: reservation.deposit,
     totalDue: reservation.totalDue,
     paymentStatus: reservation.paymentStatus,
+    ...(reservation.advanceRequired === undefined ? {} : { payment: publicPaymentSummary(reservation) }),
   };
 
   if (reservation.fulfillmentMethod) {
