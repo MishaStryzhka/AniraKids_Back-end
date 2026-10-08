@@ -5,6 +5,7 @@ import type {
 } from '../services/reservation.types';
 
 export interface JsonResponse {
+  setHeader?(name: string, value: string): unknown;
   status(code: number): JsonResponse;
   json(body: unknown): unknown;
 }

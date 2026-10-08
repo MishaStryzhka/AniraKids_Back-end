@@ -190,7 +190,7 @@ async function main() {
   const origin = `http://127.0.0.1:${server.address().port}/api/v2`;
   const request = async (route, options) => {
     const response = await fetch(origin + route, options);
-    return { status: response.status, body: await response.json() };
+    return { status: response.status, headers: response.headers, body: await response.json() };
   };
   const list = await request('/catalogue/products');
   assert.equal(list.status, 200);
@@ -331,6 +331,19 @@ async function main() {
   assert.equal(created.body.reservation.totalDue, 2150);
   assert.ok(created.body.reservation.expiresAt);
   assert.equal((await quote()).body.availability.available, false);
+  const statusPath = '/reservations/' + created.body.reservation.reservationNumber;
+  const statusAuth = { headers: { Authorization: 'Reservation ' + created.body.guestAccessToken } };
+  assert.equal((await request(statusPath)).status, 404, 'A number alone grants no access');
+  assert.equal((await request(statusPath + '?token=' + created.body.guestAccessToken)).status, 404, 'Query credentials are not accepted');
+  assert.equal((await request(statusPath, { headers: { Authorization: 'Reservation ' + 'x'.repeat(43) } })).status, 404);
+  assert.equal((await request('/reservations/AK-2000-000000', statusAuth)).status, 404);
+  const statusRead = await request(statusPath, statusAuth);
+  assert.equal(statusRead.status, 200);
+  assert.equal(statusRead.headers.get('cache-control'), 'private, no-store');
+  assert.deepEqual(statusRead.body, { reservation: created.body.reservation });
+  assert.ok(!JSON.stringify(statusRead.body).includes(body.customer.email));
+  assert.ok(!JSON.stringify(statusRead.body).includes(created.body.guestAccessToken));
+  assert.equal(await Reservation.countDocuments(), 1, 'Read cannot create a reservation');
   const replay = await post(body, key);
   assert.equal(replay.status, 200);
   assert.deepEqual(replay.body, created.body);
@@ -347,12 +360,16 @@ async function main() {
     'confirmed',
     'Replay returns actual lifecycle state'
   );
+  assert.equal((await request(statusPath, statusAuth)).body.reservation.status, 'confirmed', 'GET returns the current lifecycle state');
   occupied.status = 'cancelled';
   await occupied.save();
   assert.equal((await quote()).body.availability.available, true);
   const concurrent = await Promise.all([post(body), post(body)]);
   assert.deepEqual(concurrent.map(result => result.status).sort(), [201, 409]);
   assert.equal(await Reservation.countDocuments({ status: 'pending' }), 1);
+  const other = concurrent.find(result => result.status === 201);
+  assert.equal((await request('/reservations/' + other.body.reservation.reservationNumber, statusAuth)).status, 404, 'Guest token cannot read another reservation');
+  evidence.push('Scoped status access; missing/wrong/cross-booking/query token rejected; no-store headers; no PII/token disclosure; current lifecycle; read-only counts');
   evidence.push(
     'HTTP catalogue → detail → quote → transactional booking; replay and changed-key payload conflict; actual replay status; concurrent oversell prevention'
   );

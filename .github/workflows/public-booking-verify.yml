@@ -5,6 +5,13 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - helpers/sendEmail.js
+      - controllers/auth/verifiedEmail/verifiedEmail.js
+      - controllers/auth/refreshEmail.js
+      - scripts/check-email-delivery.js
+      - src/v2/controllers/reservation-status.controller.ts
+      - src/v2/routes/reservations.routes.ts
+      - src/v2/types/http.ts
       - src/v2/routes/catalogue.routes.ts
       - src/v2/routes/index.ts
       - src/v2/services/public-catalogue.service.ts
@@ -29,6 +36,8 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Typecheck, build and existing backend regression checks
         run: npm run vercel-build
+      - name: Email acceptance and failure handling
+        run: node scripts/check-email-delivery.js
       - name: Public input validation
         run: node scripts/check-v2-public-catalogue.js
       - name: Install pinned MongoDB for disposable test replica set

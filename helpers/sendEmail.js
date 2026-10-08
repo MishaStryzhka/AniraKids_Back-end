@@ -1,56 +1,25 @@
 const sgMail = require('@sendgrid/mail');
 
-// Встановлення API ключа SendGrid
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
-// Функція для відправки листа
-const sendEmail = ({ to, text, html, subject }) => {
-  const msg = {
-    to: to,
-    from: 'no-reply@anirakids.com', // Ваша електронна пошта, яку ви вказали при реєстрації на SendGrid
-    subject,
-    text: text,
-    html: html,
-  };
-
-  sgMail
-    .send(msg)
-    .then(() => {
-      console.log('Email sent');
-    })
-    .catch(error => {
-      console.error(error);
+// Configure the verified sender through deployment settings; never keep SMTP
+// credentials in source. Callers must await delivery acceptance by the provider.
+const sendEmail = async ({ to, text, html, subject }) => {
+  if (!process.env.SENDGRID_API_KEY) {
+    throw new Error('Email delivery is not configured');
+  }
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  try {
+    await sgMail.send({
+      to,
+      from: process.env.EMAIL_FROM || 'no-reply@anirakids.cz',
+      replyTo: process.env.EMAIL_REPLY_TO || 'rezervace@anirakids.cz',
+      subject,
+      text,
+      html,
     });
+  } catch (_error) {
+    // Provider errors may include request bodies, verification links or API data.
+    throw new Error('Email provider did not accept the message');
+  }
 };
 
 module.exports = sendEmail;
-
-// ================
-// =====SEZNAM.CZ==
-// ================
-
-// const nodemailer = require('nodemailer');
-
-// async function sendEmail({ from, to, subject, html, text }) {
-//   const transporter = nodemailer.createTransport({
-//     host: 'smtp.seznam.cz',
-//     port: 465,
-//     auth: {
-//       user: 'no-reply',
-//       pass: 'Karina2022',
-//     },
-//   });
-//   // 86qW5:*Kq.RmBpyo
-//   await transporter.sendMail({ from, to, subject, html, text });
-
-//   // verify connection configuration
-//   transporter.verify(function (error, success) {
-//     if (error) {
-//       console.log(error);
-//     } else {
-//       console.log('Server is ready to take our messages');
-//     }
-//   });
-// }
-
-// module.exports = sendEmail;
