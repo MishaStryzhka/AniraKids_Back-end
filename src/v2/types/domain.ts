@@ -1,3 +1,4 @@
+import type { PaymentEntry } from '../services/payment.types';
 import type { Types } from 'mongoose';
 
 export type MoneyAmount = number;
@@ -170,6 +171,9 @@ export interface CustomerSnapshot {
 }
 
 export interface Reservation {
+  advanceRequired?: number;
+  paymentRevision?: number;
+  paymentEntries?: PaymentEntry[];
   reservationNumber: string;
   customerId?: Types.ObjectId;
   guestAccessTokenHash?: string;

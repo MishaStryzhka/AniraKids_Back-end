@@ -103,6 +103,8 @@ export const mapAdminApiError = (
         return mapped(400, error.code, error.message);
       case 'RESERVATION_NOT_FOUND':
         return mapped(404, error.code, error.message);
+      case 'PAYMENT_RENTAL_REQUIRED':
+      case 'PAYMENT_ADVANCE_REQUIRED':
       case 'INVALID_RESERVATION_TRANSITION':
       case 'RESERVATION_CONFIRMATION_CONFLICT':
       case 'RESERVATION_INVENTORY_NOT_ACTIVE':

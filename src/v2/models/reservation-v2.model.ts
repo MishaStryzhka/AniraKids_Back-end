@@ -1,3 +1,4 @@
+import { PAYMENT_ENTRY_TYPES } from '../services/payment.types';
 import { model, models, Schema, type Model } from 'mongoose';
 
 import {
@@ -95,8 +96,20 @@ const customerSnapshotSchema = new Schema(
   { _id: false }
 );
 
+const paymentEntrySchema = new Schema({
+  operationId: { type: String, required: true },
+  type: { type: String, enum: [...PAYMENT_ENTRY_TYPES], required: true },
+  amount: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
+  method: { type: String, enum: ['bank_transfer', 'cash'] },
+  reference: { type: String, maxlength: 120 }, note: { type: String, maxlength: 500 },
+  recordedAt: { type: Date, required: true }, recordedBy: { type: String, required: true },
+}, { _id: false });
+
 export const ReservationV2Schema = new Schema<Reservation>(
   {
+    advanceRequired: { type: Number, min: 0, max: 200, validate: Number.isSafeInteger },
+    paymentRevision: { type: Number, min: 0, validate: Number.isSafeInteger },
+    paymentEntries: { type: [paymentEntrySchema], default: undefined },
     reservationNumber: {
       type: String,
       required: true,

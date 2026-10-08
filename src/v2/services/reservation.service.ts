@@ -324,6 +324,9 @@ export class ReservationService {
             fulfillmentMethod:
               command.rentalMode === 'external' ? 'pickup' : undefined,
             paymentStatus: 'unpaid',
+            advanceRequired: Math.min(200, totals.subtotal),
+            paymentRevision: 0,
+            paymentEntries: [],
             notes: normalizedNotes,
             now,
           });

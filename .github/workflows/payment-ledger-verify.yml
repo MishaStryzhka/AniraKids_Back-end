@@ -1,0 +1,56 @@
+name: Reservation Payments Verify
+on:
+  push:
+    branches: [reservation-payment-ledger]
+  pull_request:
+    branches: [main]
+    paths:
+      - src/v2/**
+      - scripts/check-v2-payments-integration.js
+      - .github/workflows/payment-ledger-verify.yml
+permissions:
+  contents: read
+concurrency:
+  group: reservation-payments-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: 20, cache: npm }
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck, build and existing backend regression checks
+        run: npm run vercel-build
+      - name: Public input validation
+        run: node scripts/check-v2-public-catalogue.js
+      - name: Install pinned MongoDB for disposable test replica set
+        run: |
+          curl --fail --silent --show-error --location --retry 3 https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2204-7.0.14.tgz -o "$RUNNER_TEMP/mongodb.tgz"
+          echo "b4cf8caae108785135ecc8b86ad8ed6df5d6efb84b9b95a50ecba2fc246ce084  $RUNNER_TEMP/mongodb.tgz" | sha256sum --check
+          tar --no-same-owner -xzf "$RUNNER_TEMP/mongodb.tgz" -C "$RUNNER_TEMP"
+      - name: HTTP booking and payment ledger concurrency
+        env:
+          NODE_ENV: test
+          PUBLIC_BOOKING_TEST_ALLOW: '1'
+          PUBLIC_BOOKING_MONGOD_BINARY:
+            ${{ runner.temp }}/mongodb-linux-x86_64-ubuntu2204-7.0.14/bin/mongod
+        run: |
+          mkdir -p test-evidence
+          set -o pipefail
+          node scripts/check-v2-public-booking-integration.js | tee test-evidence/public-booking.log
+          node scripts/check-v2-payments-integration.js | tee test-evidence/payment-ledger.log
+          git rev-parse HEAD > test-evidence/commit.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name:
+            reservation-payments-${{ github.event.pull_request.head.sha || github.sha
+            }}
+          path: test-evidence/
+          if-no-files-found: warn

@@ -5,6 +5,8 @@ import type {
 } from '../types/domain';
 
 export type ReservationAdminErrorCode =
+  | 'PAYMENT_ADVANCE_REQUIRED'
+  | 'PAYMENT_RENTAL_REQUIRED'
   | 'RESERVATION_NOT_FOUND'
   | 'INVALID_RESERVATION_TRANSITION'
   | 'RESERVATION_CONFIRMATION_CONFLICT'

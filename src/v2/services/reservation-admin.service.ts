@@ -1,3 +1,4 @@
+import { paymentSummary } from './payment.service';
 import {
   Types,
   type FilterQuery,
@@ -408,10 +409,20 @@ export class ReservationAdminService {
     expectedStatus: ReservationStatus,
     targetStatus: ReservationStatus
   ) {
+    const current = await getReservationOrThrow(reservationId);
+    if (current.status === targetStatus) return current;
+    const enforcePayments = operation === 'rent' && current.advanceRequired !== undefined;
+    if (enforcePayments) {
+      const payment = paymentSummary(current);
+      if (payment.rentalBalance > 0 || payment.depositHeld < payment.depositRequired) {
+        throw new ReservationAdminError('PAYMENT_RENTAL_REQUIRED', 'Record rental balance and security deposit before handover');
+      }
+    }
     const updated = await ReservationV2Model.findOneAndUpdate(
       {
         _id: reservationId,
         status: expectedStatus,
+        ...(enforcePayments ? { paymentRevision: current.paymentRevision } : {}),
       },
       {
         $set: {
@@ -428,13 +439,13 @@ export class ReservationAdminService {
       return updated;
     }
 
-    const current = await getReservationOrThrow(reservationId);
+    const latest = await getReservationOrThrow(reservationId);
 
-    if (current.status === targetStatus) {
-      return current;
+    if (latest.status === targetStatus) return latest;
+    if (enforcePayments && latest.status === expectedStatus) {
+      throw new ReservationAdminError('PAYMENT_RENTAL_REQUIRED', 'Payments changed; reload before handover');
     }
-
-    return invalidTransition(current.status, operation);
+    return invalidTransition(latest.status, operation);
   }
 
   async prepare(reservationId: Types.ObjectId) {
@@ -539,6 +550,10 @@ export class ReservationAdminService {
 
           if (reservation.status !== 'pending') {
             invalidTransition(reservation.status, 'confirm');
+          }
+
+          if (reservation.advanceRequired !== undefined && paymentSummary(reservation).advanceBalance > 0) {
+            throw new ReservationAdminError('PAYMENT_ADVANCE_REQUIRED', 'Record the received advance before confirmation');
           }
 
           assertAvailabilityRange(
