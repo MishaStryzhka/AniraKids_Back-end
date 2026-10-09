@@ -5,6 +5,12 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - controllers/auth/**
+      - helpers/accountAction.js
+      - helpers/createUserSession.js
+      - schemas/users/**
+      - middlewares/validateBody.js
+      - scripts/check-account-auth-integration.js
       - controllers/auth/storefrontFavorites.js
       - routes/api/auth.js
       - scripts/check-favorites-integration.js
@@ -50,6 +56,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: 20, cache: npm }
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm rebuild bcrypt
       - name: Typecheck, build and existing backend regression checks
         run: npm run vercel-build
       - name: Email acceptance and failure handling
@@ -74,6 +81,9 @@ jobs:
         run: |
           mkdir -p test-evidence
           set -o pipefail
+          node scripts/check-account-auth-integration.js
+          node scripts/check-profile-update-integration.js
+          node scripts/check-email-change-integration.js
           node scripts/check-favorites-integration.js
           node scripts/check-seznam-registration-integration.js
           node scripts/check-google-registration-integration.js

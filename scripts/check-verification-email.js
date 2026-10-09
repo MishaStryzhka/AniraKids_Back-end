@@ -3,6 +3,7 @@ const Module = require('node:module');
 const originalLoad = Module._load;
 let message;
 Module._load = function (id, ...args) {
+  if (id === '../../../helpers/accountAction') return { issue: async () => ({ token: 'a'.repeat(64), hash: 'fixture' }), revoke: async () => {} };
   if (id === '../../../helpers') return { sendEmail: async value => { message = value; } };
   return originalLoad.call(this, id, ...args);
 };
@@ -18,6 +19,9 @@ Module._load = originalLoad;
     assert.equal(response.message, 'Email confirmation sent successfully.');
     assert.equal(message.to, 'test@example.test');
     assert.ok(message.subject);
+    assert.ok(message.html.includes('verifyToken='));
+    assert.ok(!message.html.includes('test-only'));
+
     assert.ok(message.html.includes('https://anirakids.cz/ucet'));
     assert.ok(message.html.includes('https://anirakids.cz/saty'));
     assert.ok(!/forWomen|forMen|forChildren|decorAndToys|2023 - 2024/.test(message.html));
