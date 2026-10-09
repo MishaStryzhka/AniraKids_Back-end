@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const repairUserListIndexes = require('./repairUserListIndexes');
 
 let connectionPromise = null;
 
@@ -51,6 +52,7 @@ const getMongoTopologyDiagnostics = async connection => {
 };
 
 const connectMongo = async () => {
+  if (connectionPromise) return connectionPromise;
   if (mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
@@ -61,12 +63,17 @@ const connectMongo = async () => {
     connectionPromise = mongoose
       .connect(mongoUri)
       .then(async () => {
+        await repairUserListIndexes(mongoose.connection.db);
         console.log('Database connection successful');
 
         const topology = await getMongoTopologyDiagnostics(mongoose.connection);
         console.log('MongoDB topology diagnostics:', topology);
 
         return mongoose.connection;
+      })
+      .catch(async error => {
+        await mongoose.disconnect();
+        throw error;
       })
       .finally(() => {
         connectionPromise = null;

@@ -212,8 +212,8 @@ const userSchema = new Schema(
       type: Number,
       default: 0,
     },
-    favorites: [{ type: Schema.Types.ObjectId, ref: 'product', unique: true }],
-    cart: [{ type: Schema.Types.ObjectId, ref: 'order', unique: true }],
+    favorites: [{ type: Schema.Types.ObjectId, ref: 'product' }],
+    cart: [{ type: Schema.Types.ObjectId, ref: 'order' }],
     pickupAddresses: [Object],
   },
   { versionKey: false, timestamps: true }
