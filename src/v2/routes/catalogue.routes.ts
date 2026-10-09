@@ -22,7 +22,14 @@ const integerQuery = (maximum: number, fallback: number) =>
 const listSchema = Joi.object({
   category: Joi.string().valid(...PRODUCT_CATEGORIES),
   q: Joi.string().max(100).allow(''),
-  sort: Joi.string().valid('name', 'newest').default('name'),
+  sort: Joi.string().valid('name', 'newest', 'priceAsc', 'priceDesc').default('name'),
+  gender: Joi.string().valid('girls', 'boys', 'women', 'men', 'unisex', 'children'),
+  color: Joi.string().max(80),
+  size: Joi.string().max(80),
+  familyLook: Joi.string().valid('true'),
+  rentalMode: Joi.string().valid('studio', 'external'),
+  minPrice: Joi.string().pattern(/^(0|[1-9]\d{0,6})$/),
+  maxPrice: Joi.string().pattern(/^(0|[1-9]\d{0,6})$/),
   page: integerQuery(10000, 1),
   limit: integerQuery(24, 12),
 }).unknown(false);
@@ -41,10 +48,12 @@ const availabilitySchema = Joi.object({
 
 export const parseCatalogueQuery = (input: unknown): PublicCatalogueQuery => {
   const { value, error } = listSchema.validate(input ?? {}, { convert: false });
-  if (error) throw new PublicCatalogueError(400, 'VALIDATION_ERROR');
+  if (error || (value.minPrice !== undefined && value.maxPrice !== undefined && Number(value.minPrice) > Number(value.maxPrice))) throw new PublicCatalogueError(400, 'VALIDATION_ERROR');
   return {
     ...value,
     ...(value.q === undefined ? {} : { q: value.q.trim() }),
+    ...(value.minPrice === undefined ? {} : { minPrice: Number(value.minPrice) }),
+    ...(value.maxPrice === undefined ? {} : { maxPrice: Number(value.maxPrice) }),
     page: Number(value.page),
     limit: Number(value.limit),
   };
