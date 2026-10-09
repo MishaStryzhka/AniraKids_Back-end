@@ -1,3 +1,4 @@
+import { adminOverview } from '../controllers/admin-overview.controller';
 import { adminPayments, adminRecordPayment } from '../controllers/admin-payments.controller';
 import {
   activateAdminProduct,
@@ -87,6 +88,7 @@ export const registerAdminRoutes = (
   dependencies: AdminRouteDependencies
 ): void => {
   const guards = commonAdminGuards(dependencies);
+  router.get('/admin/overview', ...guards, adminOverview);
   router.get('/admin/reservations/:reservationId/payments', ...guards, validateObjectIdParam('reservationId'), adminPayments);
   router.post('/admin/reservations/:reservationId/payments', ...guards, validateObjectIdParam('reservationId'), adminRecordPayment);
   const mediaHandlers = createAdminProductMediaHandlers(
