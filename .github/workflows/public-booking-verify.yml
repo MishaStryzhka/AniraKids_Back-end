@@ -10,6 +10,8 @@ on:
       - helpers/createUserSession.js
       - schemas/users/**
       - middlewares/validateBody.js
+      - scripts/check-customer-history-integration.js
+      - src/v2/controllers/customer-reservations.controller.ts
       - scripts/check-account-auth-integration.js
       - controllers/auth/storefrontFavorites.js
       - routes/api/auth.js
@@ -81,6 +83,7 @@ jobs:
         run: |
           mkdir -p test-evidence
           set -o pipefail
+          node scripts/check-customer-history-integration.js
           node scripts/check-account-auth-integration.js
           node scripts/check-profile-update-integration.js
           node scripts/check-email-change-integration.js

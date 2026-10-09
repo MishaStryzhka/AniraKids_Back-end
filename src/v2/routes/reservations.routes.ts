@@ -1,3 +1,4 @@
+import { listCustomerReservations } from '../controllers/customer-reservations.controller';
 import {
   createReservation,
 } from '../controllers/reservation.controller';
@@ -27,6 +28,7 @@ export const registerReservationRoutes = (
   router: RouterLike,
   dependencies: ReservationRouteDependencies
 ): void => {
+  router.get('/account/reservations', reservationApiEnabled, dependencies.ensureMongoConnection, listCustomerReservations);
   router.get(
     '/reservations/:reservationNumber',
     reservationApiEnabled,
