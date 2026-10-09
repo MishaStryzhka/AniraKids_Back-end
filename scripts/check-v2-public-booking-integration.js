@@ -244,7 +244,7 @@ async function main() {
     assert.equal(filtered.status, 200);
     assert.equal(filtered.body.total, 1);
   }
-  for (const filters of ['gender=women', 'size=120', 'familyLook=true', 'rentalMode=external&maxPrice=900', 'color=black']) {
+  for (const filters of ['gender=women', 'size=%24size', 'size=120', 'familyLook=true', 'rentalMode=external&maxPrice=900', 'color=black']) {
     assert.equal((await request('/catalogue/products?' + filters)).body.total, 0);
   }
   await Product.updateOne({ _id: product._id }, { familyLookGroup: 'test-family' });

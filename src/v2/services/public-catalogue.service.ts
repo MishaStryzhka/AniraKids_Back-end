@@ -102,7 +102,7 @@ export class PublicCatalogueService {
     };
     // Size and price must match the same active variant, including its price override.
     const variantConditions: unknown[] = [
-      ...(query.size ? [{ $eq: ['$$variant.size', query.size] }] : []),
+      ...(query.size ? [{ $eq: ['$$variant.size', { $literal: query.size }] }] : []),
       ...(query.minPrice !== undefined ? [{ $gte: ['$$variant.price', query.minPrice] }] : []),
       ...(query.maxPrice !== undefined ? [{ $and: [{ $ne: ['$$variant.price', null] }, { $lte: ['$$variant.price', query.maxPrice] }] }] : []),
     ];
