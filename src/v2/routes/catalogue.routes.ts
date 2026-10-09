@@ -20,6 +20,7 @@ const integerQuery = (maximum: number, fallback: number) =>
     .default(String(fallback));
 
 const listSchema = Joi.object({
+  ids: Joi.string().pattern(/^[a-f\d]{24}(,[a-f\d]{24}){0,99}$/),
   category: Joi.string().valid(...PRODUCT_CATEGORIES),
   q: Joi.string().max(100).allow(''),
   sort: Joi.string().valid('name', 'newest', 'priceAsc', 'priceDesc').default('name'),

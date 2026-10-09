@@ -21,6 +21,11 @@ const {
 const router = express.Router();
 
 const ctrl = require('../../controllers/auth');
+const favorites = require('../../controllers/auth/storefrontFavorites');
+const { ctrlWrapper } = require('../../helpers');
+router.get('/favorites/storefront', authenticate, ctrlWrapper(favorites.read));
+router.post('/favorites/storefront', authenticate, ctrlWrapper(favorites.add));
+router.delete('/favorites/storefront/:productId', authenticate, ctrlWrapper(favorites.remove));
 
 router.get(
   '/google',

@@ -30,6 +30,7 @@ export class PublicCatalogueError extends Error {
 }
 
 export interface PublicCatalogueQuery {
+  ids?: string;
   category?: ProductCategory;
   q?: string;
   sort: 'name' | 'newest' | 'priceAsc' | 'priceDesc';
@@ -91,6 +92,7 @@ export class PublicCatalogueService {
     const filter = {
       status: 'active',
       rentalEnabled: true,
+      ...(query.ids ? { _id: { $in: query.ids.split(',').map(id => new Types.ObjectId(id)) } } : {}),
       ...(query.category ? { category: query.category } : {}),
       ...(escaped ? { name: { $regex: escaped, $options: 'i' } } : {}),
     };
