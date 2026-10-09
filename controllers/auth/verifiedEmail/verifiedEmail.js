@@ -25,84 +25,14 @@ const verifiedEmail = async (req, res) => {
             />
         </head>
         <body>
-            <header>
-                <div style="display: flex; margin: 0 auto; width: max-content">
-                    <a
-                        style="
-                            font-family: 'Open Sans Hebrew', sans-serif;
-                            font-size: 14px;
-                            font-weight: 700;
-                            line-height: 1.43;
-                            text-decoration: none;
-                            text-transform: uppercase;
-                            padding: 8px 16px;
-                            color: #000;
-                            color: #000;
-                        "
-                        href="https://anirakids.cz/forWomen"
-                        >${copy.header_womens_wear}</a
-                    >
-                    <a
-                        style="
-                            font-family: 'Open Sans Hebrew', sans-serif;
-                            font-size: 14px;
-                            font-weight: 700;
-                            line-height: 1.43;
-                            text-decoration: none;
-                            text-transform: uppercase;
-                            padding: 8px 16px;
-                            color: #000;
-                            color: #000;
-                        "
-                        href="https://anirakids.cz/forMen"
-                        >${copy.header_mens_suits}</a
-                    >
-                    <a
-                        style="
-                            font-family: 'Open Sans Hebrew', sans-serif;
-                            font-size: 14px;
-                            font-weight: 700;
-                            line-height: 1.43;
-                            text-decoration: none;
-                            text-transform: uppercase;
-                            padding: 8px 16px;
-                            color: #000;
-                            color: #000;
-                        "
-                        href="https://anirakids.cz/forChildren"
-                        >${copy.header_childrens_wear}</a
-                    >
-                    <a
-                        style="
-                            font-family: 'Open Sans Hebrew', sans-serif;
-                            font-size: 14px;
-                            font-weight: 700;
-                            line-height: 1.43;
-                            text-decoration: none;
-                            text-transform: uppercase;
-                            padding: 8px 16px;
-                            color: #000;
-                            color: #000;
-                        "
-                        href="https://anirakids.cz/decorAndToys"
-                        >${copy.header_decor_and_toys}</a
-                    >
-                    <a
-                        style="
-                            font-family: 'Open Sans Hebrew', sans-serif;
-                            font-size: 14px;
-                            font-weight: 700;
-                            line-height: 1.43;
-                            text-decoration: none;
-                            text-transform: uppercase;
-                            padding: 8px 16px;
-                            color: #000;
-                            color: #000;
-                        "
-                        href="https://anirakids.cz/aboutUs"
-                        >${copy.header_about_us}</a
-                    >
-                </div>
+            <header style="text-align:center;padding:28px 16px;border-bottom:1px solid #ebdad1">
+                <a href="https://anirakids.cz" style="font-family:Georgia,serif;font-size:30px;color:#403a37;text-decoration:none">ANIRAK</a>
+                <p style="font-family:Arial,sans-serif;font-size:14px;line-height:2">
+                    <a href="https://anirakids.cz/saty" style="color:#403a37;margin:0 12px">Šaty</a>
+                    <a href="https://anirakids.cz/obleky" style="color:#403a37;margin:0 12px">Obleky</a>
+                    <a href="https://anirakids.cz/pronajem" style="color:#403a37;margin:0 12px">Pronájem</a>
+                    <a href="https://anirakids.cz/ucet" style="color:#403a37;margin:0 12px">Můj účet</a>
+                </p>
             </header>
             <main>
                 <div
@@ -185,7 +115,7 @@ const verifiedEmail = async (req, res) => {
                     text-align: center;
                 "
             >
-                <p>AniraKids © 2023 - 2024 GlamGarb Rentals s.r.o</p>
+                <p>ANIRAK © ${new Date().getFullYear()} · GlamGarb Rentals s.r.o.</p>
             </footer>
         </body>
     </html>    
