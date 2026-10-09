@@ -1,3 +1,4 @@
+import { calendarBlocks } from '../services/calendar-blocks';
 import { Types } from 'mongoose';
 
 import {
@@ -77,7 +78,7 @@ export const getAdminReservationCalendar: HttpHandler = async (
 
     return response
       .status(200)
-      .json(toAdminReservationCalendarDto(result));
+      .json({ ...toAdminReservationCalendarDto(result), ...await calendarBlocks(String(request.query?.from), String(request.query?.to)) });
   } catch (error) {
     return next(error);
   }
