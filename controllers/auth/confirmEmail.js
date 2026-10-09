@@ -2,7 +2,6 @@ const { User } = require('../../models');
 
 const confirmEmail = async (req, res) => {
   const { user } = req;
-  console.log('user', user);
 
   const updatedUser = await User.findByIdAndUpdate(
     user._id,
@@ -12,7 +11,6 @@ const confirmEmail = async (req, res) => {
     }
   );
 
-  console.log('updatedUser', updatedUser);
 
   res.status(200).json({
     user: {
