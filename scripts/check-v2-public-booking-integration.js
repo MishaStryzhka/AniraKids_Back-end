@@ -237,6 +237,31 @@ async function main() {
   evidence.push(
     'active-only catalogue, escaped search, pagination, private-field projection, variant pricing'
   );
+  assert.deepEqual(list.body.facets, { colors: ['white'], sizes: ['110'] });
+  assert.equal(list.body.items[0].rentalPriceFrom, 600);
+  for (const filters of ['gender=children', 'color=white&size=110', 'rentalMode=external&minPrice=950&maxPrice=950']) {
+    const filtered = await request('/catalogue/products?' + filters);
+    assert.equal(filtered.status, 200);
+    assert.equal(filtered.body.total, 1);
+  }
+  for (const filters of ['gender=women', 'size=120', 'familyLook=true', 'rentalMode=external&maxPrice=900', 'color=black']) {
+    assert.equal((await request('/catalogue/products?' + filters)).body.total, 0);
+  }
+  await Product.updateOne({ _id: product._id }, { familyLookGroup: 'test-family' });
+  assert.equal((await request('/catalogue/products?familyLook=true')).body.total, 1);
+  await Product.updateOne({ _id: product._id }, { $unset: { familyLookGroup: 1 } });
+  const other = await Product.create({ ...fixture, slug: 'other-filter-test', rentalPrices: { studio: 300, external: 400 } });
+  const otherVariant = await Variant.create({ productId: other._id, size: '140' });
+  const override = await Variant.create({ productId: product._id, size: '150', rentalPriceOverrides: { studio: 100 } });
+  assert.equal((await request('/catalogue/products?size=110&maxPrice=200')).body.total, 0, 'size and price must match same variant');
+  assert.equal((await request('/catalogue/products?sort=priceAsc&limit=1')).body.items[0].id, product.id);
+  assert.equal((await request('/catalogue/products?sort=priceDesc&limit=1')).body.items[0].id, other.id);
+  const secondPage = await request('/catalogue/products?sort=priceAsc&limit=1&page=2');
+  assert.equal(secondPage.body.total, 2);
+  assert.equal(secondPage.body.items[0].id, other.id);
+  await Variant.deleteMany({ _id: { $in: [otherVariant._id, override._id] } });
+  await Product.deleteOne({ _id: other._id });
+  evidence.push('catalogue facets, combined size/price filters, rental mode overrides, family look, sorting before pagination');
   const beforeValidation = connections;
   for (const route of [
     '/catalogue/products?page=0',

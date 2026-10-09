@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types, PipelineStage } from 'mongoose';
 import { ProductV2Model, VariantV2Model } from '../models';
 import type {
   ProductV2,
@@ -32,7 +32,14 @@ export class PublicCatalogueError extends Error {
 export interface PublicCatalogueQuery {
   category?: ProductCategory;
   q?: string;
-  sort: 'name' | 'newest';
+  sort: 'name' | 'newest' | 'priceAsc' | 'priceDesc';
+  gender?: ProductV2['gender'] | 'children';
+  color?: string;
+  size?: string;
+  familyLook?: 'true';
+  rentalMode?: RentalMode;
+  minPrice?: number;
+  maxPrice?: number;
   page: number;
   limit: number;
 }
@@ -87,25 +94,50 @@ export class PublicCatalogueService {
       ...(query.category ? { category: query.category } : {}),
       ...(escaped ? { name: { $regex: escaped, $options: 'i' } } : {}),
     };
-    const [products, total] = await Promise.all([
-      ProductV2Model.find(filter)
-        .select(productProjection)
-        .sort(
-          query.sort === 'newest'
-            ? { createdAt: -1, _id: -1 }
-            : { name: 1, _id: 1 }
-        )
-        .skip((query.page - 1) * query.limit)
-        .limit(query.limit)
-        .exec(),
-      ProductV2Model.countDocuments(filter).exec(),
-    ]);
+    const mode = query.rentalMode || 'studio';
+    const productFilters: Record<string, unknown> = {
+      ...(query.gender ? { gender: query.gender === 'children' ? { $in: ['girls', 'boys'] } : query.gender } : {}),
+      ...(query.color ? { color: query.color } : {}),
+      ...(query.familyLook ? { familyLookGroup: { $type: 'string', $nin: ['', null] } } : {}),
+    };
+    // Size and price must match the same active variant, including its price override.
+    const variantConditions: unknown[] = [
+      ...(query.size ? [{ $eq: ['$$variant.size', query.size] }] : []),
+      ...(query.minPrice !== undefined ? [{ $gte: ['$$variant.price', query.minPrice] }] : []),
+      ...(query.maxPrice !== undefined ? [{ $and: [{ $ne: ['$$variant.price', null] }, { $lte: ['$$variant.price', query.maxPrice] }] }] : []),
+    ];
+    const matched: PipelineStage.FacetPipelineStage[] = [
+      { $match: productFilters },
+      { $set: { matchedVariants: { $filter: { input: '$variants', as: 'variant', cond: variantConditions.length ? { $and: variantConditions } : true } } } },
+      ...(variantConditions.length ? [{ $match: { 'matchedVariants.0': { $exists: true } } }] : []),
+      { $set: { rentalPriceFrom: { $min: '$matchedVariants.price' } } },
+      { $set: { missingPrice: { $cond: [{ $eq: ['$rentalPriceFrom', null] }, 1, 0] } } },
+    ];
+    const sort: Record<string, 1 | -1> = query.sort === 'newest' ? { createdAt: -1, _id: -1 } :
+      query.sort === 'priceAsc' ? { missingPrice: 1, rentalPriceFrom: 1, _id: 1 } :
+      query.sort === 'priceDesc' ? { missingPrice: 1, rentalPriceFrom: -1, _id: 1 } : { name: 1, _id: 1 };
+    const pipeline: PipelineStage[] = [
+      { $match: filter },
+      { $lookup: { from: VariantV2Model.collection.name, let: { productId: '$_id', basePrice: '$rentalPrices.' + mode }, pipeline: [
+        { $match: { $expr: { $and: [{ $eq: ['$productId', '$$productId'] }, { $eq: ['$status', 'active'] }] } } },
+        { $project: { _id: 0, size: 1, price: { $ifNull: ['$rentalPriceOverrides.' + mode, { $ifNull: ['$$basePrice', null] }] } } },
+      ], as: 'variants' } },
+      { $facet: {
+        items: [...matched, { $sort: sort }, { $skip: (query.page - 1) * query.limit }, { $limit: query.limit }],
+        count: [...matched, { $count: 'total' }],
+        colors: [{ $match: { color: { $type: 'string', $nin: ['', null] } } }, { $group: { _id: '$color' } }, { $sort: { _id: 1 } }],
+        sizes: [{ $unwind: '$variants' }, { $group: { _id: '$variants.size' } }, { $sort: { _id: 1 } }],
+      } },
+    ];
+    const [result] = await ProductV2Model.aggregate(pipeline).exec();
+    const total = result.count[0]?.total || 0;
     return {
-      items: products.map(publicProduct),
-      page: query.page,
-      limit: query.limit,
-      total,
-      totalPages: Math.ceil(total / query.limit),
+      items: result.items.map((product: ProductV2 & { _id: Types.ObjectId; rentalPriceFrom?: number }) => ({
+        ...publicProduct(product),
+        ...(typeof product.rentalPriceFrom === 'number' ? { rentalPriceFrom: product.rentalPriceFrom } : {}),
+      })),
+      facets: { colors: result.colors.map((item: { _id: string }) => item._id), sizes: result.sizes.map((item: { _id: string }) => item._id) },
+      page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit),
     };
   }
 

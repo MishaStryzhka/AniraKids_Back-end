@@ -31,6 +31,8 @@ for (const query of [
   { limit: '25' },
   { limit: 12 },
   { sort: 'random' },
+  { minPrice: '-1' }, { maxPrice: '1.5' }, { minPrice: '500', maxPrice: '200' },
+  { color: { $ne: '' } }, { size: ['110'] }, { familyLook: 'false' }, { gender: 'invalid' },
   { category: 'unknown' },
   { q: { $ne: '' } },
   { q: 'x'.repeat(101) },
