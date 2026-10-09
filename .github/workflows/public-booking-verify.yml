@@ -5,6 +5,9 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - controllers/auth/storefrontFavorites.js
+      - routes/api/auth.js
+      - scripts/check-favorites-integration.js
       - models/user.js
       - config/mongodb.js
       - config/repairUserListIndexes.js
@@ -67,6 +70,7 @@ jobs:
         run: |
           mkdir -p test-evidence
           set -o pipefail
+          node scripts/check-favorites-integration.js
           node scripts/check-seznam-registration-integration.js
           node scripts/check-v2-public-booking-integration.js | tee test-evidence/public-booking.log
           git rev-parse HEAD > test-evidence/commit.txt
