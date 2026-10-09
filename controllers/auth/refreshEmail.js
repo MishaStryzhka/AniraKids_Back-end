@@ -1,67 +1,35 @@
+const crypto = require('node:crypto');
 const { HttpError, sendEmail } = require('../../helpers');
-// const sendEmail = require('../../helpers/sendEmail');
 const { User } = require('../../models');
+const publicUser = require('../../helpers/publicUser');
 
-const refreshEmail = async (req, res) => {
-  const {
-    query: { email },
-    user,
-  } = req;
-
-  if (await User.findOne({ email })) {
-    throw HttpError(409, 'Email in use');
+module.exports = async (req, res) => {
+  const email = req.query.email.trim().toLowerCase();
+  const user = await User.findById(req.user._id);
+  if (!user) throw HttpError(401, 'Not authorized');
+  if (await User.exists({ email })) throw HttpError(409, 'Email in use');
+  const token = crypto.randomBytes(32).toString('hex');
+  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  const changes = {
+    pendingEmail: email, pendingEmailTokenHash: hash,
+    pendingEmailExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
+    pendingEmailOldAddress: user.email,
+  };
+  // Preserve the existing Seznam login identity before changing contact email.
+  if (user.provider === 'seznam' && !user.seznamEmail) changes.seznamEmail = user.email;
+  await User.updateOne({ _id: user._id }, { $set: changes });
+  const origin = (process.env.FRONTEND_URL || 'https://anirakids.cz').replace(/\/+$/, '');
+  try {
+    await sendEmail({
+      to: email, subject: 'ANIRAK – potvrzení změny e-mailu',
+      text: `Pro potvrzení nové e-mailové adresy otevřete tento odkaz do 30 minut:\n\n${origin}/confirmEmail?changeToken=${token}\n\nDo potvrzení zůstává vaše původní adresa beze změny. Pokud jste změnu nevyžádali, tento e-mail ignorujte.\n\nANIRAK · GlamGarb Rentals s.r.o.`,
+    });
+  } catch {
+    await User.updateOne({ _id: user._id, pendingEmailTokenHash: hash }, { $unset: {
+      pendingEmail: '', pendingEmailTokenHash: '', pendingEmailExpiresAt: '', pendingEmailOldAddress: '',
+    } });
+    throw HttpError(503, 'Email delivery failed');
   }
-
-  await sendEmail({
-    to: email,
-    text: `Добрий день ${user?.name ? user?.name : ''},
-
-    Ми отримали запит на зміну вашої електронної пошти на нашому сайті. Для завершення цього процесу, будь ласка, перейдіть за посиланням нижче:
-    
-    ${process.env.FRONTEND_URL}/confirmEmail?token=${user.token}
-    
-    Якщо ви не ініціювали цю зміну, проігноруйте цей лист.
-    
-    Дякуємо за використання нашого сайту.
-    
-    З повагою,
-    Команда AniraKids`,
-  });
-
-  // ================
-  // ===SEZNAM.CZ====
-  // ================
-
-  // sendEmail({
-  //   from: 'no-reply@anirakids.cz',
-  //   to: email,
-  //   subject: 'Confirm Email',
-  //   text: `${process.env.FRONTEND_URL}/confirmEmail?token=${user.token}`,
-  // });
-
-  const updatedUser = await User.findByIdAndUpdate(
-    user._id,
-    { email, emailVerified: false },
-    {
-      new: true,
-    }
-  );
-
-  res.status(200).json({
-    user: {
-      avatar: updatedUser.avatar,
-      firstName: updatedUser.firstName,
-      lastName: updatedUser.lastName,
-      companyName: updatedUser.companyName,
-      nickname: updatedUser.nickname,
-      email: updatedUser.email,
-      emailVerified: updatedUser.emailVerified,
-      primaryPhoneNumber: updatedUser.primaryPhoneNumber,
-      primaryPhoneNumberVerified: updatedUser.primaryPhoneNumberVerified,
-      provider: updatedUser.provider,
-      typeUser: updatedUser.typeUser,
-    },
-  });
+  res.set('Cache-Control', 'no-store');
+  res.status(200).json({ user: publicUser(user), message: 'Email change confirmation sent.' });
 };
-
-module.exports = refreshEmail;

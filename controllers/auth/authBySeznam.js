@@ -31,15 +31,17 @@ module.exports = async (req, res) => {
   if (typeof identity?.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity.email))
     throw HttpError(400, 'Your Seznam account must provide an email address');
   const email = identity.email.trim().toLowerCase();
-  let user = await User.findOne({ email });
+  let user = await User.findOne({ seznamEmail: email }) || await User.findOne({ email });
   if (!user) {
-    try { user = await User.create({ email, provider: 'seznam', language: 'cs' }); }
+    try { user = await User.create({ email, seznamEmail: email, provider: 'seznam', language: 'cs' }); }
     catch (error) {
       if (error.code !== 11000) throw error;
-      user = await User.findOne({ email });
+      user = await User.findOne({ seznamEmail: email }) || await User.findOne({ email });
       if (!user) throw error;
     }
   }
+  if (user.seznamEmail && user.seznamEmail !== email) throw HttpError(409, 'Seznam account is already linked');
+  user.seznamEmail = email;
   const token = jwt.sign({ id: user._id }, SECRET_KEY, { expiresIn: '23h' });
   const userAgent = req.headers['user-agent'] || '';
   const device = {

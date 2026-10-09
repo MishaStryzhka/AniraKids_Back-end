@@ -89,6 +89,7 @@ router.patch(
 
 router.patch('/current/verifiedEmail', authenticate, ctrl.verifiedEmail);
 router.post('/current/confirmEmail', authenticate, ctrl.confirmEmail);
+router.post('/current/confirmEmailChange', ctrlWrapper(require('../../controllers/auth/confirmEmailChange')));
 
 router.patch('/favorites/add/:productId', authenticate, ctrl.addToFavorites);
 router.delete(
