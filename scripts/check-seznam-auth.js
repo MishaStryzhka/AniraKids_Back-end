@@ -17,7 +17,7 @@ async function run({ existing = false, agent, denied = false, email = 'test@exam
   catch (error) { return { error, calls, created }; }
   assert.equal(status, 201); assert.ok(saved); assert.equal(user.tokens.length, 1);
   assert.equal(output.user.password, undefined); assert.equal(output.user.token, undefined); assert.equal(output.user.tokens, undefined);
-  assert.equal(queried.email, email.toLowerCase()); assert.equal(output.token, 'app-token');
+  assert.equal(queried.email || queried.seznamEmail, email.toLowerCase()); assert.equal(user.seznamEmail, email.toLowerCase()); assert.equal(output.token, 'app-token');
   return { created, output };
 }
 (async () => {
