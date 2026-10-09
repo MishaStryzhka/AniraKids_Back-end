@@ -5,6 +5,11 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - controllers/auth/authBySeznam.js
+      - controllers/auth/getCurrentUser.js
+      - middlewares/authenticate.js
+      - helpers/publicUser.js
+      - scripts/check-seznam-auth.js
       - helpers/sendEmail.js
       - controllers/auth/verifiedEmail/verifiedEmail.js
       - controllers/auth/refreshEmail.js
@@ -39,6 +44,7 @@ jobs:
         run: npm run vercel-build
       - name: Email acceptance and failure handling
         run: |
+          node scripts/check-seznam-auth.js
           node scripts/check-email-delivery.js
           node scripts/check-verification-email.js
       - name: Public input validation
