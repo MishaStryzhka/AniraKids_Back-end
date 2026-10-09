@@ -1,77 +1,47 @@
-const { jwtDecode } = require('jwt-decode');
 const { User } = require('../../models');
 const jwt = require('jsonwebtoken');
-const geoip = require('geoip-lite');
+const { HttpError } = require('../../helpers');
+const publicUser = require('../../helpers/publicUser');
+const verifyGoogleCredential = require('../../helpers/verifyGoogleCredential');
 
-const { SECRET_KEY } = process.env;
-
-const authByGoogle = async (req, res) => {
-  const { credential } = req.body;
-  const decoded = jwtDecode(credential);
-
-  // eslint-disable-next-line camelcase
-  const { email, given_name, family_name, picture } = decoded;
-
-  let user = await User.findOne({ email });
+module.exports = async (req, res) => {
+  const { credential } = req.body || {};
+  if (typeof credential !== 'string' || !credential || credential.length > 16384)
+    throw HttpError(400, 'Invalid Google sign-in request');
+  const { SECRET_KEY, GOOGLE_CLIENT_ID } = process.env;
+  if (!SECRET_KEY || !GOOGLE_CLIENT_ID) throw HttpError(503, 'Google sign-in is temporarily unavailable');
+  let identity;
+  try { identity = await verifyGoogleCredential(credential, GOOGLE_CLIENT_ID); }
+  catch { throw HttpError(401, 'Google sign-in could not be verified. Please try again.'); }
+  const email = identity.email.trim().toLowerCase();
+  const authoritativeEmail = email.endsWith('@gmail.com') || !!identity.hd;
+  let user = await User.findOne({ googleId: identity.sub });
+  if (!user) user = await User.findOne({ email });
+  if (user && user.googleId !== identity.sub && (user.googleId || !authoritativeEmail))
+    throw HttpError(409, 'Sign in using your existing account method to link this email.');
   if (!user) {
-    await User.create({
-      email,
-      firstName: given_name,
-      lastName: family_name,
-      avatar: picture,
-      provider: 'google',
-    });
-
-    user = User.findOne({ email });
+    // Provider names may legitimately be shorter than the legacy profile minimum.
+    const name = value => typeof value === 'string' && value.trim().length >= 3 ? value.trim() : undefined;
+    try {
+      user = await User.create({ email, googleId: identity.sub, provider: 'google', language: 'cs',
+        firstName: name(identity.given_name), lastName: name(identity.family_name),
+        avatar: typeof identity.picture === 'string' ? identity.picture : undefined });
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      user = await User.findOne({ googleId: identity.sub }) || await User.findOne({ email });
+      if (!user || (user.googleId !== identity.sub && (user.googleId || !authoritativeEmail))) throw error;
+    }
   }
-
-  const payload = {
-    id: user._id,
-  };
-
-  const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '23h' });
-
-  // ================ existing Device ====================
-  const deviceInfo = {
-    userAgent: req.headers['user-agent'],
-    platform: req.headers['sec-ch-ua-platform'],
-    host: req.headers.host,
-  };
-
-  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  const geo = geoip.lookup(ip);
-
-  if (geo) {
-    deviceInfo.location = {
-      country: geo.country,
-      city: geo.city,
-    };
-  } else {
-    deviceInfo.location = 'Geolocation could not be determined.';
-  }
-
-  const existingDeviceIndex = user.tokens.findIndex(
-    item =>
-      item.device.userAgent === deviceInfo.userAgent &&
-      item.device.platform === deviceInfo.platform &&
-      item.device.host === deviceInfo.host
-  );
-
-  if (existingDeviceIndex !== -1) {
-    user.tokens[existingDeviceIndex].token = token;
-    user.tokens[existingDeviceIndex].lastLogin = new Date();
-  } else {
-    user.tokens.push({ token, device: deviceInfo, lastLogin: new Date() });
-  }
-
-  await user.save();
-
-  const { createdAt, updatedAt, token: _, ...userData } = user._doc;
-
-  res.status(201).json({
-    user: userData,
-    token,
-  });
+  user.googleId = identity.sub;
+  const token = jwt.sign({ id: user._id }, SECRET_KEY, { expiresIn: '23h' });
+  const userAgent = req.headers['user-agent'] || '';
+  const device = { userAgent,
+    platform: req.headers['sec-ch-ua-platform'] || userAgent.match(/\(([^)]+)\)/)?.[1] || 'unknown',
+    host: req.headers.origin || '' };
+  const index = user.tokens.findIndex(item => item.device?.userAgent === device.userAgent && item.device?.platform === device.platform && item.device?.host === device.host);
+  if (index >= 0) { user.tokens[index].token = token; user.tokens[index].lastLogin = new Date(); }
+  else user.tokens.push({ token, device, lastLogin: new Date() });
+  await user.save({ validateModifiedOnly: true });
+  res.set('Cache-Control', 'no-store');
+  return res.status(201).json({ user: publicUser(user), token });
 };
-
-module.exports = authByGoogle;

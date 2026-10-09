@@ -78,6 +78,7 @@ const userSchema = new Schema(
       type: Date,
       max: new Date(),
     },
+    googleId: { type: String, unique: true, sparse: true },
     provider: {
       type: String,
       default: 'AniraKids',
