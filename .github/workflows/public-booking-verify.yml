@@ -5,6 +5,10 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - models/user.js
+      - config/mongodb.js
+      - config/repairUserListIndexes.js
+      - scripts/check-seznam-registration-integration.js
       - controllers/auth/authBySeznam.js
       - controllers/auth/getCurrentUser.js
       - middlewares/authenticate.js
@@ -63,6 +67,7 @@ jobs:
         run: |
           mkdir -p test-evidence
           set -o pipefail
+          node scripts/check-seznam-registration-integration.js
           node scripts/check-v2-public-booking-integration.js | tee test-evidence/public-booking.log
           git rev-parse HEAD > test-evidence/commit.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
