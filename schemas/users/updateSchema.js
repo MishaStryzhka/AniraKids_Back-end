@@ -7,7 +7,7 @@ const updateSchema = Joi.object({
   lastName: Joi.string(),
   patronymic: Joi.string(),
   nickname: Joi.string()
-    .pattern(/^@[a-zA-Z0-9_-]+$/)
+    .pattern(/^@[a-zA-Z0-9_.-]+$/)
     .message(
       'Використовуйте лише латинські літери, цифри, тире і підкреслення'
     ),
@@ -20,6 +20,8 @@ const updateSchema = Joi.object({
     .message(
       'Пароль повинен містити мінімум 8 латинських символів, одну велику літеру, одну цифру'
     ),
+  confirmNewPassword: Joi.string(),
+  ico: Joi.string().max(32),
   companyName: Joi.string().min(3).max(255),
 });
 module.exports = updateSchema;

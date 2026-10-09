@@ -13,7 +13,6 @@ const {
   loginSchema,
   refreshPasswordSchema,
   refreshEmailSchema,
-  updateSchema,
   updateBillingDetailsSchema,
   updateBankAccountSchema,
 } = require('../../schemas/users');
@@ -63,7 +62,6 @@ router.patch(
 router.patch(
   '/current/update',
   authenticate,
-  validateBody(updateSchema),
   upload.fields([{ name: 'avatar', maxCount: 1 }]),
   ctrl.updateCurrentUser
 );
