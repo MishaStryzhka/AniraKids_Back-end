@@ -88,7 +88,10 @@ router.patch(
 );
 
 router.patch('/current/verifiedEmail', authenticate, ctrl.verifiedEmail);
-router.post('/current/confirmEmail', authenticate, ctrl.confirmEmail);
+router.post('/current/confirmEmail', ctrl.confirmEmail);
+const recovery = require('../../controllers/auth/passwordRecovery');
+router.post('/password/request-reset', ctrlWrapper(recovery.request));
+router.post('/password/reset', ctrlWrapper(recovery.confirm));
 router.post('/current/confirmEmailChange', ctrlWrapper(require('../../controllers/auth/confirmEmailChange')));
 
 router.patch('/favorites/add/:productId', authenticate, ctrl.addToFavorites);

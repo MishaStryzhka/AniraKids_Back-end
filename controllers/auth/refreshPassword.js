@@ -7,7 +7,7 @@ const refreshPassword = async (req, res) => {
   const { password: reqOldPassword, newPassword } = req.body;
   const { password: currentPassword } = req.user;
 
-  const passwordCompare = await bcrypt.compare(reqOldPassword, currentPassword);
+  const passwordCompare = currentPassword && await bcrypt.compare(reqOldPassword, currentPassword);
 
   if (!passwordCompare) {
     throw HttpError(409, 'Not correct password');
@@ -23,7 +23,7 @@ const refreshPassword = async (req, res) => {
 
   const updatedUser = await User.findByIdAndUpdate(
     user._id,
-    { password: hashPassword },
+    { $set: { password: hashPassword, tokens: [] }, $unset: { token: '', passwordReset: '' } },
     {
       new: true,
     }

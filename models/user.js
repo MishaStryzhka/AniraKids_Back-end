@@ -80,6 +80,8 @@ const userSchema = new Schema(
     },
     googleId: { type: String, unique: true, sparse: true },
     seznamEmail: { type: String, unique: true, sparse: true, lowercase: true },
+    emailVerification: { type: new Schema({ hash: String, email: String, expiresAt: Date, requestedAt: Date }, { _id: false }), select: false },
+    passwordReset: { type: new Schema({ hash: String, email: String, expiresAt: Date, requestedAt: Date }, { _id: false }), select: false },
     pendingEmail: { type: String, select: false },
     pendingEmailTokenHash: { type: String, select: false },
     pendingEmailExpiresAt: { type: Date, select: false },
