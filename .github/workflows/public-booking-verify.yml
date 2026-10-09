@@ -8,6 +8,9 @@ on:
       - controllers/auth/storefrontFavorites.js
       - routes/api/auth.js
       - scripts/check-favorites-integration.js
+      - controllers/auth/authByGoogle.js
+      - helpers/verifyGoogleCredential.js
+      - scripts/check-google-*.js
       - models/user.js
       - config/mongodb.js
       - config/repairUserListIndexes.js
@@ -52,6 +55,7 @@ jobs:
       - name: Email acceptance and failure handling
         run: |
           node scripts/check-seznam-auth.js
+          node scripts/check-google-auth.js
           node scripts/check-email-delivery.js
           node scripts/check-verification-email.js
       - name: Public input validation
@@ -72,6 +76,7 @@ jobs:
           set -o pipefail
           node scripts/check-favorites-integration.js
           node scripts/check-seznam-registration-integration.js
+          node scripts/check-google-registration-integration.js
           node scripts/check-v2-public-booking-integration.js | tee test-evidence/public-booking.log
           git rev-parse HEAD > test-evidence/commit.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
