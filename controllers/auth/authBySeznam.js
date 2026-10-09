@@ -50,7 +50,8 @@ module.exports = async (req, res) => {
   const index = user.tokens.findIndex(item => item.device?.userAgent === device.userAgent && item.device?.platform === device.platform && item.device?.host === device.host);
   if (index >= 0) { user.tokens[index].token = token; user.tokens[index].lastLogin = new Date(); }
   else user.tokens.push({ token, device, lastLogin: new Date() });
-  await user.save();
+  // Signing in changes the session only, not legacy profile fields.
+  await user.save({ validateModifiedOnly: true });
   res.set('Cache-Control', 'no-store');
   return res.status(201).json({ user: publicUser(user), token });
 };
