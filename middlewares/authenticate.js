@@ -10,14 +10,14 @@ const authenticate = async (req, res, next) => {
   const [bearer, token] = authorization.split(' ');
 
   if (bearer !== 'Bearer') {
-    next(HttpError(401, 'Not authorized'));
+    return next(HttpError(401, 'Not authorized'));
   }
 
   try {
     const { id } = jwt.verify(token, SECRET_KEY);
     const user = await User.findById(id);
 
-    const validToken = user.tokens.some(item => item.token === token);
+    const validToken = user?.tokens?.some(item => item.token === token);
 
     if (!validToken) {
       return next(HttpError(401, 'Not authorized'));
@@ -25,7 +25,7 @@ const authenticate = async (req, res, next) => {
     req.user = user;
     req.user.token = token;
   } catch (error) {
-    next(HttpError(401, 'Not authorized'));
+    return next(HttpError(401, 'Not authorized'));
   }
 
   next();
