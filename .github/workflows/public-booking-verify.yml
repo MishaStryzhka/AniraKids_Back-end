@@ -9,6 +9,7 @@ on:
       - controllers/auth/verifiedEmail/verifiedEmail.js
       - controllers/auth/refreshEmail.js
       - scripts/check-email-delivery.js
+      - scripts/check-verification-email.js
       - src/v2/controllers/reservation-status.controller.ts
       - src/v2/routes/reservations.routes.ts
       - src/v2/types/http.ts
@@ -37,7 +38,9 @@ jobs:
       - name: Typecheck, build and existing backend regression checks
         run: npm run vercel-build
       - name: Email acceptance and failure handling
-        run: node scripts/check-email-delivery.js
+        run: |
+          node scripts/check-email-delivery.js
+          node scripts/check-verification-email.js
       - name: Public input validation
         run: node scripts/check-v2-public-catalogue.js
       - name: Install pinned MongoDB for disposable test replica set

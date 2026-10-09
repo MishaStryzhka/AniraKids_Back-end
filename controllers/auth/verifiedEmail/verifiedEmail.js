@@ -3,12 +3,15 @@ const { translations } = require('./translations');
 
 const verifiedEmail = async (req, res) => {
   const { user } = req;
+  // OAuth and older accounts may not have a saved language.
+  const language = ['cs', 'en', 'uk'].includes(user.language) ? user.language : 'cs';
+  const copy = translations[language];
 
   await sendEmail({
     to: user.email,
-    subject: translations[user.language].email_confirmation,
+    subject: copy.email_confirmation,
     html: `<!DOCTYPE html>
-    <html lang="en">
+    <html lang="${language}">
         <head>
             <meta charset="UTF-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -37,7 +40,7 @@ const verifiedEmail = async (req, res) => {
                             color: #000;
                         "
                         href="https://anirakids.cz/forWomen"
-                        >${translations[user.language].header_womens_wear}</a
+                        >${copy.header_womens_wear}</a
                     >
                     <a
                         style="
@@ -52,7 +55,7 @@ const verifiedEmail = async (req, res) => {
                             color: #000;
                         "
                         href="https://anirakids.cz/forMen"
-                        >${translations[user.language].header_mens_suits}</a
+                        >${copy.header_mens_suits}</a
                     >
                     <a
                         style="
@@ -67,7 +70,7 @@ const verifiedEmail = async (req, res) => {
                             color: #000;
                         "
                         href="https://anirakids.cz/forChildren"
-                        >${translations[user.language].header_childrens_wear}</a
+                        >${copy.header_childrens_wear}</a
                     >
                     <a
                         style="
@@ -82,7 +85,7 @@ const verifiedEmail = async (req, res) => {
                             color: #000;
                         "
                         href="https://anirakids.cz/decorAndToys"
-                        >${translations[user.language].header_decor_and_toys}</a
+                        >${copy.header_decor_and_toys}</a
                     >
                     <a
                         style="
@@ -97,7 +100,7 @@ const verifiedEmail = async (req, res) => {
                             color: #000;
                         "
                         href="https://anirakids.cz/aboutUs"
-                        >${translations[user.language].header_about_us}</a
+                        >${copy.header_about_us}</a
                     >
                 </div>
             </header>
@@ -125,7 +128,7 @@ const verifiedEmail = async (req, res) => {
                         color: #000;
                     "
                 >
-                    ${translations[user.language].email_confirmation}
+                    ${copy.email_confirmation}
                 </h1>
                 <p
                     style="
@@ -139,7 +142,7 @@ const verifiedEmail = async (req, res) => {
                         color: #000;
                     "
                 >
-                    ${translations[user.language].confirmation_message}
+                    ${copy.confirmation_message}
                 </p>
     
                 <a
@@ -169,7 +172,7 @@ const verifiedEmail = async (req, res) => {
                             place-content: center;
                         "
                     >
-                        ${translations[user.language].confirm_button}
+                        ${copy.confirm_button}
                     </button></a
                 >
             </main>
