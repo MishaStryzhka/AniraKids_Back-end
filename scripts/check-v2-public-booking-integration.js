@@ -250,17 +250,17 @@ async function main() {
   await Product.updateOne({ _id: product._id }, { familyLookGroup: 'test-family' });
   assert.equal((await request('/catalogue/products?familyLook=true')).body.total, 1);
   await Product.updateOne({ _id: product._id }, { $unset: { familyLookGroup: 1 } });
-  const other = await Product.create({ ...fixture, slug: 'other-filter-test', rentalPrices: { studio: 300, external: 400 } });
-  const otherVariant = await Variant.create({ productId: other._id, size: '140' });
+  const comparisonProduct = await Product.create({ ...fixture, slug: 'comparisonProduct-filter-test', rentalPrices: { studio: 300, external: 400 } });
+  const comparisonProductVariant = await Variant.create({ productId: comparisonProduct._id, size: '140' });
   const override = await Variant.create({ productId: product._id, size: '150', rentalPriceOverrides: { studio: 100 } });
   assert.equal((await request('/catalogue/products?size=110&maxPrice=200')).body.total, 0, 'size and price must match same variant');
   assert.equal((await request('/catalogue/products?sort=priceAsc&limit=1')).body.items[0].id, product.id);
-  assert.equal((await request('/catalogue/products?sort=priceDesc&limit=1')).body.items[0].id, other.id);
+  assert.equal((await request('/catalogue/products?sort=priceDesc&limit=1')).body.items[0].id, comparisonProduct.id);
   const secondPage = await request('/catalogue/products?sort=priceAsc&limit=1&page=2');
   assert.equal(secondPage.body.total, 2);
-  assert.equal(secondPage.body.items[0].id, other.id);
-  await Variant.deleteMany({ _id: { $in: [otherVariant._id, override._id] } });
-  await Product.deleteOne({ _id: other._id });
+  assert.equal(secondPage.body.items[0].id, comparisonProduct.id);
+  await Variant.deleteMany({ _id: { $in: [comparisonProductVariant._id, override._id] } });
+  await Product.deleteOne({ _id: comparisonProduct._id });
   evidence.push('catalogue facets, combined size/price filters, rental mode overrides, family look, sorting before pagination');
   const beforeValidation = connections;
   for (const route of [
