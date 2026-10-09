@@ -69,6 +69,11 @@ async function signIn(email) {
   const sharedItem = new mongoose.Types.ObjectId();
   await User.updateMany({}, { $set: { favorites: [sharedItem], cart: [sharedItem] } });
   assert.equal(await User.countDocuments({ favorites: sharedItem, cart: sharedItem }), 3);
+  await User.updateOne({ _id: second.user.userID }, { $set: { email: 'changed@seznam.cz' } });
+  const afterChange = await signIn('second@seznam.cz');
+  assert.equal(afterChange.user.userID, second.user.userID);
+  assert.equal(afterChange.user.email, 'changed@seznam.cz');
+  assert.equal(await User.countDocuments(), 3);
   console.log('PASS: new/existing Seznam accounts, saved sessions, shared lists, email uniqueness, idempotent targeted migration');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
   await mongoose.disconnect();

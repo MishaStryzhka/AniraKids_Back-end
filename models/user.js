@@ -79,6 +79,11 @@ const userSchema = new Schema(
       max: new Date(),
     },
     googleId: { type: String, unique: true, sparse: true },
+    seznamEmail: { type: String, unique: true, sparse: true, lowercase: true },
+    pendingEmail: { type: String, select: false },
+    pendingEmailTokenHash: { type: String, select: false },
+    pendingEmailExpiresAt: { type: Date, select: false },
+    pendingEmailOldAddress: { type: String, select: false },
     provider: {
       type: String,
       default: 'AniraKids',
