@@ -6,6 +6,8 @@ import {
   publicCatalogueService,
   type PublicCatalogueQuery,
   type PublicAvailabilityQuery,
+  type PublicCalendarQuery,
+  calendarRange,
 } from '../services/public-catalogue.service';
 
 const integerQuery = (maximum: number, fallback: number) =>
@@ -69,6 +71,18 @@ export const parseAvailabilityQuery = (
   return value;
 };
 
+export const parseCalendarQuery = (input: unknown): PublicCalendarQuery => {
+  const { value, error } = Joi.object({
+    variantId: Joi.string().pattern(/^[a-f\d]{24}$/i).required(),
+    rentalMode: Joi.string().valid('studio', 'external').required(),
+    month: Joi.string().pattern(/^\d{4}-\d{2}$/).required(),
+    startDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
+  }).unknown(false).validate(input ?? {}, { convert: false });
+  if (error) throw new PublicCatalogueError(400, 'VALIDATION_ERROR');
+  calendarRange(value);
+  return value;
+};
+
 const validate: HttpHandler = (request, _response, next) => {
   try {
     if (request.params?.productId !== undefined) {
@@ -129,6 +143,26 @@ export const registerCatalogueRoutes = (
       } catch (error) {
         return next(error);
       }
+    }
+  );
+  router.get(
+    '/catalogue/products/:productId/availability-calendar',
+    (request, _response, next) => {
+      try {
+        if (!/^[a-f\d]{24}$/i.test(request.params?.productId ?? ''))
+          throw new PublicCatalogueError(400, 'VALIDATION_ERROR');
+        parseCalendarQuery(request.query);
+        return next();
+      } catch (error) { return next(error); }
+    },
+    dependencies.ensureMongoConnection,
+    async (request, response, next) => {
+      try {
+        response.setHeader?.('Cache-Control', 'no-store');
+        return response.status(200).json(await publicCatalogueService.calendar(
+          request.params!.productId!, parseCalendarQuery(request.query)
+        ));
+      } catch (error) { return next(error); }
     }
   );
   router.get(

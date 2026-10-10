@@ -306,6 +306,46 @@ async function main() {
     (await quote({ variantId: foreign.id })).body.error.code,
     'VARIANT_PRODUCT_MISMATCH'
   );
+  const calendar = async (changes = {}) => request(
+    `/catalogue/products/${product.id}/availability-calendar?${new URLSearchParams({
+      variantId: variant.id, rentalMode: 'external', month: startDate.slice(0, 7), ...changes
+    })}`
+  );
+  const calendarAvailable = async (date, start) => {
+    const result = await calendar({ month: date.slice(0, 7), ...(start ? { startDate: start } : {}) });
+    assert.equal(result.status, 200);
+    assert.equal(result.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(Object.keys(result.body.calendar.days[0]).sort(), ['available', 'date']);
+    for (const forbidden of ['inventoryItemId', 'customer', 'PRIVATE-', 'reason', 'reservationNumber'])
+      assert.ok(!JSON.stringify(result.body).includes(forbidden));
+    return result.body.calendar.days.find(day => day.date === date).available;
+  };
+  const beforeCalendarValidation = connections;
+  for (const changes of [{month:'2030-02-30'}, {month:'2030-13'}, {month:'9999-12'}, {startDate:'2030-02-30'}, {startDate:'2000-01-01'}, {month:['2030-01','2030-02']}]) {
+    assert.equal((await calendar(changes)).status, 400);
+  }
+  assert.equal(connections, beforeCalendarValidation);
+  assert.equal((await calendar({variantId: foreign.id})).body.error.code, 'VARIANT_PRODUCT_MISMATCH');
+  assert.equal((await calendar({variantId: inactive.id})).body.error.code, 'VARIANT_NOT_ACTIVE');
+  assert.equal(await calendarAvailable(startDate), true);
+  assert.equal(await calendarAvailable(endDate, startDate), true);
+  const leap = await calendar({month:'2032-02'});
+  assert.equal(leap.body.calendar.days.length, 29);
+  assert.equal(leap.body.calendar.days[28].date, '2032-02-29');
+  // Separate physical pieces can cover individual days but cannot be swapped mid-rental.
+  const secondItem = await Inventory.create({variantId: variant._id, internalCode:'CALENDAR-SECOND', status:'active', condition:'good'});
+  const farEnd = formatDateOnly(addCalendarDays(parseDateOnly(startDate), 10));
+  const crossingBlocks = await Block.create([
+    { inventoryItemId: inventory._id, startDate: parseDateOnly(farEnd), endDate: parseDateOnly(farEnd), reason:'cleaning', createdBy:new mongoose.Types.ObjectId() },
+    { inventoryItemId: secondItem._id, startDate: parseDateOnly(startDate), endDate: parseDateOnly(startDate), reason:'cleaning', createdBy:new mongoose.Types.ObjectId() }
+  ]);
+  assert.equal(await calendarAvailable(startDate), true);
+  assert.equal(await calendarAvailable(farEnd), true);
+  assert.equal(await calendarAvailable(farEnd, startDate), false);
+  assert.equal((await quote({endDate:farEnd})).body.availability.available, false);
+  await Block.deleteMany({_id:{$in:crossingBlocks.map(block=>block._id)}});
+  await Inventory.deleteOne({_id:secondItem._id});
+  evidence.push('calendar month/leap validation, no-store/public projection, same physical piece over full range');
   const available = await quote();
   assert.equal(available.body.availability.available, true);
   assert.deepEqual(available.body.availability.pricing, {
@@ -326,6 +366,7 @@ async function main() {
     false,
     'Quote includes cleaning buffer in requested occupancy'
   );
+  assert.equal(await calendarAvailable(endDate, startDate), false, 'Calendar includes requested cleaning day');
   await Block.deleteOne({ _id: block._id });
   evidence.push(
     'date validation, variant ownership/status, available quote, manual block on cleaning day'
@@ -356,6 +397,11 @@ async function main() {
   assert.equal(created.body.reservation.totalDue, 2150);
   assert.ok(created.body.reservation.expiresAt);
   assert.equal((await quote()).body.availability.available, false);
+  assert.equal(await calendarAvailable(endDate, startDate), false, 'Pending holds block calendar');
+  const activePending = await Reservation.findOne();
+  await Reservation.updateOne({_id:activePending._id}, {$set:{expiresAt:new Date(Date.now()-1000)}});
+  assert.equal(await calendarAvailable(endDate, startDate), true, 'Expired pending does not block');
+  await Reservation.updateOne({_id:activePending._id}, {$set:{expiresAt:activePending.expiresAt}});
   const statusPath = '/reservations/' + created.body.reservation.reservationNumber;
   const statusAuth = { headers: { Authorization: 'Reservation ' + created.body.guestAccessToken } };
   assert.equal((await request(statusPath)).status, 404, 'A number alone grants no access');
@@ -389,6 +435,7 @@ async function main() {
   occupied.status = 'cancelled';
   await occupied.save();
   assert.equal((await quote()).body.availability.available, true);
+  assert.equal(await calendarAvailable(endDate, startDate), true, 'Cancellation frees calendar');
   const concurrent = await Promise.all([post(body), post(body)]);
   assert.deepEqual(concurrent.map(result => result.status).sort(), [201, 409]);
   assert.equal(await Reservation.countDocuments({ status: 'pending' }), 1);
@@ -403,7 +450,9 @@ async function main() {
     { $set: { status: 'maintenance' } }
   );
   assert.equal((await quote()).body.availability.available, false);
+  assert.equal(await calendarAvailable(startDate), false, 'Maintenance inventory unavailable');
   await Product.updateOne({ _id: product._id }, { $set: { status: 'draft' } });
+  assert.equal((await calendar()).status, 404);
   assert.equal((await quote()).status, 404);
   assert.equal((await request('/catalogue/products')).body.total, 0);
   evidence.push('inactive inventory and product unpublished after selection');
