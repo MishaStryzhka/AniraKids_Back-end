@@ -73,10 +73,10 @@ export const parseAvailabilityQuery = (
 
 export const parseCalendarQuery = (input: unknown): PublicCalendarQuery => {
   const { value, error } = Joi.object({
-    variantId: Joi.string().pattern(/^[a-f\\d]{24}$/i).required(),
+    variantId: Joi.string().pattern(/^[a-f\d]{24}$/i).required(),
     rentalMode: Joi.string().valid('studio', 'external').required(),
-    month: Joi.string().pattern(/^\\d{4}-\\d{2}$/).required(),
-    startDate: Joi.string().pattern(/^\\d{4}-\\d{2}-\\d{2}$/),
+    month: Joi.string().pattern(/^\d{4}-\d{2}$/).required(),
+    startDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
   }).unknown(false).validate(input ?? {}, { convert: false });
   if (error) throw new PublicCatalogueError(400, 'VALIDATION_ERROR');
   calendarRange(value);
@@ -149,7 +149,7 @@ export const registerCatalogueRoutes = (
     '/catalogue/products/:productId/availability-calendar',
     (request, _response, next) => {
       try {
-        if (!/^[a-f\\d]{24}$/i.test(request.params?.productId ?? ''))
+        if (!/^[a-f\d]{24}$/i.test(request.params?.productId ?? ''))
           throw new PublicCatalogueError(400, 'VALIDATION_ERROR');
         parseCalendarQuery(request.query);
         return next();
