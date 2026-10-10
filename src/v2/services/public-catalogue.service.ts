@@ -77,12 +77,13 @@ export function calendarRange(query: PublicCalendarQuery, now = new Date()) {
 }
 
 const productProjection =
-  '_id slug name description category color photos rentalEnabled rentalPrices defaultDeposit';
+  '_id slug name description category gender color photos rentalEnabled rentalPrices defaultDeposit';
 const publicProduct = (product: ProductV2 & { _id: Types.ObjectId }) => ({
   id: product._id.toHexString(),
   slug: product.slug,
   name: product.name,
   ...(product.category ? { category: product.category } : {}),
+  ...(product.gender ? { gender: product.gender } : {}),
   ...(product.color ? { color: product.color } : {}),
   // Explicit projection: Cloudinary public IDs and administrative fields stay private.
   photos: product.photos.map(photo => ({

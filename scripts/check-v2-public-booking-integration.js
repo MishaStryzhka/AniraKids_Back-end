@@ -196,6 +196,7 @@ async function main() {
   assert.equal(list.status, 200);
   assert.equal(list.body.total, 1);
   assert.equal(list.body.items[0].id, product.id);
+  assert.equal(list.body.items[0].gender, 'girls');
   const publicJson = JSON.stringify(list.body);
   for (const forbidden of [
     'publicId',
@@ -226,6 +227,10 @@ async function main() {
   assert.equal((await request(`/catalogue/products/${sale.slug}`)).status, 404);
   const detail = await request(`/catalogue/products/${product.slug}`);
   assert.equal(detail.status, 200);
+  assert.equal(detail.body.product.gender, 'girls');
+  await Product.updateOne({ _id: product._id }, { gender: 'women' });
+  assert.equal((await request(`/catalogue/products/${product.slug}`)).body.product.gender, 'women');
+  await Product.updateOne({ _id: product._id }, { gender: 'girls' });
   assert.equal(detail.body.product.variants.length, 1);
   assert.deepEqual(detail.body.product.variants[0].pricing.external, {
     rentalPrice: 950,
