@@ -16,10 +16,15 @@ import type {
   Reservation,
 } from '../types/domain';
 import {
+  addCalendarDays,
+  formatDateOnly,
   compareDateOnly,
   isCanonicalDateOnlyDate,
 } from '../utils/date-only';
 import {
+  CLEANING_BUFFER_DAYS,
+  reservationConflictsWithRequestedRange,
+  availabilityBlockConflictsWithRequestedRange,
   FIXED_BLOCKING_RESERVATION_STATUSES,
   getReservationEndConflictThreshold,
 } from '../utils/availability';
@@ -218,6 +223,42 @@ const findAvailableInventoryIdsForVariants = async (
 };
 
 export class AvailabilityService {
+  /** One bounded month; each end date must fit a single physical item. */
+  async getVariantCalendar(
+    variantId: Types.ObjectId, from: Date, to: Date, today: string,
+    selectedStart: Date | undefined, now: Date
+  ): Promise<Array<{ date: string; available: boolean }>> {
+    assertAvailabilityRange(from, to);
+    const items = await InventoryItemV2Model.find({ variantId, status: 'active' })
+      .select('_id').exec();
+    const ids = items.map(item => item._id);
+    const earliest = selectedStart && selectedStart < from ? selectedStart : from;
+    const last = addCalendarDays(to, CLEANING_BUFFER_DAYS);
+    const [reservations, blocks] = ids.length ? await Promise.all([
+      ReservationV2Model.find(buildBlockingReservationQuery(ids, earliest, last, now))
+        .select('startDate endDate items.inventoryItemId').exec(),
+      AvailabilityBlockV2Model.find(buildAvailabilityBlockQuery(ids, earliest, last))
+        .select('startDate endDate inventoryItemId').exec(),
+    ]) : [[], []];
+    const result: Array<{ date: string; available: boolean }> = [];
+    for (let day = from; day <= to; day = addCalendarDays(day, 1)) {
+      const date = formatDateOnly(day);
+      const start = selectedStart ?? day;
+      const end = addCalendarDays(day, CLEANING_BUFFER_DAYS);
+      const available = date >= today && start <= day && items.some(item =>
+        !reservations.some(reservation =>
+          reservation.items.some(held => held.inventoryItemId.equals(item._id)) &&
+          reservationConflictsWithRequestedRange(reservation.startDate, reservation.endDate, start, end)
+        ) && !blocks.some(block =>
+          block.inventoryItemId.equals(item._id) &&
+          availabilityBlockConflictsWithRequestedRange(block.startDate, block.endDate, start, end)
+        )
+      );
+      result.push({ date, available });
+    }
+    return result;
+  }
+
   async isInventoryItemAvailable(
     inventoryItemId: Types.ObjectId,
     startDate: Date,

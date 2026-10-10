@@ -52,6 +52,30 @@ export interface PublicAvailabilityQuery {
   endDate: string;
 }
 
+export interface PublicCalendarQuery {
+  variantId: string;
+  rentalMode: RentalMode;
+  month: string;
+  startDate?: string;
+}
+
+export function calendarRange(query: PublicCalendarQuery, now = new Date()) {
+  try {
+    const from = parseDateOnly(query.month + '-01');
+    const next = new Date(from);
+    next.setUTCMonth(next.getUTCMonth() + 1);
+    const to = addCalendarDays(next, -1);
+    // Reserve one representable day for cleaning.
+    if (to.getUTCFullYear() >= 9999) throw new Error('Unsupported month');
+    const start = query.startDate === undefined ? undefined : parseDateOnly(query.startDate);
+    if (start && (query.startDate! < getBusinessDateOnly(now) || start > to))
+      throw new Error('Invalid start');
+    return { from, to, start };
+  } catch {
+    throw new PublicCatalogueError(400, 'INVALID_DATE');
+  }
+}
+
 const productProjection =
   '_id slug name description category color photos rentalEnabled rentalPrices defaultDeposit';
 const publicProduct = (product: ProductV2 & { _id: Types.ObjectId }) => ({
@@ -87,6 +111,40 @@ const optionalPricing = (
 };
 
 export class PublicCatalogueService {
+  private async rentalContext(productId: string, query: {variantId: string; rentalMode: RentalMode}) {
+    const product = await ProductV2Model.findOne({
+      _id: productId,
+      status: 'active',
+      rentalEnabled: true,
+    })
+      .select(productProjection)
+      .exec();
+    if (!product) throw new PublicCatalogueError(404, 'PRODUCT_NOT_FOUND');
+    const variant = await VariantV2Model.findById(query.variantId).exec();
+    if (!variant) throw new PublicCatalogueError(404, 'VARIANT_NOT_FOUND');
+    if (!variant.productId.equals(product._id))
+      throw new PublicCatalogueError(400, 'VARIANT_PRODUCT_MISMATCH');
+    if (variant.status !== 'active')
+      throw new PublicCatalogueError(409, 'VARIANT_NOT_ACTIVE');
+    const quote = optionalPricing(product, variant, query.rentalMode);
+    if (!quote) throw new PublicCatalogueError(409, 'RENTAL_MODE_UNAVAILABLE');
+
+    return { product, variant, quote };
+  }
+
+  async calendar(productId: string, query: PublicCalendarQuery, now = new Date()) {
+    const { from, to, start } = calendarRange(query, now);
+    const { product, variant } = await this.rentalContext(productId, query);
+    const today = getBusinessDateOnly(now);
+    const days = await availabilityService.getVariantCalendar(variant._id, from, to, today, start, now);
+    return { calendar: {
+      productId: product._id.toHexString(), variantId: variant._id.toHexString(),
+      rentalMode: query.rentalMode, month: query.month,
+      startDate: query.startDate ?? null, today, checkedAt: now.toISOString(),
+      days,
+    } };
+  }
+
   async list(query: PublicCatalogueQuery) {
     const escaped = query.q?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const filter = {
@@ -190,22 +248,7 @@ export class PublicCatalogueService {
     }
     if (query.startDate < getBusinessDateOnly(now))
       throw new PublicCatalogueError(400, 'PAST_START_DATE');
-    const product = await ProductV2Model.findOne({
-      _id: productId,
-      status: 'active',
-      rentalEnabled: true,
-    })
-      .select(productProjection)
-      .exec();
-    if (!product) throw new PublicCatalogueError(404, 'PRODUCT_NOT_FOUND');
-    const variant = await VariantV2Model.findById(query.variantId).exec();
-    if (!variant) throw new PublicCatalogueError(404, 'VARIANT_NOT_FOUND');
-    if (!variant.productId.equals(product._id))
-      throw new PublicCatalogueError(400, 'VARIANT_PRODUCT_MISMATCH');
-    if (variant.status !== 'active')
-      throw new PublicCatalogueError(409, 'VARIANT_NOT_ACTIVE');
-    const quote = optionalPricing(product, variant, query.rentalMode);
-    if (!quote) throw new PublicCatalogueError(409, 'RENTAL_MODE_UNAVAILABLE');
+    const { product, variant, quote } = await this.rentalContext(productId, query);
     // The create transaction occupies the rental through its cleaning buffer.
     // A quote must test the same range, including manual blocks on that last day.
     const result = await availabilityService.getVariantAvailability(
