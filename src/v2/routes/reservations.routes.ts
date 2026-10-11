@@ -1,4 +1,4 @@
-import { listCustomerReservations } from '../controllers/customer-reservations.controller';
+import { listCustomerReservations, claimCustomerReservation } from '../controllers/customer-reservations.controller';
 import {
   createReservation,
 } from '../controllers/reservation.controller';
@@ -28,6 +28,7 @@ export const registerReservationRoutes = (
   router: RouterLike,
   dependencies: ReservationRouteDependencies
 ): void => {
+  router.post('/account/reservations/:reservationNumber/claim', reservationApiEnabled, dependencies.ensureMongoConnection, claimCustomerReservation);
   router.get('/account/reservations', reservationApiEnabled, dependencies.ensureMongoConnection, listCustomerReservations);
   router.get(
     '/reservations/:reservationNumber',

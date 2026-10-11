@@ -450,6 +450,59 @@ async function main() {
   evidence.push(
     'HTTP catalogue → detail → quote → transactional booking; replay and changed-key payload conflict; actual replay status; concurrent oversell prevention'
   );
+
+  // Authenticated creation and capability-based guest recovery use only this owned database.
+  const jwt = require('jsonwebtoken'), User = require('../models/user');
+  process.env.SECRET_KEY = 'owned-account-booking-fixture-secret';
+  const owner = new mongoose.Types.ObjectId(), stranger = new mongoose.Types.ObjectId();
+  const ownerToken = jwt.sign({id:owner.toHexString()},process.env.SECRET_KEY);
+  const strangerToken = jwt.sign({id:stranger.toHexString()},process.env.SECRET_KEY);
+  await User.collection.insertMany([
+    {_id:owner,tokens:[{token:ownerToken}]}, {_id:stranger,tokens:[{token:strangerToken}]}
+  ]);
+  const ownerAuth = {headers:{Authorization:'Bearer '+ownerToken}};
+  const strangerAuth = {headers:{Authorization:'Bearer '+strangerToken}};
+  assert.equal((await request('/account/reservations',ownerAuth)).body.total,0);
+  const claimPath = '/account/reservations/'+created.body.reservation.reservationNumber+'/claim';
+  const claim = (token, capability, extra={}) => request(claimPath,{
+    method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},
+    body:JSON.stringify({guestAccessToken:capability,...extra})
+  });
+  assert.equal((await claim(null,created.body.guestAccessToken)).status,401);
+  assert.equal((await claim(ownerToken,'x'.repeat(43))).status,404);
+  assert.equal((await claim(ownerToken,created.body.guestAccessToken,{customerId:stranger.toHexString()})).status,400);
+  const countBeforeClaim = await Reservation.countDocuments();
+  const claims = await Promise.all([claim(ownerToken,created.body.guestAccessToken),claim(ownerToken,created.body.guestAccessToken)]);
+  assert.deepEqual(claims.map(x=>x.status),[200,200]);
+  assert.equal(await Reservation.countDocuments(),countBeforeClaim);
+  assert.equal((await request('/account/reservations',ownerAuth)).body.items[0].reservationNumber,created.body.reservation.reservationNumber);
+  assert.equal((await request('/account/reservations',strangerAuth)).body.total,0);
+  assert.equal((await claim(strangerToken,created.body.guestAccessToken)).status,404);
+  assert.equal((await request(statusPath,ownerAuth)).status,200);
+  assert.equal((await request(statusPath,strangerAuth)).status,404);
+  assert.equal((await request(statusPath,statusAuth)).status,200);
+  assert.equal((await post(body,key)).status,200,'Original guest idempotent recovery remains valid after claim');
+  const pendingAfterClaim = await Reservation.findOne({reservationNumber:created.body.reservation.reservationNumber});
+  assert.equal(pendingAfterClaim.status,'cancelled','Claim must not change lifecycle/payment/dates');
+  assert.equal(pendingAfterClaim.totalDue,2150);
+  const later = formatDateOnly(addCalendarDays(today,60));
+  const accountBody={...body,startDate:later,endDate:later};
+  const accountKey=randomUUID();
+  const createAs = token => request('/reservations',{
+    method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':accountKey,Authorization:'Bearer '+token},
+    body:JSON.stringify(accountBody)
+  });
+  const ownedCreated=await createAs(ownerToken);
+  assert.equal(ownedCreated.status,201);
+  assert.equal(ownedCreated.body.guestAccessToken,undefined);
+  const ownedRow=await Reservation.findOne({reservationNumber:ownedCreated.body.reservation.reservationNumber});
+  assert.equal(ownedRow.customerId.toHexString(),owner.toHexString());
+  assert.equal((await createAs(ownerToken)).status,200);
+  assert.equal((await createAs(strangerToken)).status,409);
+  assert.equal((await createAs('invalid-token')).status,401);
+  assert.equal((await request('/account/reservations',ownerAuth)).body.total,2);
+  assert.equal((await request('/account/reservations',strangerAuth)).body.total,0);
+  evidence.push('Authenticated POST belongs to bearer owner; same-key retry preserved; different account and expired token rejected; guest claim requires bearer plus exact capability; atomic same-owner replay; no takeover, duplicates, lifecycle/payment change or cross-account history leakage');
   await Inventory.updateOne(
     { _id: inventory._id },
     { $set: { status: 'maintenance' } }
