@@ -475,7 +475,7 @@ async function main() {
   const claims = await Promise.all([claim(ownerToken,created.body.guestAccessToken),claim(ownerToken,created.body.guestAccessToken)]);
   assert.deepEqual(claims.map(x=>x.status),[200,200]);
   assert.equal(await Reservation.countDocuments(),countBeforeClaim);
-  assert.equal((await request('/account/reservations',ownerAuth)).body.items[0].reservationNumber,created.body.reservation.reservationNumber);
+  assert.equal((await request('/account/reservations',ownerAuth)).body.items[0].reservation.reservationNumber,created.body.reservation.reservationNumber);
   assert.equal((await request('/account/reservations',strangerAuth)).body.total,0);
   assert.equal((await claim(strangerToken,created.body.guestAccessToken)).status,404);
   assert.equal((await request(statusPath,ownerAuth)).status,200);
