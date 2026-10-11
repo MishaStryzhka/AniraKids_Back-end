@@ -31,6 +31,7 @@ export interface PublicReservationDto {
   endDate: string;
   expiresAt: string | null;
   item: PublicReservationItemDto;
+  items: PublicReservationItemDto[];
   subtotal: number;
   deposit: number;
   totalDue: number;
@@ -71,6 +72,11 @@ export const toPublicReservationResponse = (
       rentalPrice: item.rentalPriceSnapshot,
       deposit: item.depositSnapshot,
     },
+    items: reservation.items.map(item => ({
+      productId: item.productId.toHexString(), variantId: item.variantId.toHexString(),
+      productName: item.productNameSnapshot, size: item.sizeSnapshot,
+      rentalPrice: item.rentalPriceSnapshot, deposit: item.depositSnapshot,
+    })),
     subtotal: reservation.subtotal,
     deposit: reservation.deposit,
     totalDue: reservation.totalDue,

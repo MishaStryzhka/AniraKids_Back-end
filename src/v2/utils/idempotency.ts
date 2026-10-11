@@ -30,6 +30,7 @@ export class IdempotencyConfigurationError extends Error {
 }
 
 export interface ReservationFingerprintInput {
+  items?: Array<{ productId: string; variantId: string }>;
   productId: string;
   variantId: string;
   rentalMode: RentalMode;
@@ -41,6 +42,7 @@ export interface ReservationFingerprintInput {
 }
 
 export interface CanonicalReservationFingerprint {
+  items?: Array<{ productId: string; variantId: string }>;
   productId: string;
   variantId: string;
   rentalMode: RentalMode;
@@ -91,6 +93,9 @@ export const normalizeReservationFingerprint = (
     },
     notes,
     authenticatedUserId,
+    ...(input.items ? { items: input.items.map(item => ({
+      productId: item.productId.toLowerCase(), variantId: item.variantId.toLowerCase(),
+    })) } : {}),
   };
 };
 

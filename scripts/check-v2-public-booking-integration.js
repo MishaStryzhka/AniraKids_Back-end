@@ -503,6 +503,71 @@ async function main() {
   assert.equal((await request('/account/reservations',ownerAuth)).body.total,2);
   assert.equal((await request('/account/reservations',strangerAuth)).body.total,0);
   evidence.push('Authenticated POST belongs to bearer owner; same-key retry preserved; different account and expired token rejected; guest claim requires bearer plus exact capability; atomic same-owner replay; no takeover, duplicates, lifecycle/payment change or cross-account history leakage');
+
+  // Multi-item orders: one atomic reservation, one advance, summed prices and deposits.
+  const basketProduct = await Product.create({...fixture,slug:'basket-dress',name:'Basket dress',rentalPrices:{studio:700,external:900},defaultDeposit:1500});
+  const basketVariant = await Variant.create({productId:basketProduct._id,size:'M'});
+  const basketInventory = await Inventory.create({variantId:basketVariant._id,internalCode:'BASKET-ONE',status:'active',condition:'good'});
+  const basketDate = formatDateOnly(addCalendarDays(today,90));
+  const basketBody = {
+    items:[{productId:product.id,variantId:variant.id},{productId:basketProduct.id,variantId:basketVariant.id}],
+    rentalMode:'external',startDate:basketDate,endDate:basketDate,
+    customer:{...body.customer,email:'basket@example.test'},
+  };
+  const beforeBasket = await Reservation.countDocuments();
+  const blockedBasket = await Block.create({inventoryItemId:basketInventory._id,startDate:parseDateOnly(basketDate),endDate:parseDateOnly(basketDate),reason:'cleaning',createdBy:owner});
+  assert.equal((await post(basketBody)).status,409);
+  assert.equal(await Reservation.countDocuments(),beforeBasket,'Unavailable second item must not reserve first item');
+  await Block.deleteOne({_id:blockedBasket._id});
+  for (const invalid of [
+    {...basketBody,items:[]},
+    {...basketBody,items:Array(21).fill(basketBody.items[0])},
+    {...basketBody,productId:product.id,variantId:variant.id},
+    {...basketBody,items:[{...basketBody.items[0],rentalPrice:1}]},
+  ]) assert.equal((await post(invalid)).status,400);
+  const basketKey = randomUUID();
+  const multiPost = (payload=basketBody,key=basketKey) => request('/reservations',{
+    method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key,Authorization:'Bearer '+ownerToken},body:JSON.stringify(payload)
+  });
+  const basket = await multiPost();
+  assert.equal(basket.status,201,JSON.stringify(basket.body));
+  const br=basket.body.reservation;
+  assert.equal(br.items.length,2);
+  assert.equal(br.subtotal,1850);
+  assert.equal(br.deposit,2700);
+  assert.equal(br.totalDue,4550);
+  assert.equal(br.payment.advanceRequired,200,'One advance per reservation');
+  assert.deepEqual(br.items.map(x=>x.productId),basketBody.items.map(x=>x.productId));
+  const basketRow=await Reservation.findOne({reservationNumber:br.reservationNumber});
+  assert.equal(basketRow.items.length,2);
+  assert.equal(new Set(basketRow.items.map(x=>x.inventoryItemId.toHexString())).size,2);
+  assert.equal(await Reservation.countDocuments(),beforeBasket+1);
+  assert.deepEqual((await multiPost()).body,basket.body,'Exact multi-item retry must not create duplicates');
+  assert.equal((await multiPost({...basketBody,items:[...basketBody.items].reverse()})).status,409,'Idempotency covers every item');
+  const multiHistory=(await request('/account/reservations',ownerAuth)).body.items.find(x=>x.reservation.reservationNumber===br.reservationNumber);
+  assert.equal(multiHistory.reservation.items.length,2);
+  assert.equal((await request('/reservations/'+br.reservationNumber,ownerAuth)).body.reservation.items.length,2);
+  assert.equal((await request('/reservations/'+br.reservationNumber,strangerAuth)).status,404);
+  // Two baskets racing for the same pieces can create only one complete order.
+  await Reservation.updateOne({_id:basketRow._id},{$set:{status:'cancelled'}});
+  const race=await Promise.all([multiPost(basketBody,randomUUID()),multiPost(basketBody,randomUUID())]);
+  assert.deepEqual(race.map(x=>x.status).sort(),[201,409]);
+  assert.equal(await Reservation.countDocuments(),beforeBasket+2);
+  assert.equal(await Reservation.countDocuments({status:'pending','items.inventoryItemId':basketInventory._id}),1);
+  const winner=race.find(x=>x.status===201).body.reservation;
+  assert.equal(winner.items.length,2);
+  // Quantity must allocate distinct physical pieces, never count one piece twice.
+  const quantityDate=formatDateOnly(addCalendarDays(today,100));
+  assert.equal((await post({...basketBody,startDate:quantityDate,endDate:quantityDate,items:[basketBody.items[1],basketBody.items[1]]})).status,409);
+  const extraPiece=await Inventory.create({variantId:basketVariant._id,internalCode:'BASKET-TWO',status:'active',condition:'good'});
+  const quantity=await post({...basketBody,startDate:quantityDate,endDate:quantityDate,items:[basketBody.items[1],basketBody.items[1]]});
+  assert.equal(quantity.status,201);
+  const quantityRow=await Reservation.findOne({reservationNumber:quantity.body.reservation.reservationNumber});
+  assert.equal(new Set(quantityRow.items.map(x=>x.inventoryItemId.toHexString())).size,2);
+  evidence.push('Multi-item atomic basket, no partial booking, one 200 CZK advance, summed rental and deposit, all-item receipt/history, complete idempotent replay, changed item conflict, cross-account denial, concurrent all-or-none allocation and distinct pieces for quantity');
+  // Remove only this added product from catalogue assertions below.
+  await Product.updateOne({_id:basketProduct._id},{$set:{status:'draft'}});
+
   await Inventory.updateOne(
     { _id: inventory._id },
     { $set: { status: 'maintenance' } }

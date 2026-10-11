@@ -198,6 +198,8 @@ export class ReservationService {
       );
     }
 
+    if (command.items) return this.createMultiple(command, startDate, endDate, now, options);
+
     const product = await ProductV2Model.findById(command.productId).exec();
 
     if (!product) {
@@ -399,6 +401,85 @@ export class ReservationService {
       'No physical inventory item remained available during reservation'
     );
   }
+  private async createMultiple(
+    command: CreateReservationCommand, startDate: Date, endDate: Date,
+    now: Date, options?: CreateReservationOptions
+  ): Promise<CreateReservationResult> {
+    if (!command.items?.length || command.items.length > 20) throw new TypeError('Invalid reservation items');
+    const resolved = [];
+    for (const selection of command.items) {
+      const product = await ProductV2Model.findById(selection.productId).exec();
+      if (!product) throw new ReservationServiceError('PRODUCT_NOT_FOUND', 'Product not found');
+      if (product.status !== 'active' || !product.rentalEnabled)
+        throw new ReservationServiceError('PRODUCT_NOT_RENTABLE', 'Product is not available for rental');
+      const variant = await VariantV2Model.findById(selection.variantId).exec();
+      if (!variant) throw new ReservationServiceError('VARIANT_NOT_FOUND', 'Variant not found');
+      if (variant.status !== 'active')
+        throw new ReservationServiceError('VARIANT_NOT_ACTIVE', 'Variant is not active');
+      if (!variant.productId.equals(product._id))
+        throw new ReservationServiceError('VARIANT_PRODUCT_MISMATCH', 'Variant does not belong to product');
+      resolved.push({ product, variant, pricing: resolveRentalPricing(product, variant, command.rentalMode) });
+    }
+    const totals = calculateReservationTotals(resolved.map(item => item.pricing));
+    const guestToken = command.customerId ? undefined :
+      options?.idempotency?.guestAccessToken ?? generateGuestAccessToken();
+    if (!command.customerId && options?.idempotency && !options.idempotency.guestAccessToken)
+      throw new Error('Guest idempotent reservation requires a trusted guest access token');
+    // On a racing allocation, re-read availability and retry the entire basket.
+    // The atomic writer locks every physical piece and saves one document or none.
+    for (let allocationAttempt = 0; allocationAttempt < 5; allocationAttempt++) {
+      const used = new Set<string>();
+      const items: Reservation['items'] = [];
+      for (const { product, variant, pricing } of resolved) {
+        const candidates = await availabilityService.findAvailableInventoryItems(variant._id, startDate, endDate, { now });
+        const inventoryItemId = candidates.sort((a, b) => objectIdKey(a).localeCompare(objectIdKey(b)))
+          .find(id => !used.has(objectIdKey(id)));
+        if (!inventoryItemId)
+          throw new ReservationServiceError('NO_AVAILABLE_INVENTORY', 'Not all requested items are available');
+        used.add(objectIdKey(inventoryItemId));
+        items.push({
+          productId: product._id, variantId: variant._id, inventoryItemId,
+          productNameSnapshot: product.name, sizeSnapshot: variant.size,
+          rentalPriceSnapshot: pricing.rentalPrice, depositSnapshot: pricing.deposit,
+        });
+      }
+      for (let numberAttempt = 0; numberAttempt < MAX_RESERVATION_NUMBER_ATTEMPTS; numberAttempt++) {
+        try {
+          const document = await createReservationAtomically({
+            reservationNumber: generateReservationNumber(now),
+            customerId: command.customerId, guestAccessTokenHash: guestToken?.hash,
+            idempotencyKeyHash: options?.idempotency?.keyHash,
+            idempotencyRequestHash: options?.idempotency?.requestHash,
+            customerSnapshot: normalizeReservationCustomer(command.customer),
+            items, rentalMode: command.rentalMode, startDate, endDate, status: 'pending',
+            expiresAt: calculatePendingExpiresAt(now), subtotal: totals.subtotal,
+            deposit: totals.deposit, totalDue: totals.totalDue,
+            fulfillmentMethod: command.rentalMode === 'external' ? 'pickup' : undefined,
+            paymentStatus: 'unpaid', advanceRequired: Math.min(200, totals.subtotal),
+            paymentRevision: 0, paymentEntries: [], notes: normalizeReservationNotes(command.notes), now,
+          });
+          return { reservation: toSafeReservation(document),
+            ...(guestToken ? { guestAccessToken: guestToken.rawToken } : {}) };
+        } catch (error) {
+          if (options?.idempotency &&
+              (isDuplicateKeyForField(error, 'idempotencyKeyHash') || error instanceof ConcurrencyError)) {
+            const replay = await this.findIdempotentReplay(options.idempotency);
+            if (replay) return replay;
+          }
+          if (isDuplicateKeyForField(error, 'reservationNumber')) {
+            if (numberAttempt + 1 === MAX_RESERVATION_NUMBER_ATTEMPTS)
+              throw new ReservationServiceError('RESERVATION_NUMBER_GENERATION_FAILED', 'Unable to generate reservation number');
+            continue;
+          }
+          if (error instanceof ConcurrencyError &&
+              ['INVENTORY_ITEM_NOT_AVAILABLE', 'INVENTORY_ITEM_NOT_ACTIVE', 'INVENTORY_ITEM_NOT_FOUND'].includes(error.code)) break;
+          throw error;
+        }
+      }
+    }
+    throw new ReservationServiceError('NO_AVAILABLE_INVENTORY', 'Not all requested items remained available');
+  }
+
 }
 
 export const reservationService = new ReservationService();

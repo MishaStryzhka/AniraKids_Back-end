@@ -106,6 +106,7 @@ export const resolveReservationIdempotency: HttpHandler = async (
   try {
     const keyHash = hashIdempotencyKey(rawKey);
     const requestHash = hashReservationFingerprint({
+      items: body.items,
       productId: body.productId,
       variantId: body.variantId,
       rentalMode: body.rentalMode,
