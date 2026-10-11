@@ -54,15 +54,20 @@ export const paymentSummary = (r: Reservation & { _id?: Types.ObjectId }) => {
 export const publicPaymentSummary = (r: Reservation) => {
   if (r.advanceRequired === undefined) return null;
   const s = paymentSummary(r);
-  const payable = r.status === 'pending' && r.expiresAt instanceof Date && r.expiresAt.getTime() > Date.now();
+  const pendingPayable = r.status === 'pending' && r.expiresAt instanceof Date && r.expiresAt.getTime() > Date.now();
+  const payable = !s.legacyUnreconciled && (pendingPayable || r.status === 'confirmed' || r.status === 'prepared');
   const message = r.reservationNumber;
-  const paymentInstructions = payable && s.advanceBalance > 0 && isValidCzechIban(BOOKING_POLICY.bank.iban)
-    ? { ...BOOKING_POLICY.bank, amount: s.advanceBalance, currency: 'CZK' as const, message,
-      // SPAYD standard: https://qr-platba.cz/pro-vyvojare/specifikace-formatu/
-      qrPayload: `SPD*1.0*ACC:${BOOKING_POLICY.bank.iban}*AM:${s.advanceBalance.toFixed(2)}*CC:CZK*MSG:${message}*PT:IP` }
-    : null;
+  const instructions = (amount: number, allowed: boolean) =>
+    allowed && amount > 0 && isValidCzechIban(BOOKING_POLICY.bank.iban)
+      ? { ...BOOKING_POLICY.bank, amount, currency: 'CZK' as const, message,
+        qrPayload: `SPD*1.0*ACC:${BOOKING_POLICY.bank.iban}*AM:${amount.toFixed(2)}*CC:CZK*MSG:${message}*PT:IP` }
+      : null;
+  // Keep the original advance contract for older storefront versions.
+  const paymentInstructions = instructions(s.advanceBalance, payable && pendingPayable);
+  const fullPaymentInstructions = instructions(s.rentalBalance + Math.max(0, s.depositRequired - s.depositHeld), payable);
   return { advanceRequired: s.advanceRequired, advanceBalance: s.advanceBalance,
-    rentalBalance: s.rentalBalance, depositRequired: s.depositRequired, depositHeld: s.depositHeld, paymentInstructions };
+    rentalBalance: s.rentalBalance, depositRequired: s.depositRequired, depositHeld: s.depositHeld,
+    paymentInstructions, fullPaymentInstructions };
 };
 
 export const validatePaymentChange = (r: Reservation, input: PaymentInput): void => {
