@@ -1,4 +1,4 @@
-import type { ReservationStatus } from '../types/domain';
+import type { RentalMode, ReservationStatus } from '../types/domain';
 import {
   addCalendarDays,
   compareDateOnly,
@@ -6,6 +6,10 @@ import {
 } from './date-only';
 
 export const CLEANING_BUFFER_DAYS = 1;
+
+// Studio garments stay on site and can be cleaned between sessions.
+export const getCleaningBufferDays = (rentalMode: RentalMode = 'external'): number =>
+  rentalMode === 'studio' ? 0 : CLEANING_BUFFER_DAYS;
 
 export const FIXED_BLOCKING_RESERVATION_STATUSES = [
   'confirmed',
@@ -49,11 +53,12 @@ export const reservationConflictsWithRequestedRange = (
   reservationStartDate: Date,
   reservationEndDate: Date,
   requestedStartDate: Date,
-  requestedEndDate: Date
+  requestedEndDate: Date,
+  reservationRentalMode: RentalMode = 'external'
 ): boolean => {
   const blockingEndDate = addCalendarDays(
     reservationEndDate,
-    CLEANING_BUFFER_DAYS
+    getCleaningBufferDays(reservationRentalMode)
   );
 
   return rangesOverlapInclusive(

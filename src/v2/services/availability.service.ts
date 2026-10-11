@@ -14,6 +14,7 @@ import {
 import type {
   AvailabilityBlock,
   Reservation,
+  RentalMode,
 } from '../types/domain';
 import {
   addCalendarDays,
@@ -22,7 +23,7 @@ import {
   isCanonicalDateOnlyDate,
 } from '../utils/date-only';
 import {
-  CLEANING_BUFFER_DAYS,
+  getCleaningBufferDays,
   reservationConflictsWithRequestedRange,
   availabilityBlockConflictsWithRequestedRange,
   FIXED_BLOCKING_RESERVATION_STATUSES,
@@ -89,6 +90,8 @@ const buildBlockingReservationQuery = (
   endDate: {
     $gte: getReservationEndConflictThreshold(requestedStartDate),
   },
+  // Keep the indexed broad range, excluding the nonexistent studio cleaning day.
+  $nor: [{ rentalMode: 'studio', endDate: { $lt: requestedStartDate } }],
   $or: [
     {
       status: {
@@ -226,17 +229,17 @@ export class AvailabilityService {
   /** One bounded month; each end date must fit a single physical item. */
   async getVariantCalendar(
     variantId: Types.ObjectId, from: Date, to: Date, today: string,
-    selectedStart: Date | undefined, now: Date
+    selectedStart: Date | undefined, now: Date, rentalMode: RentalMode = 'external'
   ): Promise<Array<{ date: string; available: boolean }>> {
     assertAvailabilityRange(from, to);
     const items = await InventoryItemV2Model.find({ variantId, status: 'active' })
       .select('_id').exec();
     const ids = items.map(item => item._id);
     const earliest = selectedStart && selectedStart < from ? selectedStart : from;
-    const last = addCalendarDays(to, CLEANING_BUFFER_DAYS);
+    const last = addCalendarDays(to, getCleaningBufferDays(rentalMode));
     const [reservations, blocks] = ids.length ? await Promise.all([
       ReservationV2Model.find(buildBlockingReservationQuery(ids, earliest, last, now))
-        .select('startDate endDate items.inventoryItemId').exec(),
+        .select('startDate endDate rentalMode items.inventoryItemId').exec(),
       AvailabilityBlockV2Model.find(buildAvailabilityBlockQuery(ids, earliest, last))
         .select('startDate endDate inventoryItemId').exec(),
     ]) : [[], []];
@@ -244,11 +247,11 @@ export class AvailabilityService {
     for (let day = from; day <= to; day = addCalendarDays(day, 1)) {
       const date = formatDateOnly(day);
       const start = selectedStart ?? day;
-      const end = addCalendarDays(day, CLEANING_BUFFER_DAYS);
+      const end = addCalendarDays(day, getCleaningBufferDays(rentalMode));
       const available = date >= today && start <= day && items.some(item =>
         !reservations.some(reservation =>
           reservation.items.some(held => held.inventoryItemId.equals(item._id)) &&
-          reservationConflictsWithRequestedRange(reservation.startDate, reservation.endDate, start, end)
+          reservationConflictsWithRequestedRange(reservation.startDate, reservation.endDate, start, end, reservation.rentalMode)
         ) && !blocks.some(block =>
           block.inventoryItemId.equals(item._id) &&
           availabilityBlockConflictsWithRequestedRange(block.startDate, block.endDate, start, end)

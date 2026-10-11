@@ -15,7 +15,7 @@ import type {
   Reservation,
 } from '../types/domain';
 import {
-  CLEANING_BUFFER_DAYS,
+  getCleaningBufferDays,
 } from '../utils/availability';
 import {
   addCalendarDays,
@@ -158,7 +158,7 @@ export const createReservationAtomically = async (
   const inventoryItemIds = input.items.map(item => item.inventoryItemId);
   const requestedOccupiedEnd = addCalendarDays(
     input.endDate,
-    CLEANING_BUFFER_DAYS
+    getCleaningBufferDays(input.rentalMode)
   );
   const session = await InventoryItemV2Model.db.startSession();
 

@@ -565,6 +565,74 @@ async function main() {
   const quantityRow=await Reservation.findOne({reservationNumber:quantity.body.reservation.reservationNumber});
   assert.equal(new Set(quantityRow.items.map(x=>x.inventoryItemId.toHexString())).size,2);
   evidence.push('Multi-item atomic basket, no partial booking, one 200 CZK advance, summed rental and deposit, all-item receipt/history, complete idempotent replay, changed item conflict, cross-account denial, concurrent all-or-none allocation and distinct pieces for quantity');
+  // Mode-specific occupancy: test both orderings, quote, calendar and actual writes.
+  const studioCustomer = {...body.customer,email:'studio-buffer@example.test'};
+  const studioDay = addCalendarDays(today, 120);
+  const studioDate = formatDateOnly(studioDay);
+  for (const heldMode of ['studio', 'external']) {
+    const held = await post({...body, customer:studioCustomer, rentalMode:heldMode, startDate:studioDate, endDate:studioDate});
+    assert.equal(held.status, 201);
+    for (const requestedMode of ['studio', 'external']) {
+      for (const offset of [-1, 0, 1]) {
+        const date = formatDateOnly(addCalendarDays(studioDay, offset));
+        const expected = offset === -1 ? requestedMode === 'studio'
+          : offset === 1 ? heldMode === 'studio' : false;
+        const label = `${heldMode} held; ${requestedMode} requested; offset ${offset}`;
+        assert.equal((await quote({rentalMode:requestedMode, startDate:date, endDate:date})).body.availability.available, expected, label + ' quote');
+        const month = await calendar({rentalMode:requestedMode, month:date.slice(0,7)});
+        assert.equal(month.body.calendar.days.find(day=>day.date===date).available, expected, label + ' calendar');
+        const range = await calendar({rentalMode:requestedMode, month:date.slice(0,7), startDate:date});
+        assert.equal(range.body.calendar.days.find(day=>day.date===date).available, expected, label + ' return calendar');
+        const result = await post({...body, customer:studioCustomer, rentalMode:requestedMode, startDate:date, endDate:date});
+        assert.equal(result.status, expected ? 201 : 409, label + ' create');
+        if (result.status === 201) await Reservation.deleteOne({reservationNumber:result.body.reservation.reservationNumber});
+      }
+    }
+    await Reservation.deleteOne({reservationNumber:held.body.reservation.reservationNumber});
+  }
+  evidence.push('Studio/external mode matrix: adjacent dates in both directions, same-day conflict, quote/calendar/create agreement');
+
+  const studioBody = {...body, customer:studioCustomer, rentalMode:'studio', startDate:studioDate, endDate:studioDate};
+  const nextDate = formatDateOnly(addCalendarDays(studioDay, 1));
+  const manual = await Block.create({inventoryItemId:inventory._id, startDate:parseDateOnly(nextDate), endDate:parseDateOnly(nextDate), reason:'cleaning', createdBy:owner});
+  assert.equal((await quote({rentalMode:'studio',startDate:studioDate,endDate:studioDate})).body.availability.available,true);
+  assert.equal((await quote({rentalMode:'external',startDate:studioDate,endDate:studioDate})).body.availability.available,false);
+  assert.equal((await post({...studioBody,rentalMode:'external'})).status,409,'External create respects its buffer against a manual block');
+  assert.equal((await post({...studioBody,startDate:nextDate,endDate:nextDate})).status,409,'Studio still respects actual manual block days');
+  const studioRace = await Promise.all([post(studioBody),post(studioBody)]);
+  assert.deepEqual(studioRace.map(result=>result.status).sort(),[201,409],'Concurrent studio requests cannot double-book');
+  const studioWinner = studioRace.find(result=>result.status===201).body.reservation;
+  const studioRow = await Reservation.findOne({reservationNumber:studioWinner.reservationNumber});
+  const {reservationAdminService} = require('../build/v2/services/reservation-admin.service');
+  const {toAdminReservationCalendarEventDto} = require('../build/v2/http/admin-response');
+  await Reservation.updateOne({_id:studioRow._id},{$set:{advanceRequired:0}});
+  const confirmedStudio = await reservationAdminService.confirm(studioRow._id);
+  assert.equal(confirmedStudio.status,'confirmed','Studio confirmation ignores the following manual block');
+  assert.equal(toAdminReservationCalendarEventDto(confirmedStudio).occupiedThrough,studioDate);
+  const nextCalendar = await reservationAdminService.getCalendar({from:nextDate,to:nextDate});
+  assert.ok(!nextCalendar.items.some(item=>item._id.equals(studioRow._id)),'Admin calendar has no phantom studio cleaning day');
+  await Block.deleteOne({_id:manual._id});
+  const adjacent = await post({...studioBody,startDate:nextDate,endDate:nextDate});
+  assert.equal(adjacent.status,201,'Next-day studio booking after confirmation');
+  const adjacentRow = await Reservation.findOne({reservationNumber:adjacent.body.reservation.reservationNumber});
+  await Reservation.updateOne({_id:adjacentRow._id},{$set:{advanceRequired:0,expiresAt:new Date(Date.now()-1000)}});
+  assert.equal((await reservationAdminService.confirm(adjacentRow._id)).status,'confirmed','Expired studio confirmation rechecks adjacent occupancy correctly');
+  await Reservation.deleteOne({_id:adjacentRow._id});
+  const {inventoryAvailabilityAdminService} = require('../build/v2/services/inventory-availability-admin.service');
+  const lifecycleNow = new Date(nextDate+'T12:00:00Z');
+  await Reservation.updateOne({_id:studioRow._id},{$set:{rentalMode:'external'}});
+  await assert.rejects(()=>inventoryAvailabilityAdminService.moveToMaintenance(inventory._id,{now:lifecycleNow}),{code:'INVENTORY_HAS_CURRENT_OR_FUTURE_RESERVATION'});
+  await Reservation.updateOne({_id:studioRow._id},{$set:{rentalMode:'studio'}});
+  assert.equal((await inventoryAvailabilityAdminService.moveToMaintenance(inventory._id,{now:lifecycleNow})).status,'maintenance','Completed studio day imposes no lifecycle cleaning buffer');
+  await inventoryAvailabilityAdminService.activate(inventory._id,{now:lifecycleNow});
+  await Reservation.deleteOne({_id:studioRow._id});
+  const studioBasketDate = formatDateOnly(addCalendarDays(today,130));
+  const studioBasket = {...basketBody,customer:studioCustomer,rentalMode:'studio',startDate:studioBasketDate,endDate:studioBasketDate};
+  assert.equal((await post(studioBasket)).status,201);
+  const nextBasketDate = formatDateOnly(addCalendarDays(today,131));
+  assert.equal((await post({...studioBasket,startDate:nextBasketDate,endDate:nextBasketDate})).status,201,'Consecutive studio baskets use the same pieces without an extra blocked day');
+  evidence.push('Studio manual-block safety, concurrent oversell prevention, confirmation/reconfirmation, admin occupancy/calendar, lifecycle and consecutive multi-item baskets');
+
   // Remove only this added product from catalogue assertions below.
   await Product.updateOne({_id:basketProduct._id},{$set:{status:'draft'}});
 

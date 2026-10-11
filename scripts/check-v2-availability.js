@@ -1,6 +1,7 @@
 const {
   availabilityBlockConflictsWithRequestedRange,
   CLEANING_BUFFER_DAYS,
+  getCleaningBufferDays,
   getReservationEndConflictThreshold,
   isBlockingReservationState,
   rangesOverlapInclusive,
@@ -45,7 +46,14 @@ const assertConflict = (
 };
 
 const checkReservationBoundaries = () => {
-  assertEqual(CLEANING_BUFFER_DAYS, 1, 'cleaning buffer must be exactly one day');
+  assertEqual(CLEANING_BUFFER_DAYS, 1, 'external cleaning buffer must be exactly one day');
+  assertEqual(getCleaningBufferDays('studio'), 0, 'studio has no cleaning buffer');
+  for (const mode of ['studio', 'external']) {
+    assertEqual(reservationConflictsWithRequestedRange(
+      parseDateOnly('2026-12-31'), parseDateOnly('2026-12-31'),
+      parseDateOnly('2027-01-01'), parseDateOnly('2027-01-01'), mode
+    ), mode === 'external', 'only external cleaning crosses the year boundary');
+  }
 
   assertConflict('2026-10-10', '2026-10-12', '2026-10-10', '2026-10-10', true, '10 Oct conflicts');
   assertConflict('2026-10-10', '2026-10-12', '2026-10-11', '2026-10-11', true, '11 Oct conflicts');
