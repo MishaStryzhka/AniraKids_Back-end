@@ -134,6 +134,13 @@ async function main() {
   const post=async(type,amount,extra={})=>{const result=await recordPayment(r._id,input(type,amount,extra),actor);rev=result.revision;return result;};
   assert.equal(publicPaymentSummary(r).paymentInstructions.amount,200);
   assert.match(publicPaymentSummary(r).paymentInstructions.qrPayload,/AM:200.00\*CC:CZK/);
+  assert.equal(publicPaymentSummary(r).fullPaymentInstructions.amount,2700);
+  assert.match(publicPaymentSummary(r).fullPaymentInstructions.qrPayload,/AM:2700.00\*CC:CZK/);
+  for (const status of ['cancelled','rented','returned']) {
+    assert.equal(publicPaymentSummary({...r.toObject(), status}).fullPaymentInstructions,null);
+  }
+  assert.equal(publicPaymentSummary({...r.toObject(),expiresAt:new Date(Date.now()-1)}).fullPaymentInstructions,null);
+  assert.equal(publicPaymentSummary({...r.toObject(),paymentStatus:'paid'}).fullPaymentInstructions,null);
   await assert.rejects(reservationAdminService.confirm(r._id),e=>e.code==='PAYMENT_ADVANCE_REQUIRED');
   const first=input('advance_received',200);
   const copies=await Promise.all([recordPayment(r._id,first,actor),recordPayment(r._id,first,actor)]);
@@ -142,6 +149,7 @@ async function main() {
   assert.equal((await Reservation.findById(r._id)).paymentEntries.length,1);
   const confirmed=await reservationAdminService.confirm(r._id);assert.equal(confirmed.status,'confirmed');
   assert.equal(publicPaymentSummary(confirmed).paymentInstructions,null);
+  assert.equal(publicPaymentSummary(confirmed).fullPaymentInstructions.amount,2500);
   await reservationAdminService.prepare(r._id);
   await assert.rejects(reservationAdminService.rent(r._id),e=>e.code==='PAYMENT_RENTAL_REQUIRED');
   const races=await Promise.allSettled([recordPayment(r._id,input('rental_received',300),actor),recordPayment(r._id,input('rental_received',300),actor)]);
@@ -150,6 +158,7 @@ async function main() {
   await post('rental_received',200);
   const paid=await post('deposit_received',2000);assert.equal(paid.rentalBalance,0);assert.equal(paid.depositHeld,2000);
   assert.equal((await Reservation.findById(r._id)).paymentStatus,'paid');
+  assert.equal(publicPaymentSummary(await Reservation.findById(r._id)).fullPaymentInstructions,null);
   await assert.rejects(post('cancellation_fee',200,{note:'Reviewed cancellation rights'}),e=>e.code==='PAYMENT_NOT_ALLOWED');
   await reservationAdminService.cancel(r._id,{reason:'Customer cancellation outside free window'});
   const fee=await post('cancellation_fee',200,{note:'Reviewed applicable terms and statutory rights'});assert.equal(fee.refundableRental,500);
@@ -165,7 +174,7 @@ async function main() {
   assert.equal(paymentSummary({...final.toObject(),paymentEntries:[],paymentStatus:'paid'}).legacyUnreconciled,true);
   assert.equal(publicPaymentSummary({...final.toObject(),advanceRequired:undefined}),null);
   const expired={...final.toObject(),status:'pending',expiresAt:new Date(Date.now()-1)};assert.equal(publicPaymentSummary(expired).paymentInstructions,null);
-  evidence.push('IBAN/SPAYD validation; strict input; mandatory refund/fee reasons; unknown fields/types rejected; advance gate; same-id concurrent replay; changed-body conflict; revision race; overpayment/refund bounds; cancellation fee allocation and reversal; immutable audit; legacy flag; no QR for expired/cancelled/confirmed');
+  evidence.push('IBAN/SPAYD validation; strict input; mandatory refund/fee reasons; unknown fields/types rejected; advance gate; same-id concurrent replay; changed-body conflict; revision race; overpayment/refund bounds; cancellation fee allocation and reversal; immutable audit; legacy flag; no advance QR for expired/cancelled/confirmed');
   // Complete rental journeys and late-payment races use only this owned database.
   const makeBooking = async (name, offset, expiresAt = new Date(Date.now() + 86400000)) => {
     const day = addCalendarDays(startDate, offset);
@@ -197,6 +206,19 @@ async function main() {
     assert.equal((await Reservation.findById(booking._id)).paymentStatus, 'paid');
     evidence.push(`Full ${method} lifecycle: advance, confirmation, balance, deposit, handover, return, deposit refund`);
   }
+  const upfront = await makeBooking('AK-2030-UPFULL', 25);
+  assert.equal(publicPaymentSummary(upfront).fullPaymentInstructions.amount,2700);
+  await recordPayment(upfront._id, parsePaymentInput({operationId:randomUUID(),expectedRevision:0,
+    type:'rental_received',amount:700,method:'bank_transfer',reference:'ONE-2700-TRANSFER'}),actor);
+  assert.equal(publicPaymentSummary(await Reservation.findById(upfront._id)).fullPaymentInstructions.amount,2000);
+  await recordPayment(upfront._id, parsePaymentInput({operationId:randomUUID(),expectedRevision:1,
+    type:'deposit_received',amount:2000,method:'bank_transfer',reference:'ONE-2700-TRANSFER'}),actor);
+  const allPaid=await Reservation.findById(upfront._id);
+  assert.equal(allPaid.paymentStatus,'paid');
+  assert.equal(publicPaymentSummary(allPaid).advanceBalance,0);
+  assert.equal(publicPaymentSummary(allPaid).fullPaymentInstructions,null);
+  assert.equal((await reservationAdminService.confirm(upfront._id)).status,'confirmed');
+  evidence.push('Full upfront 2700 = rental 700 + refundable deposit 2000; advance not added; partial receipt reduces QR; 200 advance leaves 2500; settled/expired/legacy/closed booking has no full QR');
   const old = await makeBooking('AK-2030-LATE01', 30, new Date(Date.now() - 1));
   const replacement = await makeBooking('AK-2030-LATE02', 30);
   await recordPayment(old._id, parsePaymentInput({operationId:randomUUID(),expectedRevision:0,
