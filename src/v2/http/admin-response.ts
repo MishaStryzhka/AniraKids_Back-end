@@ -368,7 +368,9 @@ export const toAdminReservationCalendarEventDto = (
 
   const customer = toPlainObject(source.customerSnapshot);
   const items = Array.isArray(source.items) ? source.items : [];
-  const occupiedThrough = getReservationOccupiedThrough(source.endDate);
+  const occupiedThrough = getReservationOccupiedThrough(
+    source.endDate, source.rentalMode === 'studio' ? 'studio' : 'external'
+  );
 
   return {
     id: toId(source._id),

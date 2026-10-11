@@ -12,9 +12,10 @@ import {
 import type {
   Reservation,
   ReservationStatus,
+  RentalMode,
 } from '../types/domain';
 import {
-  CLEANING_BUFFER_DAYS,
+  getCleaningBufferDays,
   FIXED_BLOCKING_RESERVATION_STATUSES,
   getReservationEndConflictThreshold,
   isBlockingReservationState,
@@ -70,8 +71,9 @@ export const isPendingReservationExpired = (
   reservation.expiresAt.getTime() <= now.getTime();
 
 export const getReservationOccupiedThrough = (
-  endDate: Date
-): Date => addCalendarDays(endDate, CLEANING_BUFFER_DAYS);
+  endDate: Date,
+  rentalMode: RentalMode = 'external'
+): Date => addCalendarDays(endDate, getCleaningBufferDays(rentalMode));
 
 export const isReservationCalendarBlocking = (
   reservation: Pick<Reservation, 'status' | 'expiresAt'>,
@@ -219,6 +221,7 @@ export const buildReservationAdminCalendarFilter = (
   endDate: {
     $gte: getReservationEndConflictThreshold(from),
   },
+  $nor: [{ rentalMode: 'studio', endDate: { $lt: from } }],
   $or: [
     {
       status: {
@@ -577,7 +580,8 @@ export class ReservationAdminService {
           );
 
           const occupiedEnd = getReservationOccupiedThrough(
-            reservation.endDate
+            reservation.endDate,
+            reservation.rentalMode
           );
 
           const blockedIds = await findBlockedInventoryItemIds(

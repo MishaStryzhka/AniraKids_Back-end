@@ -170,6 +170,7 @@ const hasBlockingReservationForLifecycle = async (
 
   const reservation = await ReservationV2Model.findOne({
     'items.inventoryItemId': inventoryItemId,
+    $nor: [{ rentalMode: 'studio', endDate: { $lt: parseDateOnly(getBusinessDateOnly(now)) } }],
     endDate: {
       $gte: threshold,
     },

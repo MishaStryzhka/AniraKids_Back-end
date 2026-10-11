@@ -12,7 +12,7 @@ import {
   getBusinessDateOnly,
   parseDateOnly,
 } from '../utils/date-only';
-import { CLEANING_BUFFER_DAYS } from '../utils/availability';
+import { getCleaningBufferDays } from '../utils/availability';
 import {
   calculateReservationTotals,
   PricingError,
@@ -137,7 +137,7 @@ export class PublicCatalogueService {
     const { from, to, start } = calendarRange(query, now);
     const { product, variant } = await this.rentalContext(productId, query);
     const today = getBusinessDateOnly(now);
-    const days = await availabilityService.getVariantCalendar(variant._id, from, to, today, start, now);
+    const days = await availabilityService.getVariantCalendar(variant._id, from, to, today, start, now, query.rentalMode);
     return { calendar: {
       productId: product._id.toHexString(), variantId: variant._id.toHexString(),
       rentalMode: query.rentalMode, month: query.month,
@@ -255,7 +255,7 @@ export class PublicCatalogueService {
     const result = await availabilityService.getVariantAvailability(
       variant._id,
       start,
-      addCalendarDays(end, CLEANING_BUFFER_DAYS),
+      addCalendarDays(end, getCleaningBufferDays(query.rentalMode)),
       { now }
     );
     return {
