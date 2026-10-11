@@ -5,6 +5,13 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - src/v2/services/reservation.service.ts
+      - src/v2/services/reservation.types.ts
+      - src/v2/schemas/reservation.schema.ts
+      - src/v2/utils/idempotency.ts
+      - src/v2/middleware/idempotency.middleware.ts
+      - src/v2/controllers/reservation.controller.ts
+      - src/v2/http/reservation-response.ts
       - src/v2/controllers/admin-overview.controller.ts
       - src/v2/services/calendar-blocks.ts
       - scripts/check-admin-overview-integration.js

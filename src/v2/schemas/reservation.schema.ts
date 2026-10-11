@@ -5,6 +5,7 @@ import type {
 } from '../types/domain';
 
 export interface ReservationRequestBody {
+  items?: Array<{ productId: string; variantId: string }>;
   productId: string;
   variantId: string;
   rentalMode: RentalMode;
@@ -51,14 +52,18 @@ const customerSchema = Joi.object({
   .required();
 
 export const reservationRequestSchema = Joi.object({
-  productId: Joi.string().pattern(objectIdPattern).required(),
-  variantId: Joi.string().pattern(objectIdPattern).required(),
+  productId: Joi.string().pattern(objectIdPattern),
+  variantId: Joi.string().pattern(objectIdPattern),
+  items: Joi.array().items(Joi.object({
+    productId: Joi.string().pattern(objectIdPattern).required(),
+    variantId: Joi.string().pattern(objectIdPattern).required(),
+  }).unknown(false)).min(1).max(20),
   rentalMode: Joi.string().valid('studio', 'external').required(),
   startDate: Joi.string().pattern(dateOnlyShapePattern).required(),
   endDate: Joi.string().pattern(dateOnlyShapePattern).required(),
   customer: customerSchema,
   notes: Joi.string().max(1500).allow('').optional(),
-}).unknown(false);
+}).unknown(false).xor('productId', 'items').and('productId', 'variantId').without('items', 'variantId');
 
 export const validateReservationRequestBody = (
   input: unknown
@@ -75,6 +80,8 @@ export const validateReservationRequestBody = (
   }
 
   return {
-    value: value as ReservationRequestBody,
+    value: { ...value, ...(value.items ? {
+      productId: value.items[0].productId, variantId: value.items[0].variantId,
+    } : {}) } as ReservationRequestBody,
   };
 };

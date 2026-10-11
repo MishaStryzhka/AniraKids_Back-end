@@ -24,6 +24,9 @@ export const createReservation: HttpHandler = async (
   const body = request.body as ReservationRequestBody;
 
   const command: CreateReservationCommand = {
+    ...(body.items ? { items: body.items.map(item => ({
+      productId: new Types.ObjectId(item.productId), variantId: new Types.ObjectId(item.variantId),
+    })) } : {}),
     productId: new Types.ObjectId(body.productId),
     variantId: new Types.ObjectId(body.variantId),
     rentalMode: body.rentalMode,
