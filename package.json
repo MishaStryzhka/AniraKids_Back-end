@@ -10,7 +10,7 @@
     "check:v2-models": "node scripts/check-v2-models.js",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
-    "vercel-build": "npm run typecheck && npm run build:v2 && npm run check:v2-models && npm run check:v2-utils && npm run check:v2-availability && npm run check:v2-reservation-service && npm run check:v2-reservation-api && npm run check:v2-reservation-hardening && npm run check:v2-admin-api && npm run check:v2-product-media && npm run check:v2-inventory-lifecycle && npm run check:v2-admin-reservations && npm run check:vercel-cron",
+    "vercel-build": "npm run typecheck && npm run build:v2 && npm run check:v2-models && npm run check:v2-utils && npm run check:v2-availability && npm run check:v2-reservation-service && npm run check:v2-reservation-api && npm run check:v2-reservation-hardening && npm run check:v2-admin-api && npm run check:v2-product-media && npm run check:v2-inventory-lifecycle && npm run check:v2-admin-reservations && npm run check:marketplace-retirement",
     "check:v2-utils": "node scripts/check-v2-utils.js",
     "check:v2-availability": "node scripts/check-v2-availability.js",
     "check:v2-availability:integration": "npm run build:v2 && node scripts/check-v2-availability-integration.js",
@@ -32,7 +32,7 @@
     "check:v2-inventory-lifecycle:integration": "npm run build:v2 && node scripts/check-v2-inventory-lifecycle-integration.js",
     "check:v2-admin-reservations": "node scripts/check-v2-admin-reservations.js",
     "check:v2-admin-reservations:integration": "npm run build:v2 && node scripts/check-v2-admin-reservations-integration.js",
-    "check:vercel-cron": "node scripts/check-vercel-cron.js"
+    "check:marketplace-retirement": "node scripts/check-marketplace-retirement.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.0",
@@ -55,7 +55,6 @@
     "multer": "^1.4.5-lts.1",
     "multer-storage-cloudinary": "^4.0.0",
     "nanoid": "^3.3.4",
-    "node-cron": "^3.0.3",
     "nodemailer": "^6.9.8",
     "passport": "^0.5.3",
     "passport-facebook": "^3.0.0",

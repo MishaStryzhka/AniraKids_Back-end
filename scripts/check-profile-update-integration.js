@@ -45,6 +45,12 @@ async function update(user, body, files) {
   await User.init();
   const first = await User.create({ email: 'first@seznam.cz', provider: 'seznam' });
   const second = await User.create({ email: 'second@seznam.cz', provider: 'seznam', nickname: '@taken', primaryPhoneNumber: '+420777000002' });
+  const historical = { typeUser: 'owner', billingDetails: { name: 'Historical owner' }, bankAccount: { IBAN: 'archive-only' }, cart: [new mongoose.Types.ObjectId()], pickupAddresses: [{ city: 'Historical' }] };
+  await User.collection.updateOne({ _id: first._id }, { $set: historical });
+  const oldProduct = { _id: new mongoose.Types.ObjectId(), owner: first._id, name: 'Historical garment' };
+  const oldOrder = { _id: new mongoose.Types.ObjectId(), owner: first._id, status: 'approved by owner' };
+  await mongoose.connection.db.collection('products').insertOne(oldProduct);
+  await mongoose.connection.db.collection('orders').insertOne(oldOrder);
   const saved = await update(first, { email: first.email, firstName: 'Mykhailo', lastName: 'Stryzhka', nickname: '@mykhailo.test', primaryPhoneNumber: '+420777000001' });
   assert.equal(saved.firstName, 'Mykhailo'); assert.equal(saved.nickname, '@mykhailo.test');
   assert.equal(saved.tokens, undefined); assert.equal(saved.isFirstLogin, false);
@@ -63,6 +69,15 @@ async function update(user, body, files) {
   }
   await update(first, { firstName: 'Mykhailo' }, { avatar: [{ path: 'https://example.test/avatar.jpg', filename: 'fixture' }] });
   assert.equal((await User.findById(first._id)).avatarPublicId, 'fixture');
+  const stored = await User.collection.findOne({ _id: first._id });
+  for (const [key, value] of Object.entries(historical)) {
+    assert.deepEqual(stored[key], value, `historical ${key} retained`);
+    assert.equal(saved[key], undefined, `historical ${key} not exposed`);
+    await assert.rejects(update(first, { [key]: value }), error => error.status === 400);
+  }
+  assert.deepEqual(await mongoose.connection.db.collection('products').findOne({ _id: oldProduct._id }), oldProduct);
+  assert.deepEqual(await mongoose.connection.db.collection('orders').findOne({ _id: oldOrder._id }), oldOrder);
+  console.log('PASS: former owner can edit profile; historical fields/products/orders retained; archived fields cannot be changed through profile');
   console.log('PASS: same-email save, dot nickname, repeat save, persistence, safe response, conflicts without mutation, validation, protected fields, optional avatar');
 
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
