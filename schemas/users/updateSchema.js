@@ -9,16 +9,16 @@ const updateSchema = Joi.object({
   nickname: Joi.string()
     .pattern(/^@[a-zA-Z0-9_.-]+$/)
     .message(
-      'Використовуйте лише латинські літери, цифри, тире і підкреслення'
+      'Přezdívka musí začínat znakem @ a obsahovat pouze písmena latinky, číslice, tečky, pomlčky nebo podtržítka.'
     ),
   primaryPhoneNumber: Joi.string()
     .pattern(/^\+\d{1,4}\d{1,14}$/)
-    .message('Невірний формат номеру телефону.'),
+    .message('Zadejte platné telefonní číslo včetně mezinárodní předvolby.'),
   newPassword: Joi.string()
     .min(8)
     .pattern(/^(?=.*[A-Z])(?=.*\d).{8,16}$/)
     .message(
-      'Пароль повинен містити мінімум 8 латинських символів, одну велику літеру, одну цифру'
+      'Heslo musí obsahovat alespoň 8 znaků, jedno velké písmeno latinky a jednu číslici.'
     ),
   confirmNewPassword: Joi.string(),
   ico: Joi.string().max(32),
