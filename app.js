@@ -4,11 +4,6 @@ const cors = require('cors');
 
 require('dotenv').config();
 
-const isVercel = process.env.VERCEL === '1';
-
-if (!isVercel) {
-  require('./cron');
-}
 
 // const passport = require('passport');
 // const session = require('express-session');
@@ -18,12 +13,7 @@ if (!isVercel) {
 
 const authRouter = require('./routes/api/auth');
 const settingsRouter = require('./routes/api/settings');
-const productRouter = require('./routes/api/product');
-const orderRouter = require('./routes/api/order');
-const {
-  requireVercelCronAuthorization,
-  runAbandonedOrdersCron,
-} = require('./cron/vercel-http');
+const retiredMarketplace = require('./routes/retiredMarketplace');
 const { createV2Router } = require('./build/v2/routes');
 const { createV2CorsOptions } = require('./build/v2/http/cors');
 const { connectMongo } = require('./config/mongodb');
@@ -47,6 +37,8 @@ app.use((req, res, next) => {
   return legacyCors(req, res, next);
 });
 
+// Close retired routes before authentication, uploads or database access.
+app.use(retiredMarketplace);
 app.use(express.json());
 
 // **********************************************************************
@@ -81,17 +73,9 @@ app.use(
   })
 );
 
-app.get(
-  '/api/internal/cron/update-abandoned-orders',
-  requireVercelCronAuthorization,
-  ensureMongoConnection,
-  runAbandonedOrdersCron
-);
 
 app.use('/api/users', ensureMongoConnection, authRouter);
 app.use('/api/settings', ensureMongoConnection, settingsRouter);
-app.use('/api/product', ensureMongoConnection, productRouter);
-app.use('/api/order', ensureMongoConnection, orderRouter);
 
 // app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 

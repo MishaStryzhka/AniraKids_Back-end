@@ -102,127 +102,16 @@ const userSchema = new Schema(
         lastLogin: { type: Date, default: Date.now },
       },
     ],
-    typeUser: {
-      type: String,
-      enum: ['renter', 'owner'],
-      default: 'renter',
-    },
-    billingDetails: {
-      name: {
-        type: String,
-        required: function () {
-          return this.typeUser === 'owner';
-        },
-        match: /^[a-zA-Z\u00C0-\u017F\s.]+$/,
-      },
-      street: {
-        type: String,
-        required: function () {
-          return this.typeUser === 'owner';
-        },
-        match: /^[a-zA-Z\u00C0-\u017F\s]+\s\d+\/\d+$/,
-      },
-      city: {
-        type: String,
-        required: function () {
-          return this.typeUser === 'owner';
-        },
-        match: /^[a-zA-Z\u00C0-\u017F\s]+$/,
-      },
-      zip: {
-        type: String,
-        required: function () {
-          return this.typeUser === 'owner';
-        },
-        match: /^\d{5}$/,
-      },
-      сountry: {
-        type: String,
-        default: 'Česká republika',
-        enum: ['Česká republika'],
-      },
-      vatMode: {
-        type: String,
-        required: function () {
-          return this.typeUser === 'owner';
-        },
-        default: 'non_vat_payer',
-        enum: ['non_vat_payer', 'identified_person', 'vat_payer'],
-      },
-      companyID: {
-        type: String,
-        validate: {
-          validator: function (value) {
-            return value === '' || /^[a-zA-Z\u00C0-\u017F\s\d]+$/.test(value);
-          },
-          message: 'Invalid companyID format',
-        },
-      },
-      VATID: {
-        type: String,
-        required: false,
-        match: /^[a-zA-Z\u00C0-\u017F\s\d]+$/,
-      },
-    },
-    bankAccount: {
-      accountName: {
-        type: String,
-        required: function () {
-          return this.typeUser === 'owner';
-        },
-        validate: {
-          validator: value => /^[a-zA-Z\u00C0-\u017F\s]+$/.test(value),
-          message: 'Account name must contain only letters and spaces',
-        },
-      },
-      accountNumber: {
-        type: String,
-        required: function () {
-          return this.typeUser === 'owner';
-        },
-        validate: {
-          validator: value => /^\d{10}\/\d{4}$/.test(value),
-          message: 'Invalid account number format (e.g., 1234567890/2010)',
-        },
-      },
-      IBAN: {
-        type: String,
-        required: function () {
-          return this.typeUser === 'owner';
-        },
-        validate: {
-          validator: value => /^[A-Z]{2}\d{2}[A-Z\d]{11,30}$/.test(value),
-          message: 'Invalid IBAN format (e.g., CZ6508000000192000145399)',
-        },
-      },
-      swiftBIC: {
-        type: String,
-        required: function () {
-          return this.typeUser === 'owner';
-        },
-        validate: {
-          validator: value => /^[A-Z]{6}[A-Z\d]{2}([A-Z\d]{3})?$/.test(value),
-          message: 'Invalid SWIFT/BIC format (e.g., KOMBCZPP)',
-        },
-      },
-      currency: {
-        type: String,
-        required: function () {
-          return this.typeUser === 'owner';
-        },
-      },
-    },
-    rating: {
-      type: Number,
-      default: 5,
-    },
-    ratingCount: {
-      type: Number,
-      default: 0,
-    },
-    favorites: [{ type: Schema.Types.ObjectId, ref: 'product' }],
-    cart: [{ type: Schema.Types.ObjectId, ref: 'order' }],
-    pickupAddresses: [Object],
+    favorites: [{ type: Schema.Types.ObjectId, ref: 'ProductV2' }],
+    // Historical marketplace data stays in existing documents. No active role,
+    // validation, defaults or API writes depend on these archived fields.
+    typeUser: { type: String, select: false },
+    billingDetails: { type: Schema.Types.Mixed, select: false },
+    bankAccount: { type: Schema.Types.Mixed, select: false },
+    rating: { type: Number, select: false },
+    ratingCount: { type: Number, select: false },
+    cart: { type: [Schema.Types.ObjectId], default: undefined, select: false },
+    pickupAddresses: { type: [Schema.Types.Mixed], default: undefined, select: false },
   },
   { versionKey: false, timestamps: true }
 );

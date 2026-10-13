@@ -5,6 +5,17 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - app.js
+      - routes/retiredMarketplace.js
+      - routes/api/product.js
+      - routes/api/order.js
+      - models/index.js
+      - helpers/index.js
+      - cron/**
+      - package.json
+      - package-lock.json
+      - vercel.json
+      - scripts/check-marketplace-retirement.js
       - src/v2/services/reservation.service.ts
       - src/v2/services/reservation.types.ts
       - src/v2/schemas/reservation.schema.ts

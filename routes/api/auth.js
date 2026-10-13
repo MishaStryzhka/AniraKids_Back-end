@@ -13,8 +13,6 @@ const {
   loginSchema,
   refreshPasswordSchema,
   refreshEmailSchema,
-  updateBillingDetailsSchema,
-  updateBankAccountSchema,
 } = require('../../schemas/users');
 
 const router = express.Router();
@@ -51,7 +49,6 @@ router.post(
 router.post('/login', validateBody(loginSchema), ctrl.login);
 router.post('/logout', authenticate, ctrl.logout);
 router.get('/current', authenticate, ctrl.getCurrentUser);
-router.get('/user/:id', ctrl.getUserById);
 router.patch(
   '/current/refreshPassword',
   authenticate,
@@ -66,19 +63,7 @@ router.patch(
   ctrl.updateCurrentUser
 );
 
-router.patch(
-  '/current/update-billing-details',
-  authenticate,
-  validateBody(updateBillingDetailsSchema),
-  ctrl.updateCurrentUserBillingDetails
-);
 
-router.patch(
-  '/current/update-bank-account',
-  authenticate,
-  validateBody(updateBankAccountSchema),
-  ctrl.updateCurrentUserBankAccount
-);
 
 router.patch(
   '/current/refreshEmail',
@@ -94,10 +79,4 @@ router.post('/password/request-reset', ctrlWrapper(recovery.request));
 router.post('/password/reset', ctrlWrapper(recovery.confirm));
 router.post('/current/confirmEmailChange', ctrlWrapper(require('../../controllers/auth/confirmEmailChange')));
 
-router.patch('/favorites/add/:productId', authenticate, ctrl.addToFavorites);
-router.delete(
-  '/favorites/remove/:productId',
-  authenticate,
-  ctrl.removeFromFavorites
-);
 module.exports = router;
