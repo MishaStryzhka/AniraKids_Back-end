@@ -1,3 +1,4 @@
+import { inferFitSizes, normalizeFitSizes } from '../utils/variant-sizes';
 import { Types } from 'mongoose';
 
 import {
@@ -553,6 +554,7 @@ export class CatalogueAdminService {
       return await VariantV2Model.create({
         productId,
         ...input,
+        fitSizes: input.fitSizes === undefined ? inferFitSizes(input.size) : normalizeFitSizes(input.fitSizes),
         status: input.status ?? 'active',
         sortOrder: input.sortOrder ?? 0,
       });

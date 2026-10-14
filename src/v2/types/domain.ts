@@ -97,6 +97,7 @@ export type VariantStatus = (typeof VARIANT_STATUSES)[number];
 export interface Variant {
   productId: Types.ObjectId;
   size: string;
+  fitSizes?: string[];
   sku?: string;
   rentalPriceOverrides?: RentalPriceOverrides;
   salePriceOverride?: MoneyAmount;

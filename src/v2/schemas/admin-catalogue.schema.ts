@@ -115,6 +115,7 @@ export interface UpdateProductAdminBody {
 
 export interface CreateVariantAdminBody {
   size: string;
+  fitSizes?: string[];
   sku?: string;
   rentalPriceOverrides?: {
     studio?: number;
@@ -128,6 +129,7 @@ export interface CreateVariantAdminBody {
 
 export interface UpdateVariantAdminBody {
   size?: string;
+  fitSizes?: string[];
   sku?: string;
   rentalPriceOverrides?: {
     studio?: number;
@@ -177,6 +179,7 @@ const updateProductSchema = Joi.object({
 
 const createVariantSchema = Joi.object({
   size: Joi.string().trim().min(1).max(40).required(),
+  fitSizes: Joi.array().items(Joi.string().trim().min(1).max(40)).min(1).max(30).unique().optional(),
   sku: Joi.string().trim().min(1).max(80).optional(),
   rentalPriceOverrides: rentalPriceOverridesSchema.optional(),
   salePriceOverride: money.optional(),
@@ -187,6 +190,7 @@ const createVariantSchema = Joi.object({
 
 const updateVariantSchema = Joi.object({
   size: Joi.string().trim().min(1).max(40).optional(),
+  fitSizes: Joi.array().items(Joi.string().trim().min(1).max(40)).min(1).max(30).unique().optional(),
   sku: Joi.string().trim().min(1).max(80).optional(),
   rentalPriceOverrides: rentalPriceOverridesSchema.optional(),
   salePriceOverride: money.optional(),

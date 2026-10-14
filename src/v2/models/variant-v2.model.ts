@@ -1,6 +1,7 @@
 import { model, models, Schema, type Model } from 'mongoose';
 
 import { VARIANT_STATUSES, type Variant } from '../types/domain';
+import { normalizeFitSizes } from '../utils/variant-sizes';
 import { isMoneyAmount, isNonNegativeInteger } from './validation';
 
 export const VARIANT_V2_MODEL_NAME = 'VariantV2';
@@ -48,6 +49,16 @@ export const VariantV2Schema = new Schema<Variant>(
       trim: true,
       minlength: 1,
       maxlength: 40,
+    },
+    fitSizes: {
+      type: [String],
+      default: undefined,
+      set: (value: string[] | undefined) => Array.isArray(value) ? normalizeFitSizes(value) : value,
+      validate: {
+        validator: (value: string[] | undefined) => value === undefined ||
+          (value.length >= 1 && value.length <= 30 && value.every(size => size.length >= 1 && size.length <= 40)),
+        message: 'fitSizes must contain 1 to 30 individual sizes',
+      },
     },
     sku: {
       type: String,

@@ -267,6 +267,54 @@ async function main() {
   await Variant.deleteMany({ _id: { $in: [comparisonProductVariant._id, override._id] } });
   await Product.deleteOne({ _id: comparisonProduct._id });
   evidence.push('catalogue facets, combined size/price filters, rental mode overrides, family look, sorting before pagination');
+  {
+  // Existing labels are interpreted at read time, without duplicating inventory.
+  const { inferFitSizes, effectiveFitSizes, normalizeFitSizes } = require('../build/v2/utils/variant-sizes');
+  const { validateCreateVariantAdminBody, validateUpdateVariantAdminBody } = require('../build/v2/schemas/admin-catalogue.schema');
+  const { toAdminVariantDto } = require('../build/v2/http/admin-response');
+  const { catalogueAdminService } = require('../build/v2/services/catalogue-admin.service');
+  assert.deepEqual(inferFitSizes('XS–M'), ['XS','S','M']);
+  assert.deepEqual(inferFitSizes('XS-M-L'), ['XS','S','M','L']);
+  assert.deepEqual(inferFitSizes('98-104-116'), ['98','104','116']);
+  assert.deepEqual(normalizeFitSizes(['M','XS','XS','S']), ['XS','S','M']);
+  for (const fitSizes of [[], [''], ['74','74'], Array(31).fill('74'), null, '74']) {
+    assert.ok(validateCreateVariantAdminBody({size:'74-80',fitSizes}).errorMessage);
+    assert.ok(validateUpdateVariantAdminBody({fitSizes}).errorMessage);
+  }
+  const legacyCases = ['74-80-86', '74–80', 'XS–M', 'XS-M-L', 'S-M-L-XL', '98-104-116', 'M/L', 'UNI'];
+  for (const label of legacyCases) {
+    await Variant.collection.updateOne({_id:variant._id}, {$set:{size:label},$unset:{fitSizes:''}});
+    const sizes = inferFitSizes(label);
+    const filtered = await request('/catalogue/products');
+    assert.deepEqual(filtered.body.facets.sizes, sizes, `legacy facet parity: ${label}`);
+    for (const size of sizes) {
+      const response = await request('/catalogue/products?size='+encodeURIComponent(size));
+      assert.equal(response.body.total,1,`${label} includes ${size}`);
+      assert.equal(response.body.items[0].id,product.id);
+    }
+    assert.equal(await Inventory.countDocuments({variantId:variant._id}),1);
+  }
+  await Variant.collection.updateOne({_id:variant._id}, {$set:{size:'74-80-86'}});
+  assert.equal((await request('/catalogue/products?size=7')).body.total,0,'no substring matches');
+  assert.equal((await request('/catalogue/products?size=92')).body.total,0,'no adjacent-size matches');
+  assert.equal((await request('/catalogue/products?size=74-80-86')).body.total,1,'old filter links still work');
+  const cheap = await Variant.create({productId:product._id,size:'152',fitSizes:['152'],rentalPriceOverrides:{studio:100}});
+  assert.equal((await request('/catalogue/products?size=74&maxPrice=200')).body.total,0,'fit and price match the same variant');
+  await Variant.deleteOne({_id:cheap._id});
+  const updated = await catalogueAdminService.updateVariant(variant._id,{fitSizes:['74','86']});
+  assert.deepEqual(toAdminVariantDto(updated).fitSizes,['74','86']);
+  assert.equal((await request('/catalogue/products?size=80')).body.total,0,'explicit selection overrides inferred label');
+  assert.equal((await request('/catalogue/products?size=74')).body.total,1);
+  assert.equal(updated.id,variant.id,'same variant identity');
+  assert.equal(await Inventory.countDocuments({variantId:variant._id}),1,'same physical item');
+  const relabeled = await catalogueAdminService.updateVariant(variant._id,{size:'74–86'});
+  assert.deepEqual(effectiveFitSizes(relabeled),['74','86'],'label-only PATCH preserves explicit selection');
+  const created = await catalogueAdminService.createVariant(product._id,{size:'XS-M'});
+  assert.deepEqual(toAdminVariantDto(created).fitSizes,['XS','S','M']);
+  await Variant.deleteOne({_id:created._id});
+  await Variant.collection.updateOne({_id:variant._id}, {$set:{size:'110'},$unset:{fitSizes:''}});
+  evidence.push('fit sizes: legacy fallback, inclusive letter ranges, explicit override, atomic facets, exact matching, same-variant price and unchanged inventory');
+  }
   const beforeValidation = connections;
   for (const route of [
     '/catalogue/products?page=0',

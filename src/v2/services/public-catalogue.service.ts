@@ -1,3 +1,4 @@
+import { compareSizes, fitSizesExpression } from '../utils/variant-sizes';
 import { Types, PipelineStage } from 'mongoose';
 import { ProductV2Model, VariantV2Model } from '../models';
 import type {
@@ -163,7 +164,11 @@ export class PublicCatalogueService {
     };
     // Size and price must match the same active variant, including its price override.
     const variantConditions: unknown[] = [
-      ...(query.size ? [{ $eq: ['$$variant.size', { $literal: query.size }] }] : []),
+      ...(query.size ? [{ $or: [
+        { $in: [{ $literal: query.size.trim().toUpperCase() }, '$$variant.fitSizes'] },
+        // Keep existing combined-size links working during the transition.
+        ...(/[-–—/,]/.test(query.size) ? [{ $eq: ['$$variant.size', { $literal: query.size }] }] : []),
+      ] }] : []),
       ...(query.minPrice !== undefined ? [{ $gte: ['$$variant.price', query.minPrice] }] : []),
       ...(query.maxPrice !== undefined ? [{ $and: [{ $ne: ['$$variant.price', null] }, { $lte: ['$$variant.price', query.maxPrice] }] }] : []),
     ];
@@ -181,13 +186,13 @@ export class PublicCatalogueService {
       { $match: filter },
       { $lookup: { from: VariantV2Model.collection.name, let: { productId: '$_id', basePrice: '$rentalPrices.' + mode }, pipeline: [
         { $match: { $expr: { $and: [{ $eq: ['$productId', '$$productId'] }, { $eq: ['$status', 'active'] }] } } },
-        { $project: { _id: 0, size: 1, price: { $ifNull: ['$rentalPriceOverrides.' + mode, { $ifNull: ['$$basePrice', null] }] } } },
+        { $project: { _id: 0, size: 1, fitSizes: fitSizesExpression, price: { $ifNull: ['$rentalPriceOverrides.' + mode, { $ifNull: ['$$basePrice', null] }] } } },
       ], as: 'variants' } },
       { $facet: {
         items: [...matched, { $sort: sort }, { $skip: (query.page - 1) * query.limit }, { $limit: query.limit }],
         count: [...matched, { $count: 'total' }],
         colors: [{ $match: { color: { $type: 'string', $nin: ['', null] } } }, { $group: { _id: '$color' } }, { $sort: { _id: 1 } }],
-        sizes: [{ $unwind: '$variants' }, { $group: { _id: '$variants.size' } }, { $sort: { _id: 1 } }],
+        sizes: [{ $unwind: '$variants' }, { $unwind: '$variants.fitSizes' }, { $group: { _id: '$variants.fitSizes' } }, { $sort: { _id: 1 } }],
       } },
     ];
     const [result] = await ProductV2Model.aggregate(pipeline).exec();
@@ -197,7 +202,7 @@ export class PublicCatalogueService {
         ...publicProduct(product),
         ...(typeof product.rentalPriceFrom === 'number' ? { rentalPriceFrom: product.rentalPriceFrom } : {}),
       })),
-      facets: { colors: result.colors.map((item: { _id: string }) => item._id), sizes: result.sizes.map((item: { _id: string }) => item._id) },
+      facets: { colors: result.colors.map((item: { _id: string }) => item._id), sizes: result.sizes.map((item: { _id: string }) => item._id).sort(compareSizes) },
       page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit),
     };
   }
