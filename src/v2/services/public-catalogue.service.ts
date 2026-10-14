@@ -1,3 +1,4 @@
+import { colorKey, colorLabel, colorKeysExpression } from '../utils/product-colors';
 import { compareSizes, fitSizesExpression } from '../utils/variant-sizes';
 import { Types, PipelineStage } from 'mongoose';
 import { ProductV2Model, VariantV2Model } from '../models';
@@ -159,7 +160,11 @@ export class PublicCatalogueService {
     const mode = query.rentalMode || 'studio';
     const productFilters: Record<string, unknown> = {
       ...(query.gender ? { gender: query.gender === 'children' ? { $in: ['girls', 'boys'] } : query.gender } : {}),
-      ...(query.color ? { color: query.color } : {}),
+      ...(query.color ? { $or: [
+        { colorKeys: colorKey(query.color) },
+        // Preserve existing links containing a complete combined label.
+        ...(query.color.includes(',') ? [{ color: query.color.trim() }] : []),
+      ] } : {}),
       ...(query.familyLook ? { familyLookGroup: { $type: 'string', $nin: ['', null] } } : {}),
     };
     // Size and price must match the same active variant, including its price override.
@@ -184,6 +189,7 @@ export class PublicCatalogueService {
       query.sort === 'priceDesc' ? { missingPrice: 1, rentalPriceFrom: -1, _id: 1 } : { name: 1, _id: 1 };
     const pipeline: PipelineStage[] = [
       { $match: filter },
+      { $set: { colorKeys: colorKeysExpression } },
       { $lookup: { from: VariantV2Model.collection.name, let: { productId: '$_id', basePrice: '$rentalPrices.' + mode }, pipeline: [
         { $match: { $expr: { $and: [{ $eq: ['$productId', '$$productId'] }, { $eq: ['$status', 'active'] }] } } },
         { $project: { _id: 0, size: 1, fitSizes: fitSizesExpression, price: { $ifNull: ['$rentalPriceOverrides.' + mode, { $ifNull: ['$$basePrice', null] }] } } },
@@ -191,7 +197,7 @@ export class PublicCatalogueService {
       { $facet: {
         items: [...matched, { $sort: sort }, { $skip: (query.page - 1) * query.limit }, { $limit: query.limit }],
         count: [...matched, { $count: 'total' }],
-        colors: [{ $match: { color: { $type: 'string', $nin: ['', null] } } }, { $group: { _id: '$color' } }, { $sort: { _id: 1 } }],
+        colors: [{ $unwind: '$colorKeys' }, { $group: { _id: '$colorKeys' } }],
         sizes: [{ $unwind: '$variants' }, { $unwind: '$variants.fitSizes' }, { $group: { _id: '$variants.fitSizes' } }, { $sort: { _id: 1 } }],
       } },
     ];
@@ -202,7 +208,7 @@ export class PublicCatalogueService {
         ...publicProduct(product),
         ...(typeof product.rentalPriceFrom === 'number' ? { rentalPriceFrom: product.rentalPriceFrom } : {}),
       })),
-      facets: { colors: result.colors.map((item: { _id: string }) => item._id), sizes: result.sizes.map((item: { _id: string }) => item._id).sort(compareSizes) },
+      facets: { colors: result.colors.map((item: { _id: string }) => colorLabel(item._id)).sort((a: string, b: string) => a.localeCompare(b, 'cs')), sizes: result.sizes.map((item: { _id: string }) => item._id).sort(compareSizes) },
       page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit),
     };
   }
