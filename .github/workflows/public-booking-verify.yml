@@ -61,6 +61,7 @@ on:
       - src/v2/routes/index.ts
       - src/v2/services/public-catalogue.service.ts
       - src/v2/utils/variant-sizes.ts
+      - src/v2/utils/product-colors.ts
       - src/v2/models/variant-v2.model.ts
       - src/v2/http/admin-response.ts
       - src/v2/schemas/admin-catalogue.schema.ts

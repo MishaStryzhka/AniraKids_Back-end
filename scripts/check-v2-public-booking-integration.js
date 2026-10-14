@@ -242,7 +242,7 @@ async function main() {
   evidence.push(
     'active-only catalogue, escaped search, pagination, private-field projection, variant pricing'
   );
-  assert.deepEqual(list.body.facets, { colors: ['white'], sizes: ['110'] });
+  assert.deepEqual(list.body.facets, { colors: ['White'], sizes: ['110'] });
   assert.equal(list.body.items[0].rentalPriceFrom, 600);
   for (const filters of ['gender=children', 'color=white&size=110', 'rentalMode=external&minPrice=950&maxPrice=950']) {
     const filtered = await request('/catalogue/products?' + filters);
@@ -314,6 +314,27 @@ async function main() {
   await Variant.deleteOne({_id:created._id});
   await Variant.collection.updateOne({_id:variant._id}, {$set:{size:'110'},$unset:{fitSizes:''}});
   evidence.push('fit sizes: legacy fallback, inclusive letter ranges, explicit override, atomic facets, exact matching, same-variant price and unchanged inventory');
+  }
+  {
+    const combined = ' Bílá, růžová, ČERVENÁ, bílá, světle růžová, ';
+    await Product.updateOne({_id:product._id}, {color:combined});
+    const listed = await request('/catalogue/products');
+    assert.deepEqual(listed.body.facets.colors, ['Bílá','Červená','Růžová','Světle růžová']);
+    for (const color of ['Bílá','bílá',' RŮŽOVÁ ', 'červená','ČERVENÁ','Světle růžová', combined]) {
+      const found = await request('/catalogue/products?color='+encodeURIComponent(color));
+      assert.equal(found.body.total,1, color);
+      assert.equal(found.body.items[0].id,product.id);
+      assert.equal(found.body.items[0].color,combined.trim(),'display label is preserved');
+    }
+    for (const color of ['růž','Modrá','$color']) {
+      assert.equal((await request('/catalogue/products?color='+encodeURIComponent(color))).body.total,0);
+    }
+    await Product.updateOne({_id:product._id},{color:'Světle růžová'});
+    assert.equal((await request('/catalogue/products?color='+encodeURIComponent('Růžová'))).body.total,0,'shades are distinct');
+    await Product.updateOne({_id:product._id},{color:''});
+    assert.deepEqual((await request('/catalogue/products')).body.facets.colors,[]);
+    await Product.updateOne({_id:product._id},{color:'white'});
+    evidence.push('colors: atomic facets, Czech case folding, deduplication, legacy multi-color matching, shade boundaries and unchanged display');
   }
   const beforeValidation = connections;
   for (const route of [
