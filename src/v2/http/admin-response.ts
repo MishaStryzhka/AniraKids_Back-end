@@ -1,3 +1,4 @@
+import { effectiveFitSizes } from '../utils/variant-sizes';
 import type { Types } from 'mongoose';
 
 import {
@@ -91,6 +92,7 @@ export const toAdminVariantDto = (input: unknown) => {
   return {
     id: toId(source._id),
     productId: toId(source.productId),
+    fitSizes: effectiveFitSizes({ size: String(source.size), fitSizes: source.fitSizes as string[] | undefined }),
     ...copyDefined(source, [
       'size',
       'sku',

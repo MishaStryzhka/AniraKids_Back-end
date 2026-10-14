@@ -95,6 +95,7 @@ export interface CatalogueProductUpdateInput {
 
 export interface CatalogueVariantCreateInput {
   size: string;
+  fitSizes?: string[];
   sku?: string;
   rentalPriceOverrides?: {
     studio?: number;
@@ -108,6 +109,7 @@ export interface CatalogueVariantCreateInput {
 
 export interface CatalogueVariantUpdateInput {
   size?: string;
+  fitSizes?: string[];
   sku?: string;
   rentalPriceOverrides?: {
     studio?: number;
