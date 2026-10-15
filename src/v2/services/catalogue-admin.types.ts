@@ -35,6 +35,7 @@ export class CatalogueAdminError extends Error {
 }
 
 export interface CatalogueProductListOptions {
+  q?: string;
   status?: ProductStatus;
   category?: ProductCategory;
   gender?: ProductGender;

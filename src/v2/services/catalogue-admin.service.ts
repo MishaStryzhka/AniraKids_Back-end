@@ -383,6 +383,11 @@ export class CatalogueAdminService {
       filter.rentalEnabled = options.rentalEnabled;
     }
 
+    if (options.q?.trim()) {
+      const text = options.q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$or = [{ name: { $regex: text, $options: 'i' } }, { slug: { $regex: text, $options: 'i' } }];
+    }
+
     const skip = (options.page - 1) * options.limit;
 
     const [items, total] = await Promise.all([
