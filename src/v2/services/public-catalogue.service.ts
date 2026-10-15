@@ -1,3 +1,4 @@
+import { resolveProductSeo } from '../utils/product-seo';
 import { colorKey, colorLabel, colorKeysExpression } from '../utils/product-colors';
 import { compareSizes, fitSizesExpression } from '../utils/variant-sizes';
 import { Types, PipelineStage } from 'mongoose';
@@ -79,7 +80,7 @@ export function calendarRange(query: PublicCalendarQuery, now = new Date()) {
 }
 
 const productProjection =
-  '_id slug name description category gender color photos rentalEnabled rentalPrices defaultDeposit';
+  '_id slug name description category gender color photos rentalEnabled rentalPrices defaultDeposit seo';
 const publicProduct = (product: ProductV2 & { _id: Types.ObjectId }) => ({
   id: product._id.toHexString(),
   slug: product.slug,
@@ -232,6 +233,7 @@ export class PublicCatalogueService {
     return {
       product: {
         ...publicProduct(product),
+        seo: resolveProductSeo(product),
         ...(product.description ? { description: product.description } : {}),
         variants: variants.map(variant => ({
           id: variant._id.toHexString(),
