@@ -1,0 +1,22 @@
+name: Admin Product Search Verify
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/v2/services/catalogue-admin*'
+      - 'src/v2/schemas/admin-catalogue.schema.ts'
+      - 'scripts/check-admin-product-search.js'
+      - '.github/workflows/admin-product-search-verify.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 20, cache: npm}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck && npm run build:v2
+      - run: node scripts/check-admin-product-search.js
+      - run: npm run check:v2-admin-api

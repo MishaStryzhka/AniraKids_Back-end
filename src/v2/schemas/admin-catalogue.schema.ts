@@ -154,6 +154,7 @@ export interface UpdateInventoryItemAdminBody {
 }
 
 export interface ListProductsAdminQuery {
+  q?: string;
   status?: ProductStatus;
   category?: ProductCategory;
   gender?: ProductGender;
@@ -221,6 +222,7 @@ const updateInventoryItemSchema = Joi.object({
   .unknown(false);
 
 const listProductsQuerySchema = Joi.object({
+  q: Joi.string().max(100).optional(),
   status: Joi.string().valid(...PRODUCT_STATUSES).optional(),
   category: Joi.string().valid(...PRODUCT_CATEGORIES).optional(),
   gender: Joi.string().valid(...PRODUCT_GENDERS).optional(),
@@ -311,6 +313,7 @@ export const validateListProductsAdminQuery = (
 
   return {
     value: {
+      q: raw.q?.trim() || undefined,
       status: raw.status as ProductStatus | undefined,
       category: raw.category as ProductCategory | undefined,
       gender: raw.gender as ProductGender | undefined,
