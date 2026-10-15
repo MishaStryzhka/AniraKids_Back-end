@@ -1,3 +1,4 @@
+import {productAssistantHandler} from '../controllers/product-assistant.controller';
 import { adminOverview } from '../controllers/admin-overview.controller';
 import { adminPayments, adminRecordPayment } from '../controllers/admin-payments.controller';
 import {
@@ -88,6 +89,12 @@ export const registerAdminRoutes = (
   dependencies: AdminRouteDependencies
 ): void => {
   const guards = commonAdminGuards(dependencies);
+  router.post('/admin/product-drafts', ...guards, productAssistantHandler('create'));
+  router.post('/admin/product-drafts/:draftId/photos/sign', ...guards, productMediaConfigurationReady, productAssistantHandler('sign'));
+  router.post('/admin/product-drafts/:draftId/photos/complete', ...guards, productMediaConfigurationReady, productAssistantHandler('complete'));
+  router.post('/admin/product-drafts/:draftId/photos/remove', ...guards, productAssistantHandler('remove'));
+  router.post('/admin/product-drafts/:draftId/suggest', ...guards, productAssistantHandler('suggest'));
+  router.post('/admin/product-drafts/:draftId/save', ...guards, productAssistantHandler('save'));
   router.get('/admin/overview', ...guards, adminOverview);
   router.get('/admin/reservations/:reservationId/payments', ...guards, validateObjectIdParam('reservationId'), adminPayments);
   router.post('/admin/reservations/:reservationId/payments', ...guards, validateObjectIdParam('reservationId'), adminRecordPayment);

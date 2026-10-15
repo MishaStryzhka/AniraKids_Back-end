@@ -75,6 +75,7 @@ const seoSchema = new Schema(
 
 export const ProductV2Schema = new Schema<ProductV2>(
   {
+    code: { type: String, immutable: true },
     name: {
       type: String,
       required: true,
