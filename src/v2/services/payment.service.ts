@@ -10,7 +10,7 @@ const inputSchema = Joi.object({
   expectedRevision: Joi.number().integer().min(0).max(1000).required(),
   type: Joi.string().valid(...PAYMENT_ENTRY_TYPES).required(),
   amount: Joi.number().integer().min(1).max(1000000).required(),
-  method: Joi.string().valid('bank_transfer', 'cash'),
+  method: Joi.string().valid('bank_transfer', 'cash', 'card'),
   reference: Joi.string().max(120), note: Joi.string().max(500),
 }).unknown(false);
 
@@ -100,7 +100,7 @@ export const readPayments = async (id: Types.ObjectId) => {
   return paymentSummary(r);
 };
 
-export const recordPayment = async (id: Types.ObjectId, input: PaymentInput, actor: string) => {
+export const recordPayment = async (id: Types.ObjectId, input: PaymentInput, actor: string, fittingCreditId?: string) => {
   const r = await ReservationV2Model.findById(id).lean().exec();
   if (!r) throw new PaymentError('RESERVATION_NOT_FOUND', 404);
   const existing = r.paymentEntries?.find(e => e.operationId === input.operationId);
@@ -118,9 +118,10 @@ export const recordPayment = async (id: Types.ObjectId, input: PaymentInput, act
   // One atomic document write: audit, balances/status, revision and idempotency cannot split.
   const updated = await ReservationV2Model.findOneAndUpdate({
     _id: id, status: r.status, paymentStatus: r.paymentStatus,
+    ...(fittingCreditId ? {fittingCreditId: {$exists:false}, ...(r.status === 'pending' ? {expiresAt: {$gt: new Date()}} : {})} : {}),
     ...(r.paymentRevision === undefined ? { paymentRevision: { $exists: false } } : { paymentRevision: expectedRevision }),
     'paymentEntries.operationId': { $ne: input.operationId },
-  }, { $push: { paymentEntries: entry }, $inc: { paymentRevision: 1 }, $set: { paymentStatus } }, { new: true, runValidators: true }).lean().exec();
+  }, { $push: { paymentEntries: entry }, $inc: { paymentRevision: 1 }, $set: { paymentStatus, ...(fittingCreditId ? {fittingCreditId} : {}) } }, { new: true, runValidators: true }).lean().exec();
   if (updated) return paymentSummary(updated);
   const current = await ReservationV2Model.findById(id).lean().exec();
   const replay = current?.paymentEntries?.find(e => e.operationId === input.operationId);

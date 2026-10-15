@@ -634,6 +634,10 @@ const checkRouteRegistration = () => {
   );
 
   const expected = [
+    ['GET', '/admin/fitting-settings'],
+    ['PATCH', '/admin/fitting-settings'],
+    ['GET', '/admin/fittings'],
+    ['POST', '/admin/fittings/:fittingId/actions'],
     ['GET', '/admin/settings'],
     ['PATCH', '/admin/settings'],
     ['GET', '/admin/products'],

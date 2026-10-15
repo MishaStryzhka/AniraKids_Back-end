@@ -4,7 +4,7 @@ export interface PaymentEntry {
   operationId: string;
   type: PaymentEntryType;
   amount: number;
-  method?: 'bank_transfer' | 'cash';
+  method?: 'bank_transfer' | 'cash' | 'card';
   reference?: string;
   note?: string;
   recordedAt: Date;

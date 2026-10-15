@@ -1,3 +1,4 @@
+import {fittingHandler} from '../controllers/fitting.controller';
 import {readSiteSettings, updateSiteSettings} from '../controllers/site-settings.controller';
 import {productAssistantHandler} from '../controllers/product-assistant.controller';
 import { adminOverview } from '../controllers/admin-overview.controller';
@@ -91,6 +92,10 @@ export const registerAdminRoutes = (
   dependencies: AdminRouteDependencies
 ): void => {
   const guards = commonAdminGuards(dependencies);
+  router.get('/admin/fitting-settings', ...guards, fittingHandler('settings'));
+  router.patch('/admin/fitting-settings', ...guards, fittingHandler('save-settings'));
+  router.get('/admin/fittings', ...guards, fittingHandler('list'));
+  router.post('/admin/fittings/:fittingId/actions', ...guards, fittingHandler('act'));
   router.get('/admin/settings', ...guards, readSiteSettings);
   router.patch('/admin/settings', ...guards, updateSiteSettings);
   router.post('/admin/product-drafts', ...guards, productAssistantHandler('create'));

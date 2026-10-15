@@ -173,6 +173,7 @@ export interface CustomerSnapshot {
 }
 
 export interface Reservation {
+  fittingCreditId?: string;
   advanceRequired?: number;
   paymentRevision?: number;
   paymentEntries?: PaymentEntry[];

@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'src/v2/services/fitting*.ts'
+      - src/v2/models/fitting.model.ts
+      - src/v2/controllers/fitting.controller.ts
+      - scripts/check-fittings-integration.js
       - src/v2/services/catalogue-admin.service.ts
       - src/v2/services/catalogue-admin.types.ts
       - src/v2/http/admin-error-mapper.ts

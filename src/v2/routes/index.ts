@@ -1,3 +1,5 @@
+import {fittingHandler} from '../controllers/fitting.controller';
+import {reservationApiEnabled} from '../middleware/reservation.middleware';
 import {readSiteSettings} from '../controllers/site-settings.controller';
 import { BOOKING_POLICY } from '../services/booking-policy';
 import { getHealth } from '../controllers/health.controller';
@@ -32,6 +34,11 @@ export const createV2Router = (
   router.get('/booking-policy', (_request, response) => response.status(200).json(BOOKING_POLICY));
 
   router.get('/site-settings', dependencies.ensureMongoConnection, readSiteSettings);
+  router.get('/fittings/slots', reservationApiEnabled, dependencies.ensureMongoConnection, fittingHandler('slots'));
+  router.post('/fittings', reservationApiEnabled, dependencies.ensureMongoConnection, fittingHandler('create'));
+  router.get('/fittings/:number', reservationApiEnabled, dependencies.ensureMongoConnection, fittingHandler('read'));
+  router.post('/fittings/:number/payment-sent', reservationApiEnabled, dependencies.ensureMongoConnection, fittingHandler('report'));
+  router.post('/fittings/:number/cancel', reservationApiEnabled, dependencies.ensureMongoConnection, fittingHandler('cancel'));
   registerCatalogueRoutes(router, dependencies);
   router.use(catalogueApiErrorHandler);
 
