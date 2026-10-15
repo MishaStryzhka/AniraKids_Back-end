@@ -13,4 +13,5 @@ schema.index({operationId:1},{unique:true});schema.index({number:1},{unique:true
 schema.index({slotKey:1},{unique:true,partialFilterExpression:{slotKey:{$type:'string'}}});
 schema.index({activeEmail:1},{unique:true,partialFilterExpression:{activeEmail:{$type:'string'}}});
 schema.index({date:1,time:1});
+schema.index({status:1,expiresAt:1});
 export const FittingModel=models.Fitting ?? model('Fitting',schema);
