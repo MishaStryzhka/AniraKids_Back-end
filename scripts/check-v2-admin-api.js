@@ -639,6 +639,7 @@ const checkRouteRegistration = () => {
     ['POST', '/admin/products'],
     ['PATCH', '/admin/products/:productId'],
     ['POST', '/admin/products/:productId/activate'],
+    ['POST', '/admin/products/:productId/hide'],
     ['POST', '/admin/products/:productId/archive'],
     ['POST', '/admin/products/:productId/variants'],
     ['PATCH', '/admin/variants/:variantId'],

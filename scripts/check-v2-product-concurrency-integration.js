@@ -8,7 +8,7 @@ const { tmpdir } = require('node:os');
 const path = require('node:path');
 const net = require('node:net');
 const mongoose = require('mongoose');
-const { ProductV2Model: Product, VariantV2Model: Variant, InventoryItemV2Model: Inventory } = require('../build/v2/models');
+const { ProductV2Model: Product, VariantV2Model: Variant, InventoryItemV2Model: Inventory, ReservationV2Model: Reservation } = require('../build/v2/models');
 const { CatalogueAdminService } = require('../build/v2/services/catalogue-admin.service');
 const { ProductMediaService } = require('../build/v2/services/product-media.service');
 const { mapAdminApiError } = require('../build/v2/http/admin-error-mapper');
@@ -19,7 +19,7 @@ const context = new AsyncLocalStorage();
 const service = new CatalogueAdminService();
 const media = new ProductMediaService({ destroyImage: async () => {} });
 const ownedInstances = new WeakSet();
-const registry = new Map([[Product, []], [Variant, []], [Inventory, []]]);
+const registry = new Map([[Product, []], [Variant, []], [Inventory, []], [Reservation, []]]);
 const counters = { connections: 0, writes: 0 };
 const evidence = { status: 'RUNNING', tests: [], guard: [], cleanup: {}, mongoVersion: '7.0.14' };
 let activeOwned;
@@ -216,6 +216,56 @@ async function race(id, first, second) {
 }
 
 async function suite() {
+  await test('Hide removes public access, preserves inventory and reservations, and allows republishing', async () => {
+    const { publicCatalogueService: catalogue } = require('../build/v2/services/public-catalogue.service');
+    const { ReservationAdminService } = require('../build/v2/services/reservation-admin.service');
+    const id = await fixture({status:'active',seo:{title:'Custom SEO',noIndex:false}});
+    const before = await get(id);
+    const variants = await Variant.collection.find({productId:id}).toArray();
+    const inventory = await Inventory.collection.find({variantId:variants[0]._id}).toArray();
+    const reservationId = await insertOwned(Reservation, {status:'confirmed',reservationNumber:'VISIBILITY-'+id,
+      items:[{productId:id,variantId:variants[0]._id,inventoryItemId:inventory[0]._id}],
+      startDate:new Date('2026-12-01'),endDate:new Date('2026-12-02')});
+    const reservation = await Reservation.collection.findOne({_id:reservationId});
+    await service.hideProduct(id);
+    const hidden = await get(id);
+    assert.equal(hidden.status,'hidden');assert.equal(hidden.seo.noIndex,true);
+    assert.equal(hidden.seo.title,'Custom SEO');assert.deepEqual(hidden.photos,before.photos);
+    assert.deepEqual(await Variant.collection.find({productId:id}).toArray(),variants);
+    assert.deepEqual(await Inventory.collection.find({variantId:variants[0]._id}).toArray(),inventory);
+    assert.deepEqual(await Reservation.collection.findOne({_id:reservationId}),reservation);
+    const list = await catalogue.list({page:1,limit:20,ids:String(id)});
+    assert.equal(list.total,0);
+    await assert.rejects(catalogue.detail(before.slug),error=>error.status===404);
+    // Existing reservations remain operable even while the product is hidden.
+    const admin = new ReservationAdminService();
+    assert.equal((await admin.prepare(reservationId)).status,'prepared');
+    await service.hideProduct(id);
+    assert.deepEqual(await get(id),hidden); // idempotent, no additional update
+    await activate(id);
+    assert.equal((await get(id)).status,'active');
+    assert.equal((await get(id)).seo.noIndex,false);
+    assert.equal((await catalogue.detail(before.slug)).product.id,String(id));
+  });
+  await test('Hidden products must pass readiness before republishing', async () => {
+    const id = await fixture({status:'hidden',description:''});
+    expectCode(await resultOf(activate(id)),'PRODUCT_NOT_READY',['description']);
+    assert.equal((await get(id)).status,'hidden');
+  });
+  await test('Hide and Core PATCH preserve each other under concurrency', async () => {
+    const id = await fixture({status:'active',seo:{noIndex:false}});
+    const [a,b] = await race(id,id=>patch(id,{brand:'Updated'}),id=>service.hideProduct(id));
+    assert.ok(a.value);assert.ok(b.value);
+    const product=await get(id);assert.equal(product.status,'hidden');assert.equal(product.brand,'Updated');
+  });
+  await test('Hide rejects draft and archived products without changing data', async () => {
+    for(const status of ['draft','archived']){
+      const id=await fixture({status}),before=await get(id);
+      expectCode(await resultOf(service.hideProduct(id)),'PRODUCT_STATE_CONFLICT');
+      assert.deepEqual(await get(id),before);
+    }
+  });
+
   await test('Core PATCH first: activation rereads newly invalid description', async () => {
     const id = await fixture();
     const [a, b] = await race(id, id => patch(id, { description: '' }), activate);
