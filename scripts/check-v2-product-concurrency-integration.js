@@ -217,6 +217,7 @@ async function race(id, first, second) {
 }
 
 async function suite() {
+  await require('./check-fittings-integration')({test,registry,insertOwned});
   await test('Site settings persist only supplied booleans and preserve independent concurrent changes', async () => {
     registry.get(SiteSettingsModel).push(SITE_SETTINGS_ID);
     assert.deepEqual(await getSiteSettings(),{sections:{suits:true,familyLooks:false}});

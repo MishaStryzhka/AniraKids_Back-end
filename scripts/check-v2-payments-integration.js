@@ -182,7 +182,7 @@ async function main() {
       reservationNumber: name, startDate: day, endDate: day, expiresAt,
       status: 'pending', paymentStatus: 'unpaid', paymentRevision: 0, paymentEntries: [] });
   };
-  for (const [index, method] of ['bank_transfer', 'cash'].entries()) {
+  for (const [index, method] of ['bank_transfer', 'cash', 'card'].entries()) {
     const booking = await makeBooking(`AK-2030-FULL0${index}`, 10 + index * 5);
     let revision = 0;
     const record = async (type, amount, note) => {

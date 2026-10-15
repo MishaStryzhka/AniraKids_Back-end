@@ -100,13 +100,14 @@ const paymentEntrySchema = new Schema({
   operationId: { type: String, required: true },
   type: { type: String, enum: [...PAYMENT_ENTRY_TYPES], required: true },
   amount: { type: Number, required: true, min: 1, validate: Number.isSafeInteger },
-  method: { type: String, enum: ['bank_transfer', 'cash'] },
+  method: { type: String, enum: ['bank_transfer', 'cash', 'card'] },
   reference: { type: String, maxlength: 120 }, note: { type: String, maxlength: 500 },
   recordedAt: { type: Date, required: true }, recordedBy: { type: String, required: true },
 }, { _id: false });
 
 export const ReservationV2Schema = new Schema<Reservation>(
   {
+    fittingCreditId: { type: String },
     advanceRequired: { type: Number, min: 0, max: 200, validate: Number.isSafeInteger },
     paymentRevision: { type: Number, min: 0, validate: Number.isSafeInteger },
     paymentEntries: { type: [paymentEntrySchema], default: undefined },
@@ -238,6 +239,7 @@ export const ReservationV2Schema = new Schema<Reservation>(
   }
 );
 
+ReservationV2Schema.index({fittingCreditId:1},{unique:true,partialFilterExpression:{fittingCreditId:{$type:'string'}}});
 ReservationV2Schema.index(
   { reservationNumber: 1 },
   { unique: true, name: 'uniq_v2_reservation_number' }
