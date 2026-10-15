@@ -1,3 +1,4 @@
+import {readSiteSettings, updateSiteSettings} from '../controllers/site-settings.controller';
 import {productAssistantHandler} from '../controllers/product-assistant.controller';
 import { adminOverview } from '../controllers/admin-overview.controller';
 import { adminPayments, adminRecordPayment } from '../controllers/admin-payments.controller';
@@ -90,6 +91,8 @@ export const registerAdminRoutes = (
   dependencies: AdminRouteDependencies
 ): void => {
   const guards = commonAdminGuards(dependencies);
+  router.get('/admin/settings', ...guards, readSiteSettings);
+  router.patch('/admin/settings', ...guards, updateSiteSettings);
   router.post('/admin/product-drafts', ...guards, productAssistantHandler('create'));
   router.post('/admin/product-drafts/:draftId/photos/sign', ...guards, productMediaConfigurationReady, productAssistantHandler('sign'));
   router.post('/admin/product-drafts/:draftId/photos/complete', ...guards, productMediaConfigurationReady, productAssistantHandler('complete'));

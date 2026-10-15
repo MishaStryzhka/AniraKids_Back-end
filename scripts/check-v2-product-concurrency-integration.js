@@ -14,12 +14,13 @@ const { ProductMediaService } = require('../build/v2/services/product-media.serv
 const { mapAdminApiError } = require('../build/v2/http/admin-error-mapper');
 const { validateUpdateProductAdminBody } = require('../build/v2/schemas/admin-catalogue.schema');
 
+const {SiteSettingsModel, SITE_SETTINGS_ID, getSiteSettings, patchSiteSettings, parseSiteSettingsPatch} = require('../build/v2/services/site-settings.service');
 const conflictMessage = 'Product changed during the operation. Refresh and try again.';
 const context = new AsyncLocalStorage();
 const service = new CatalogueAdminService();
 const media = new ProductMediaService({ destroyImage: async () => {} });
 const ownedInstances = new WeakSet();
-const registry = new Map([[Product, []], [Variant, []], [Inventory, []], [Reservation, []]]);
+const registry = new Map([[Product, []], [Variant, []], [Inventory, []], [Reservation, []], [SiteSettingsModel, []]]);
 const counters = { connections: 0, writes: 0 };
 const evidence = { status: 'RUNNING', tests: [], guard: [], cleanup: {}, mongoVersion: '7.0.14' };
 let activeOwned;
@@ -216,6 +217,20 @@ async function race(id, first, second) {
 }
 
 async function suite() {
+  await test('Site settings persist only supplied booleans and preserve independent concurrent changes', async () => {
+    registry.get(SiteSettingsModel).push(SITE_SETTINGS_ID);
+    assert.deepEqual(await getSiteSettings(),{sections:{suits:true,familyLooks:false}});
+    for(const body of [undefined,{}, {sections:{}}, {sections:{suits:'false'}}, {sections:{suits:0}},
+      {sections:{familyLooks:null}}, {sections:{unknown:true}}, {sections:{suits:true},admin:true}])
+      assert.equal(parseSiteSettingsPatch(body),null);
+    assert.deepEqual(parseSiteSettingsPatch({sections:{suits:false}}),{suits:false});
+    await Promise.all([patchSiteSettings({suits:false}),patchSiteSettings({familyLooks:true})]);
+    assert.deepEqual(await getSiteSettings(),{sections:{suits:false,familyLooks:true}});
+    await patchSiteSettings({familyLooks:false});
+    assert.deepEqual(await getSiteSettings(),{sections:{suits:false,familyLooks:false}});
+    assert.equal(await SiteSettingsModel.countDocuments({}),1);
+  });
+
   await test('Hide removes public access, preserves inventory and reservations, and allows republishing', async () => {
     const { publicCatalogueService: catalogue } = require('../build/v2/services/public-catalogue.service');
     const { ReservationAdminService } = require('../build/v2/services/reservation-admin.service');

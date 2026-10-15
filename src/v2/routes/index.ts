@@ -1,3 +1,4 @@
+import {readSiteSettings} from '../controllers/site-settings.controller';
 import { BOOKING_POLICY } from '../services/booking-policy';
 import { getHealth } from '../controllers/health.controller';
 import { registerCatalogueRoutes, catalogueApiErrorHandler } from './catalogue.routes';
@@ -30,6 +31,7 @@ export const createV2Router = (
   router.get('/health', getHealth);
   router.get('/booking-policy', (_request, response) => response.status(200).json(BOOKING_POLICY));
 
+  router.get('/site-settings', dependencies.ensureMongoConnection, readSiteSettings);
   registerCatalogueRoutes(router, dependencies);
   router.use(catalogueApiErrorHandler);
 
