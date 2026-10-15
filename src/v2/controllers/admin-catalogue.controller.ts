@@ -124,6 +124,17 @@ export const activateAdminProduct: HttpHandler = async (
   }
 };
 
+export const hideAdminProduct: HttpHandler = async (request, response, next) => {
+  try {
+    const product = await catalogueAdminService.hideProduct(
+      objectIdFromParam(request.params?.productId)
+    );
+    return response.status(200).json({ product: toAdminProductDto(product) });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const archiveAdminProduct: HttpHandler = async (
   request,
   response,

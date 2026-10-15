@@ -3,6 +3,7 @@ import { adminOverview } from '../controllers/admin-overview.controller';
 import { adminPayments, adminRecordPayment } from '../controllers/admin-payments.controller';
 import {
   activateAdminProduct,
+  hideAdminProduct,
   archiveAdminProduct,
   createAdminInventoryItem,
   createAdminProduct,
@@ -180,6 +181,13 @@ export const registerAdminRoutes = (
     ...guards,
     validateObjectIdParam('productId'),
     activateAdminProduct
+  );
+
+  router.post(
+    '/admin/products/:productId/hide',
+    ...guards,
+    validateObjectIdParam('productId'),
+    hideAdminProduct
   );
 
   router.post(

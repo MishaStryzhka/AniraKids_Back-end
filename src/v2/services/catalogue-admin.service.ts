@@ -139,7 +139,7 @@ export const getProductActivationMissingRequirements = (
     missing.push('inventory');
   }
 
-  if (product.status !== 'draft') {
+  if (product.status !== 'draft' && product.status !== 'hidden') {
     missing.push('status');
   }
 
@@ -231,7 +231,7 @@ const productCoreFields = [
 ] as const;
 
 type ProductCandidate = ReturnType<typeof ProductV2Model.hydrate>;
-type ProductOperation = 'patch' | 'activate' | 'archive';
+type ProductOperation = 'patch' | 'activate' | 'archive' | 'hide';
 type RawProduct = Record<string, any>;
 
 // Value equality, including missing vs null, without query casting, defaults,
@@ -344,7 +344,7 @@ const coordinateProductMutation = async (
       // query casting. Full document validation ran above; returnDocument:after
       // is the driver's equivalent of Mongoose new:true. No graph transaction.
       const result = await ProductV2Model.collection.findOneAndUpdate(
-        { ...filter, ...(operation === 'activate' ? { status: 'draft' } : {}) },
+        { ...filter, ...(operation === 'activate' ? { status: { $in: ['draft', 'hidden'] } } : {}) },
         productOwnedUpdate(raw, candidate, paths),
         { returnDocument: 'after', upsert: false, writeConcern: { w: 'majority' } }
       );
@@ -725,6 +725,20 @@ export class CatalogueAdminService {
       }
       product.set('status', 'active');
       product.set('seo.noIndex', false);
+      return ['status', 'seo.noIndex'];
+    });
+  }
+
+  // Visibility only: preserve variants, inventory, reservations and their locks.
+  async hideProduct(productId: Types.ObjectId) {
+    return coordinateProductMutation(productId, 'hide', async product => {
+      if (product.status === 'hidden') return null;
+      if (product.status !== 'active') {
+        throw new CatalogueAdminError('PRODUCT_STATE_CONFLICT',
+          'Only an active product can be hidden. Refresh and try again.');
+      }
+      product.set('status', 'hidden');
+      product.set('seo.noIndex', true);
       return ['status', 'seo.noIndex'];
     });
   }

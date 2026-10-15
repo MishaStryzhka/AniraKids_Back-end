@@ -15,7 +15,7 @@ export interface ReservationPricingTotals {
   totalDue: MoneyAmount;
 }
 
-export const PRODUCT_STATUSES = ['draft', 'active', 'archived'] as const;
+export const PRODUCT_STATUSES = ['draft', 'active', 'hidden', 'archived'] as const;
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 
 export const PRODUCT_CATEGORIES = [
