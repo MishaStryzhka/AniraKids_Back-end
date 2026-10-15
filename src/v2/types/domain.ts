@@ -69,6 +69,7 @@ export interface ProductSeo {
 }
 
 export interface ProductV2 {
+  code?: string;
   name: string;
   slug: string;
   description?: string;

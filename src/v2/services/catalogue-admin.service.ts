@@ -519,6 +519,9 @@ export class CatalogueAdminService {
     input: CatalogueProductUpdateInput
   ) {
     return coordinateProductMutation(productId, 'patch', async product => {
+      if (product.code && ((input.name !== undefined && input.name !== product.name) || (input.slug !== undefined && input.slug !== product.slug))) {
+        throw new CatalogueAdminError('VALIDATION_ERROR', 'Product code and URL cannot be changed');
+      }
       if (input.slug !== undefined && input.slug !== product.slug) {
         const duplicate = await ProductV2Model.exists({
           slug: input.slug, _id: { $ne: productId },
