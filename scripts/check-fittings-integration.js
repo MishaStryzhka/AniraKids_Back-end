@@ -48,7 +48,10 @@ module.exports=async({test,registry,insertOwned})=>{
    await reject(act(r.number,'complete'),'FITTING_CONFLICT');
   });
   await test('Expired fittings release time; late transfers never revive the slot',async()=>{
-   const v=input('2030-01-09','09:00'),r=await api.createFitting(v,now),later=new Date(now.getTime()+31*60000);
+   const v=input('2030-01-09','09:00'),r=await api.createFitting(v,now),later=new Date(now.getTime()+61*60000);
+   assert.equal(new Date(r.expiresAt).getTime()-now.getTime(),60*60000);
+   assert.equal((await api.readFitting(r.number,v.token,new Date(now.getTime()+59*60000))).status,'pending');
+   assert.equal((await api.readFitting(r.number,v.token,new Date(now.getTime()+60*60000))).status,'expired');
    assert.equal((await api.readFitting(r.number,v.token,later)).status,'expired');
    assert.equal((await api.reportFittingPayment(r.number,v.token,later)).status,'expired');
    const other=await api.createFitting(input(v.date,v.time),later);assert.equal(other.status,'pending');
