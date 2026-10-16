@@ -12,7 +12,7 @@ export function fittingHandler(action:string):HttpHandler{return async(req,res,n
    case 'settings':result=await getFittingSettings();break;
    case 'save-settings':{const settings=parseFittingSettings(req.body);if(!settings)throw new FittingError('VALIDATION_ERROR',400);result=await saveFittingSettings(settings);break;}
    case 'slots':result=await availableFittingSlots(String(req.query?.date||''));break;
-   case 'create':result=await createFitting(req.body);break;
+   case 'create':result=await createFitting(req.body,new Date(),req.authenticatedUserId);break;
    case 'read':result=await readFitting(number,token);break;
    case 'report':result=await reportFittingPayment(number,token);break;
    case 'cancel':result=await cancelPublicFitting(number,token);break;

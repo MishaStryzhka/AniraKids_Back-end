@@ -89,6 +89,13 @@ module.exports=async({test,registry,insertOwned})=>{
    const app=express();app.use(express.json());app.use('/api/v2',createV2Router(express,{ensureMongoConnection:(_q,_s,next)=>next()}));
    const server=await new Promise(resolve=>{const server=app.listen(0,'127.0.0.1',()=>resolve(server));});
    const base='http://127.0.0.1:'+server.address().port+'/api/v2';
+   const User=require('../models/user'),jwt=require('jsonwebtoken');
+   if(!registry.has(User))registry.set(User,[]);
+   const owner=await insertOwned(User,{}),other=await insertOwned(User,{});
+   const ownerToken=jwt.sign({id:String(owner)},process.env.SECRET_KEY),otherToken=jwt.sign({id:String(other)},process.env.SECRET_KEY);
+   await User.collection.updateOne({_id:owner},{$set:{tokens:[{token:ownerToken}]}});
+   await User.collection.updateOne({_id:other},{$set:{tokens:[{token:otherToken}]}});
+   const request=(path,token,body)=>fetch(base+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},...(body?{body:JSON.stringify(body)}:{})});
    try{
     const date=new Date(Date.now()+3*86400000).toISOString().slice(0,10),v=input(date,'11:00');
     const slots=await fetch(base+'/fittings/slots?date='+date);assert.equal(slots.status,200);assert.ok((await slots.json()).slots.includes('11:00'));
@@ -100,7 +107,34 @@ module.exports=async({test,registry,insertOwned})=>{
     const cancelled=await fetch(base+'/fittings/'+receipt.number+'/cancel',{method:'POST',headers:auth});assert.equal((await cancelled.json()).status,'cancelled');
     for(const path of ['/admin/fitting-settings','/admin/fittings?from='+date+'&to='+date])assert.equal((await fetch(base+path)).status,401);
     assert.equal((await fetch(base+'/admin/fittings/111111111111111111111111/actions',{method:'POST',headers:{'Content-Type':'application/json'},body:'{"action":"confirm","revision":0}'})).status,401);
-   }finally{await new Promise(resolve=>server.close(resolve));for(const key of keys){if(old[key]===undefined)delete process.env[key];else process.env[key]=old[key];}}
+    for(const path of ['/account/fittings','/account/fittings/'+receipt.number])assert.equal((await request(path)).status,401);
+    assert.equal((await request('/account/fittings/'+receipt.number,ownerToken)).status,404);
+    assert.equal((await request('/account/fittings/'+receipt.number+'/claim',ownerToken,{token:'a'.repeat(64)})).status,404);
+    assert.equal((await request('/account/fittings/'+receipt.number+'/claim',ownerToken,{token:v.token})).status,200);
+    assert.equal((await request('/account/fittings/'+receipt.number+'/claim',ownerToken,{token:v.token})).status,200);
+    assert.equal((await request('/account/fittings/'+receipt.number+'/claim',otherToken,{token:v.token})).status,404);
+    assert.equal((await request('/account/fittings/'+receipt.number,otherToken)).status,404);
+    assert.equal((await request('/account/fittings/'+receipt.number+'/cancel',otherToken,{})).status,404);
+    const mine=await (await request('/account/fittings',ownerToken)).json();assert.equal(mine.total,1);assert.equal(mine.items[0].number,receipt.number);assert.equal(mine.items[0].tokenHash,undefined);assert.equal(mine.items[0].customer,undefined);
+    assert.equal((await (await request('/account/fittings',otherToken)).json()).total,0);
+    assert.equal((await request('/account/fittings?page=0',ownerToken)).status,400);
+    const signed=input(date,'12:00'),createdSigned=await request('/fittings',ownerToken,signed);assert.equal(createdSigned.status,200);const signedReceipt=await createdSigned.json();
+    assert.equal(String((await doc(signedReceipt.number)).customerId),String(owner));
+    assert.equal((await request('/fittings',ownerToken,signed)).status,200);
+    assert.equal((await request('/fittings',otherToken,signed)).status,409);
+    assert.equal((await request('/fittings',undefined,signed)).status,409);
+    assert.equal((await request('/fittings','invalid-session',input(date,'13:00'))).status,401);
+    assert.equal((await request('/account/fittings/'+signedReceipt.number+'/payment-sent',ownerToken,{})).status,200);
+    assert.equal((await doc(signedReceipt.number)).status,'review');assert.equal((await doc(signedReceipt.number)).paymentStatus,'unpaid');
+    assert.equal((await request('/account/fittings/'+signedReceipt.number+'/cancel',ownerToken,{})).status,200);
+    assert.equal((await doc(signedReceipt.number)).status,'cancelled');
+    // Concurrent claims can assign exactly one owner, even with a valid capability.
+    const guest=input(date,'13:30'),guestReceipt=await (await request('/fittings',undefined,guest)).json();
+    const claims=await Promise.all([ownerToken,otherToken].map(t=>request('/account/fittings/'+guestReceipt.number+'/claim',t,{token:guest.token})));
+    assert.deepEqual(claims.map(r=>r.status).sort(),[200,404]);
+    await User.collection.updateOne({_id:owner},{$set:{tokens:[]}});
+    assert.equal((await request('/account/fittings',ownerToken)).status,401);
+   }finally{await new Promise(resolve=>server.close(resolve));await User.collection.deleteMany({_id:{$in:[owner,other]}});for(const key of keys){if(old[key]===undefined)delete process.env[key];else process.env[key]=old[key];}}
   });
   await test('Fittings keep existing bookings after disabling schedule; card payments parse for on-site rentals',async()=>{
    await saveFittingSettings({...settings,enabled:false});
