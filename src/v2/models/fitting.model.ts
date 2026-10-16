@@ -2,7 +2,7 @@ import {model,models,Schema} from 'mongoose';
 const schema=new Schema({
  operationId:{type:String,required:true},requestHash:{type:String,required:true,select:false},tokenHash:{type:String,required:true,select:false},
  number:{type:String,required:true},date:{type:String,required:true},time:{type:String,required:true},startAt:{type:Date,required:true},address:{type:String,required:true},
- slotKey:String,activeEmail:String,expiresAt:Date,
+ slotKey:String,activeEmail:String,expiresAt:Date,customerId:Schema.Types.ObjectId,
  status:{type:String,enum:['pending','review','confirmed','completed','cancelled','expired'],required:true},
  paymentStatus:{type:String,enum:['unpaid','paid','refunded'],required:true},
  customer:{name:String,email:String,phone:String},product:{id:String,name:String,slug:String},
@@ -14,4 +14,5 @@ schema.index({slotKey:1},{unique:true,partialFilterExpression:{slotKey:{$type:'s
 schema.index({activeEmail:1},{unique:true,partialFilterExpression:{activeEmail:{$type:'string'}}});
 schema.index({date:1,time:1});
 schema.index({status:1,expiresAt:1});
+schema.index({customerId:1,createdAt:-1,_id:-1});
 export const FittingModel=models.Fitting ?? model('Fitting',schema);
