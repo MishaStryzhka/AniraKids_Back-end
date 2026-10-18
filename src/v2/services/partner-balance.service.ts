@@ -63,8 +63,12 @@ export function calculatePartnerBalance(
     const r = credited.get(String(f._id));
     // A credited partner rental already includes the fitting in the 50% share.
     const absorbed =
-      r && (r.partner?.source === 'partner' || f.partner?.source === 'partner');
-    const studio = f.studioBooked === true || (r && r.rentalMode === 'studio');
+      r && (r.partner?.source || f.partner?.source) === 'partner';
+    const studio =
+      f.studioBooked === true ||
+      (r &&
+        r.rentalMode === 'studio' &&
+        ['confirmed', 'prepared', 'rented', 'returned'].includes(r.status));
     const amount =
       f.status === 'completed' &&
       f.paymentStatus === 'paid' &&

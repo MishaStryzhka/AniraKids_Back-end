@@ -386,6 +386,29 @@ module.exports = async function ({ request, models }) {
     );
     assert.equal(
       calculatePartnerBalance(
+        [{ ...rental, partner: { source: 'anirak' } }],
+        [{ ...base, partner: { source: 'partner' } }]
+      ).earned,
+      200,
+      'owner source correction takes precedence over inherited fitting source'
+    );
+    assert.equal(
+      calculatePartnerBalance(
+        [
+          {
+            ...rental,
+            status: 'pending',
+            rentalMode: 'studio',
+            partner: { source: 'anirak' },
+          },
+        ],
+        [base]
+      ).earned,
+      200,
+      'an unconfirmed rental hold alone does not waive the completed fitting fee'
+    );
+    assert.equal(
+      calculatePartnerBalance(
         [{ ...rental, rentalMode: 'studio', partner: { source: 'anirak' } }],
         [base]
       ).earned,
