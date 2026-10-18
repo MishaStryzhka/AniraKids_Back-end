@@ -10,6 +10,7 @@ import {getFittingSettings,fittingSlots} from './fitting-settings.service';
 import {paymentSummary,recordPayment} from './payment.service';
 import {parseDateOnly} from '../utils/date-only';
 import {notifyFitting} from './fitting-email.service';
+import {notifyOwnerFittingPaymentReported} from './admin-push.service';
 export class FittingError extends Error{constructor(public code:string,public status=409){super(code);}}
 const hash=(v:string)=>createHash('sha256').update(v).digest('hex');
 const createSchema=Joi.object({operationId:Joi.string().guid({version:['uuidv4']}).required(),token:Joi.string().pattern(/^[a-f0-9]{64}$/).required(),date:Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),time:Joi.string().pattern(/^(?:[01]\d|2[0-3]):(?:00|30)$/).required(),name:Joi.string().trim().min(2).max(160).required(),email:Joi.string().email({tlds:{allow:false}}).max(254).required(),phone:Joi.string().trim().pattern(/^\+?[\d ()-]{5,32}$/).required(),productId:Joi.string().hex().length(24)}).unknown(false);
@@ -54,7 +55,8 @@ export async function readFitting(number:string,token:string,now=new Date()){
 }
 export async function reportFittingPayment(number:string,token:string,now=new Date()){
  await readFitting(number,token,now);
- await FittingModel.updateOne({number,tokenHash:hash(token),status:'pending',expiresAt:{$gt:now}},{$set:{status:'review'},$inc:{revision:1},$push:{audit:{action:'payment_reported',at:now,by:'customer'}}}).exec();
+ const changed = await FittingModel.updateOne({number,tokenHash:hash(token),status:'pending',expiresAt:{$gt:now}},{$set:{status:'review'},$inc:{revision:1},$push:{audit:{action:'payment_reported',at:now,by:'customer'}}}).exec();
+ if (changed.modifiedCount) await notifyOwnerFittingPaymentReported();
  return readFitting(number,token,now);
 }
 export async function cancelPublicFitting(number:string,token:string,now=new Date()){
