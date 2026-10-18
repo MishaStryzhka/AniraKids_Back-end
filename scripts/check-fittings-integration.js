@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict');
+require('./fitting-email-fixture');
 const {randomUUID,randomBytes}=require('node:crypto');
 const {FittingModel}=require('../build/v2/models/fitting.model');
 const {FittingSettingsModel,defaultFittingSettings,parseFittingSettings,saveFittingSettings,fittingSlots}=require('../build/v2/services/fitting-settings.service');
@@ -140,6 +141,31 @@ module.exports=async({test,registry,insertOwned})=>{
    }finally{await new Promise(resolve=>server.close(resolve));await User.collection.deleteMany({_id:{$in:[owner,other]}});for(const key of keys){if(old[key]===undefined)delete process.env[key];else process.env[key]=old[key];}}
   });
   await test('Fittings keep existing bookings after disabling schedule; card payments parse for on-site rentals',async()=>{
+   const mail=require('./fitting-email-fixture');
+   const v=input('2030-01-11','15:00');
+   const before=mail.messages.length;
+   const receipts=await Promise.all([api.createFitting(v,now),api.createFitting(v,now)]);
+   const r=receipts[0];assert.equal(receipts[1].number,r.number);
+   assert.equal(mail.messages.length,before+1,'one creation email for concurrent retry');
+   assert.equal(mail.messages[before].to,v.email);
+   assert.ok(mail.messages[before].text.includes('#'+v.token));
+   assert.equal((await doc(r.number)).emailDelivery.created.status,'sent');
+   await act(r.number,'confirm');
+   assert.equal(mail.messages.length,before+2);
+   assert.ok(mail.messages[before+1].subject.includes('potvrzena'));
+   assert.ok(!mail.messages[before+1].html.includes('Zobrazit rezervaci a zaplatit'));
+   await api.createFitting(v,now);assert.equal(mail.messages.length,before+2);
+   const {notifyFitting}=require('../build/v2/services/fitting-email.service');
+   await notifyFitting(await doc(r.number),'confirmed');assert.equal(mail.messages.length,before+2);
+   mail.failNext=true;
+   const failedInput=input('2030-01-11','15:30'),failed=await api.createFitting(failedInput,now);
+   assert.equal(failed.status,'pending','email failure preserves reservation');
+   assert.equal((await doc(failed.number)).emailDelivery.created.status,'failed');
+   const count=mail.messages.length;
+   await api.createFitting(failedInput,now);assert.equal(mail.messages.length,count,'no ambiguous resend');
+   mail.failNext=true;await act(failed.number,'confirm');
+   assert.equal((await doc(failed.number)).status,'confirmed','email failure preserves payment confirmation');
+   assert.equal((await doc(failed.number)).emailDelivery.confirmed.status,'failed');
    await saveFittingSettings({...settings,enabled:false});
    await reject(api.createFitting(input('2030-01-12','09:00'),now),'SLOT_UNAVAILABLE');
    assert.equal((await api.availableFittingSlots('2030-01-07',now)).enabled,false);

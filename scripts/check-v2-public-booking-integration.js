@@ -8,6 +8,8 @@ const path = require('node:path');
 const net = require('node:net');
 const mongoose = require('mongoose');
 const express = require('express');
+// Install before loading routes: integration fixtures must never deliver real email.
+require('./fitting-email-fixture');
 const { createV2Router } = require('../build/v2/routes');
 const models = require('../build/v2/models');
 const {

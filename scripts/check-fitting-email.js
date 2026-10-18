@@ -1,0 +1,24 @@
+const assert = require('node:assert/strict');
+const {fittingEmail} = require('../helpers/fittingEmail');
+const doc = {number:'ZK-123456ABCDEF',date:'2026-10-25',time:'16:00',expiresAt:'2026-10-18T21:00:00Z',address:'Plzeňská 782/112, 150 00 Praha',customer:{name:'Eva <script>alert(1)</script>',email:'test@example.test'},product:{name:'Šaty <b>DET001</b>'}};
+const token='a'.repeat(64);
+const created=fittingEmail(doc,'created',token), confirmed=fittingEmail(doc,'confirmed');
+assert.ok(created.text.includes('25. října 2026 v 16:00'));
+assert.ok(created.text.includes('do 60 minut'));
+assert.ok(created.text.includes(doc.address));
+assert.ok(created.html.includes('https://anirakids.cz/zkouska/'+doc.number+'#'+token));
+assert.ok(!created.html.includes('<script>'));
+assert.ok(created.html.includes('&lt;script&gt;'));
+assert.ok(!created.html.includes('<b>DET001</b>'));
+assert.ok(!created.html.includes('max-width:600'));
+assert.ok(created.html.includes('IČO 19970561'));
+assert.ok(created.html.includes('https://wa.me/420774032738'));
+assert.ok(created.html.includes('https://www.instagram.com/anirakids_cz/'));
+assert.ok(created.html.includes('mailto:glamgarbrentals@seznam.cz'));
+assert.ok(!confirmed.text.includes(token));
+assert.ok(!confirmed.text.includes('do 60 minut'));
+assert.ok(confirmed.text.includes('platbu 200 Kč jsme přijali'));
+assert.equal(created.attachments.length,2);
+for(const attachment of created.attachments){assert.equal(attachment.type,'image/png');assert.ok(created.html.includes('cid:'+attachment.content_id));assert.equal(Buffer.from(attachment.content,'base64').subarray(1,4).toString(),'PNG');}
+assert.throws(()=>fittingEmail(doc,'created','bad'));
+console.log('PASS: Czech fitting emails, full width, escaped customer data, private payment link, confirmation copy, CID social icons');
