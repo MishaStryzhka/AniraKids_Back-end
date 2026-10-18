@@ -13,8 +13,14 @@ const authenticate = async (req, res, next) => {
     return next(HttpError(401, 'Not authorized'));
   }
 
+  let id;
   try {
-    const { id } = jwt.verify(token, SECRET_KEY);
+    ({ id } = jwt.verify(token, SECRET_KEY));
+  } catch {
+    return next(HttpError(401, 'Not authorized'));
+  }
+
+  try {
     const user = await User.findById(id);
 
     const validToken = user?.tokens?.some(item => item.token === token);
@@ -25,7 +31,7 @@ const authenticate = async (req, res, next) => {
     req.user = user;
     req.user.token = token;
   } catch (error) {
-    return next(HttpError(401, 'Not authorized'));
+    return next(HttpError(503, 'Authentication temporarily unavailable'));
   }
 
   next();
