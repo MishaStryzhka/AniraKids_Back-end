@@ -52,7 +52,7 @@ export async function unregisterOwnerPush(ownerId: Types.ObjectId, endpoint: str
   await AdminPushSubscriptionModel.deleteOne({ownerId, endpointHash: hashEndpoint(endpoint)}).exec();
 }
 
-function makeAuthorization(endpoint: string, configuration: ReturnType<typeof pushVapidConfig>) {
+export function makeAuthorization(endpoint: string, configuration: ReturnType<typeof pushVapidConfig>) {
   const pub = Buffer.from(configuration.publicKey, 'base64url');
   const privateKey = createPrivateKey({key: {
     kty: 'EC', crv: 'P-256',
