@@ -8,6 +8,8 @@ on:
       - src/v2/models/fitting.model.ts
       - src/v2/controllers/fitting.controller.ts
       - scripts/check-fittings-integration.js
+      - src/v2/services/site-settings.service.ts
+      - src/v2/controllers/site-settings.controller.ts
       - src/v2/models/admin-access.model.ts
       - src/v2/controllers/admin-access.controller.ts
       - src/v2/middleware/admin.middleware.ts

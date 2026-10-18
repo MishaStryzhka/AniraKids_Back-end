@@ -11,6 +11,6 @@ export const updateSiteSettings: HttpHandler = async (request, response, next) =
   if (!sections) return response.status(400).json({error: {code: 'VALIDATION_ERROR', message: 'Neplatné nastavení sekcí.'}});
   try {
     response.setHeader?.('Cache-Control', 'no-store');
-    return response.status(200).json(await patchSiteSettings(sections));
+    return response.status(200).json(await patchSiteSettings(sections.sections, sections.filters));
   } catch (error) {return next(error);}
 };
