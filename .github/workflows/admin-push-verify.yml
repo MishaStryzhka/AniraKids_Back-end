@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/v2/**'
       - 'scripts/check-admin-push.js'
+      - 'scripts/check-admin-push-delivery.js'
       - 'docs/admin-web-push.md'
       - '.github/workflows/admin-push-verify.yml'
 permissions:
@@ -23,4 +24,5 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run build:v2
       - run: node scripts/check-admin-push.js
+      - run: node scripts/check-admin-push-delivery.js
       - run: node scripts/check-fitting-email.js

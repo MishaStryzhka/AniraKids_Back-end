@@ -10,7 +10,8 @@ process.env.V2_PUSH_VAPID_PUBLIC_KEY = Buffer.concat([
 process.env.V2_PUSH_VAPID_PRIVATE_KEY = privateJwk.d;
 process.env.V2_PUSH_VAPID_SUBJECT = 'mailto:glamgarbrentals@seznam.cz';
 
-assert.deepEqual(PUSH_TOPICS,['fitting_payment_reported']);
+assert.deepEqual(PUSH_TOPICS,['fitting_created','fitting_payment_reported']);
+assert.deepEqual(parsePushTopics(['fitting_created','fitting_payment_reported']),['fitting_created','fitting_payment_reported']);
 assert.deepEqual(parsePushTopics(['fitting_payment_reported']),['fitting_payment_reported']);
 assert.deepEqual(parsePushTopics([]),[]);
 assert.equal(parsePushTopics(['new_reservation']),null);

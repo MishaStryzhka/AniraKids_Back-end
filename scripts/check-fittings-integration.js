@@ -7,6 +7,10 @@ const api=require('../build/v2/services/fitting.service');
 const {ReservationV2Model:Reservation}=require('../build/v2/models/reservation-v2.model');
 const {paymentSummary,parsePaymentInput}=require('../build/v2/services/payment.service');
 module.exports=async({test,registry,insertOwned})=>{
+ const push=require('../build/v2/services/admin-push.service'),events=[];
+ const originalCreated=push.notifyOwnerFittingCreated,originalPayment=push.notifyOwnerFittingPaymentReported;
+ push.notifyOwnerFittingCreated=async()=>{events.push('created');};
+ push.notifyOwnerFittingPaymentReported=async()=>{events.push('payment');};
  registry.set(FittingModel,[]);registry.set(FittingSettingsModel,['fittings']);
  const settings={...defaultFittingSettings(),enabled:true,address:'Testovací adresa 1',weekly:defaultFittingSettings().weekly.map(d=>({...d,enabled:true,start:'09:00',end:'18:00'}))};
  const now=new Date('2030-01-01T00:00:00Z'),ops=[];
@@ -27,18 +31,23 @@ module.exports=async({test,registry,insertOwned})=>{
    await saveFittingSettings(settings);
   });
   await test('Fittings atomically reject two customers for one slot and protect private status',async()=>{
+   const before=events.length;
    const a=input(),b=input();const results=await Promise.allSettled([api.createFitting(a,now),api.createFitting(b,now)]);
    assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
    const winner=results[0].status==='fulfilled'?a:b,receipt=results.find(r=>r.status==='fulfilled').value;
    assert.equal(receipt.price,200);assert.ok(receipt.paymentInstructions.qrPayload.includes('*AM:200.00*'));assert.equal(receipt.customer,undefined);
    assert.deepEqual(await api.createFitting({...winner},now),receipt);
    await reject(api.createFitting({...winner,name:'Changed'},now),'IDEMPOTENCY_CONFLICT');
+   assert.deepEqual(events.slice(before),['created'],'new booking only: no push for conflict or replay');
    await reject(api.readFitting(receipt.number,'a'.repeat(64),now),'FITTING_NOT_FOUND');
    assert.equal((await api.availableFittingSlots(a.date,now)).slots.includes(a.time),false);
   });
   await test('Fitting payment report holds slot without treating payment as received',async()=>{
+   const before=events.length;
    const v=input('2030-01-07','10:00'),r=await api.createFitting(v,now);
    const reported=await api.reportFittingPayment(r.number,v.token,now);
+   await api.reportFittingPayment(r.number,v.token,now);
+   assert.deepEqual(events.slice(before),['created','payment'],'creation precedes payment and duplicate report is silent');
    assert.equal(reported.status,'review');assert.equal(reported.paymentStatus,'unpaid');assert.equal(reported.paymentInstructions,null);
    await api.expireFittings(new Date(now.getTime()+3600000));assert.equal((await doc(r.number)).status,'review');
    await act(r.number,'confirm');assert.equal((await doc(r.number)).paymentStatus,'paid');
@@ -141,11 +150,13 @@ module.exports=async({test,registry,insertOwned})=>{
    }finally{await new Promise(resolve=>server.close(resolve));await User.collection.deleteMany({_id:{$in:[owner,other]}});for(const key of keys){if(old[key]===undefined)delete process.env[key];else process.env[key]=old[key];}}
   });
   await test('Fittings keep existing bookings after disabling schedule; card payments parse for on-site rentals',async()=>{
+   const pushBefore=events.length;
    const mail=require('./fitting-email-fixture');
    const v=input('2030-01-11','15:00');
    const before=mail.messages.length;
    const receipts=await Promise.all([api.createFitting(v,now),api.createFitting(v,now)]);
    const r=receipts[0];assert.equal(receipts[1].number,r.number);
+   assert.deepEqual(events.slice(pushBefore),['created'],'concurrent retries send one creation push');
    assert.equal(mail.messages.length,before+1,'one creation email for concurrent retry');
    assert.equal(mail.messages[before].to,v.email);
    assert.ok(mail.messages[before].text.includes('#'+v.token));
@@ -172,6 +183,7 @@ module.exports=async({test,registry,insertOwned})=>{
    assert.equal(parsePaymentInput({operationId:randomUUID(),expectedRevision:0,type:'rental_received',amount:100,method:'card'}).method,'card');
   });
  }finally{
+  push.notifyOwnerFittingCreated=originalCreated;push.notifyOwnerFittingPaymentReported=originalPayment;
   const owned=await FittingModel.find({operationId:{$in:ops}}).select('_id').lean();registry.get(FittingModel).push(...owned.map(d=>d._id));
  }
 };
