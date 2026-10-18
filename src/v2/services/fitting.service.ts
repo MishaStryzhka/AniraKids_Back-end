@@ -1,5 +1,6 @@
 import {createHash,randomUUID} from 'crypto';
 import {Types} from 'mongoose';
+import type {PartnerAttribution} from './partner-referral.service';
 import Joi = require('joi');
 import {FittingModel} from '../models/fitting.model';
 import {ProductV2Model} from '../models/product-v2.model';
@@ -21,8 +22,8 @@ export async function availableFittingSlots(date:string,now=new Date()){
  const busy=await FittingModel.find({date,slotKey:{$exists:true}}).select('time').lean().exec();
  return {enabled:settings.enabled,durationMinutes:30,price:200,date,slots:fittingSlots(date,settings,now).filter(s=>!busy.some((b:any)=>b.time===s.time)).map(s=>s.time)};
 }
-export async function createFitting(body:unknown,now=new Date(),customerId?:Types.ObjectId){
- const v=parseFittingCreate(body),requestHash=hash(JSON.stringify([v.operationId,v.date,v.time,v.name,v.email,v.phone,v.productId||'',...(customerId?[customerId.toHexString()]:[])]));
+export async function createFitting(body:unknown,now=new Date(),customerId?:Types.ObjectId,partner?:PartnerAttribution){
+ const v=parseFittingCreate(body),requestHash=hash(JSON.stringify([v.operationId,v.date,v.time,v.name,v.email,v.phone,v.productId||'',...(customerId?[customerId.toHexString()]:[]),...(partner?[partner]:[])]));
  await FittingModel.createIndexes();
  const replay=await FittingModel.findOne({operationId:v.operationId}).select('+tokenHash +requestHash').lean().exec() as any;
  if(replay){if(replay.tokenHash!==hash(v.token)||replay.requestHash!==requestHash)throw new FittingError('IDEMPOTENCY_CONFLICT');return publicFitting(replay,now);}
@@ -32,7 +33,7 @@ export async function createFitting(body:unknown,now=new Date(),customerId?:Type
  if(v.productId){const p=await ProductV2Model.findOne({_id:new Types.ObjectId(v.productId),status:'active'}).lean().exec();if(!p)throw new FittingError('PRODUCT_UNAVAILABLE');product={id:v.productId,name:p.name,slug:p.slug};}
  await expireFittings(now);
  try{
-  const doc=await FittingModel.create({customerId,operationId:v.operationId,tokenHash:hash(v.token),requestHash,number:'ZK-'+randomUUID().replace(/-/g,'').slice(0,12).toUpperCase(),date:v.date,time:v.time,startAt:slot.startAt,address:settings.address,slotKey:v.date+'T'+v.time,activeEmail:hash(v.email),expiresAt:new Date(now.getTime()+60*60000),status:'pending',paymentStatus:'unpaid',customer:{name:v.name,email:v.email,phone:v.phone},product,creditOperationId:randomUUID(),revision:0,audit:[{action:'created',at:now,by:'customer'}]});
+  const doc=await FittingModel.create({partner,customerId,operationId:v.operationId,tokenHash:hash(v.token),requestHash,number:'ZK-'+randomUUID().replace(/-/g,'').slice(0,12).toUpperCase(),date:v.date,time:v.time,startAt:slot.startAt,address:settings.address,slotKey:v.date+'T'+v.time,activeEmail:hash(v.email),expiresAt:new Date(now.getTime()+60*60000),status:'pending',paymentStatus:'unpaid',customer:{name:v.name,email:v.email,phone:v.phone},product,creditOperationId:randomUUID(),revision:0,audit:[{action:'created',at:now,by:partner?.createdBy||'customer'}]});
   return publicFitting(doc.toObject(),now);
  }catch(error){
   if((error as any).code===11000){const winner=await FittingModel.findOne({operationId:v.operationId}).select('+tokenHash +requestHash').lean().exec() as any;if(winner&&winner.tokenHash===hash(v.token)&&winner.requestHash===requestHash)return publicFitting(winner,now);throw new FittingError('SLOT_OR_PENDING_CONFLICT');}throw error;
@@ -79,7 +80,7 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
   if(reservation.fittingCreditId===id)return {ok:true};
   if(reservation.fittingCreditId||!['pending','confirmed','prepared'].includes(reservation.status)||(reservation.status==='pending'&&(!reservation.expiresAt||new Date(reservation.expiresAt)<=now))||reservation.customerSnapshot.email.toLowerCase()!==doc.customer.email)throw new FittingError('CREDIT_RESERVATION_MISMATCH');
   const summary=paymentSummary(reservation);if(summary.rentalBalance<200)throw new FittingError('CREDIT_BALANCE_TOO_LOW');
-  try{await recordPayment(reservation._id,{operationId:doc.creditOperationId,expectedRevision:summary.revision,type:'rental_received',amount:200,method:'bank_transfer',reference:doc.number,note:'Započtení zaplacené zkoušky'},actor,id);}catch(e){if((e as any).code===11000)throw new FittingError('FITTING_ALREADY_CREDITED');throw e;}
+  try{await recordPayment(reservation._id,{operationId:doc.creditOperationId,expectedRevision:summary.revision,type:'rental_received',amount:200,method:'bank_transfer',reference:doc.number,note:'Započtení zaplacené zkoušky'},actor,id,doc.partner);}catch(e){if((e as any).code===11000)throw new FittingError('FITTING_ALREADY_CREDITED');throw e;}
   return {ok:true};
  }
  if(doc.revision!==body.revision)throw new FittingError('FITTING_CONFLICT');

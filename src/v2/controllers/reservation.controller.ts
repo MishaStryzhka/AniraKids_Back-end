@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import {resolveBookingPartner,PartnerError} from '../services/partner-referral.service';
 
 import {
   reservationService,
@@ -44,6 +45,7 @@ export const createReservation: HttpHandler = async (
   }
 
   try {
+    command.partner=await resolveBookingPartner(body.referralToken);
     const result = await reservationService.createReservation(
       command,
       {
@@ -65,6 +67,7 @@ export const createReservation: HttpHandler = async (
       .status(status)
       .json(publicResponse);
   } catch (error) {
+    if(error instanceof PartnerError)return response.status(error.status).json({error:{code:error.code,message:error.code}});
     return next(error);
   }
 };

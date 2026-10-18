@@ -410,7 +410,8 @@ export class ReservationAdminService {
     reservationId: Types.ObjectId,
     operation: Exclude<ReservationAdminOperation, 'confirm' | 'cancel'>,
     expectedStatus: ReservationStatus,
-    targetStatus: ReservationStatus
+    targetStatus: ReservationStatus,
+    actor?: string
   ) {
     const current = await getReservationOrThrow(reservationId);
     if (current.status === targetStatus) return current;
@@ -431,6 +432,7 @@ export class ReservationAdminService {
         $set: {
           status: targetStatus,
         },
+        ...(actor?{$push:{partnerAudit:{action:operation,at:new Date(),by:actor}}}:{}),
       },
       {
         new: true,
@@ -451,30 +453,30 @@ export class ReservationAdminService {
     return invalidTransition(latest.status, operation);
   }
 
-  async prepare(reservationId: Types.ObjectId) {
+  async prepare(reservationId: Types.ObjectId,actor?:string) {
     return this.transitionStatus(
       reservationId,
       'prepare',
       'confirmed',
-      'prepared'
+      'prepared',actor
     );
   }
 
-  async rent(reservationId: Types.ObjectId) {
+  async rent(reservationId: Types.ObjectId,actor?:string) {
     return this.transitionStatus(
       reservationId,
       'rent',
       'prepared',
-      'rented'
+      'rented',actor
     );
   }
 
-  async returnReservation(reservationId: Types.ObjectId) {
+  async returnReservation(reservationId: Types.ObjectId,actor?:string) {
     return this.transitionStatus(
       reservationId,
       'return',
       'rented',
-      'returned'
+      'returned',actor
     );
   }
 

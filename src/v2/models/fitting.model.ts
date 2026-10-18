@@ -1,5 +1,7 @@
 import {model,models,Schema} from 'mongoose';
+import {partnerAttributionSchema} from './partner.model';
 const schema=new Schema({
+ partner:{type:partnerAttributionSchema},studioBooked:{type:Boolean,default:false},studioBookingReference:String,
  operationId:{type:String,required:true},requestHash:{type:String,required:true,select:false},tokenHash:{type:String,required:true,select:false},
  number:{type:String,required:true},date:{type:String,required:true},time:{type:String,required:true},startAt:{type:Date,required:true},address:{type:String,required:true},
  slotKey:String,activeEmail:String,expiresAt:Date,customerId:Schema.Types.ObjectId,

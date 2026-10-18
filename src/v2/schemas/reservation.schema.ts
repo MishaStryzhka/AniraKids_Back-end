@@ -5,6 +5,7 @@ import type {
 } from '../types/domain';
 
 export interface ReservationRequestBody {
+  referralToken?: string;
   items?: Array<{ productId: string; variantId: string }>;
   productId: string;
   variantId: string;
@@ -52,6 +53,7 @@ const customerSchema = Joi.object({
   .required();
 
 export const reservationRequestSchema = Joi.object({
+  referralToken: Joi.string().max(1200),
   productId: Joi.string().pattern(objectIdPattern),
   variantId: Joi.string().pattern(objectIdPattern),
   items: Joi.array().items(Joi.object({

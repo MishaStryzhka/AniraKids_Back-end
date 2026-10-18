@@ -104,3 +104,9 @@ export const calculateReservationTotals = (
     totalDue,
   };
 };
+
+export function discountAdditionalDresses<T extends {product:{category?:string};pricing:ResolvedRentalPricing}>(items:T[]):T[]{
+ const dresses=items.map((item,index)=>({item,index})).filter(({item})=>item.product.category==='dress');
+ const full=dresses.reduce((best,current)=>!best||current.item.pricing.rentalPrice>best.item.pricing.rentalPrice?current:best,undefined as typeof dresses[number]|undefined)?.index;
+ return items.map((item,index)=>item.product.category==='dress'&&index!==full?{...item,pricing:{...item.pricing,rentalPrice:Math.round(item.pricing.rentalPrice*.8)}}:item);
+}

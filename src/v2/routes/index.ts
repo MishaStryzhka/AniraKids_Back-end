@@ -1,4 +1,7 @@
 import {fittingHandler} from '../controllers/fitting.controller';
+import {partnerHandler} from '../controllers/partner.controller';
+import {PartnerModel} from '../models/partner.model';
+import {adminApiEnabled} from '../middleware/admin.middleware';
 import {reservationApiEnabled,optionalLegacyAuth} from '../middleware/reservation.middleware';
 import {customerFittingHandler} from '../controllers/customer-fittings.controller';
 import {readSiteSettings} from '../controllers/site-settings.controller';
@@ -32,6 +35,14 @@ export const createV2Router = (
   const router = express.Router();
 
   router.get('/health', getHealth);
+  router.get('/partner-policy',dependencies.ensureMongoConnection,async(_req,res,next)=>{try{res.setHeader?.('Cache-Control','no-store');return res.status(200).json({additionalDressDiscount:await PartnerModel.exists({_id:'blaze',enabled:true})?20:0});}catch(e){return next(e);}});
+  router.get('/referrals/:code',dependencies.ensureMongoConnection,partnerHandler('referral'));
+  for(const action of ['access','members','balance','reservations','fittings','catalogue'])
+    router.get('/partner/'+action,adminApiEnabled,dependencies.ensureMongoConnection,partnerHandler(action));
+  for(const action of ['setup','save-member','settle','create-reservation','create-fitting'])
+    router.post('/partner/'+action,adminApiEnabled,dependencies.ensureMongoConnection,partnerHandler(action));
+  router.post('/partner/reservations/:id',adminApiEnabled,dependencies.ensureMongoConnection,partnerHandler('reservation-action'));
+  router.post('/partner/fittings/:id',adminApiEnabled,dependencies.ensureMongoConnection,partnerHandler('fitting-action'));
   router.get('/booking-policy', (_request, response) => response.status(200).json(BOOKING_POLICY));
 
   router.get('/site-settings', dependencies.ensureMongoConnection, readSiteSettings);

@@ -1,4 +1,5 @@
 import type {HttpHandler} from '../types/http';
+import {resolveBookingPartner,PartnerError} from '../services/partner-referral.service';
 import {getFittingSettings,saveFittingSettings,parseFittingSettings} from '../services/fitting-settings.service';
 import {FittingError,availableFittingSlots,createFitting,readFitting,reportFittingPayment,cancelPublicFitting,adminFittings,actOnFitting} from '../services/fitting.service';
 import {PaymentError} from '../services/payment.types';
@@ -13,7 +14,7 @@ export function fittingHandler(action:string):HttpHandler{return async(req,res,n
    case 'settings':result=await getFittingSettings();break;
    case 'save-settings':{const settings=parseFittingSettings(req.body);if(!settings)throw new FittingError('VALIDATION_ERROR',400);result=await saveFittingSettings(settings);break;}
    case 'slots':result=await availableFittingSlots(String(req.query?.date||''));break;
-   case 'create':result=await createFitting(req.body,new Date(),req.authenticatedUserId);break;
+   case 'create':{const {referralToken,...body}=(req.body||{}) as any;result=await createFitting(body,new Date(),req.authenticatedUserId,await resolveBookingPartner(referralToken));break;}
    case 'read':result=await readFitting(number,token);break;
    case 'report':result=await reportFittingPayment(number,token);break;
    case 'cancel':result=await cancelPublicFitting(number,token);break;
@@ -21,5 +22,5 @@ export function fittingHandler(action:string):HttpHandler{return async(req,res,n
    case 'act':if(!req.authenticatedUserId)throw new FittingError('ADMIN_UNAUTHORIZED',401);result=await actOnFitting(req.params?.fittingId||'',req.body,req.authenticatedUserId.toHexString());break;
   }
   return res.status(200).json(result);
- }catch(e){if(e instanceof FittingError||e instanceof PaymentError)return res.status(e.status).json({error:{code:e.code,message:e.code}});return next(e);}
+ }catch(e){if(e instanceof FittingError||e instanceof PaymentError||e instanceof PartnerError)return res.status(e.status).json({error:{code:e.code,message:e.code}});return next(e);}
 };}

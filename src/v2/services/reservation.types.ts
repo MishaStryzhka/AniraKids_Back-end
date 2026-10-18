@@ -32,6 +32,7 @@ export class ReservationServiceError extends Error {
 }
 
 export interface CreateReservationCommand {
+  partner?: import('./partner-referral.service').PartnerAttribution;
   items?: Array<{ productId: Types.ObjectId; variantId: Types.ObjectId }>;
   productId: Types.ObjectId;
   variantId: Types.ObjectId;
