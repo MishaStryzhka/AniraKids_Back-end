@@ -331,6 +331,13 @@ const checkPricing = () => {
   );
   assertEqual(resolved.rentalPrice, 900, 'resolved rental pricing price');
   assertEqual(resolved.deposit, 500, 'resolved rental pricing deposit');
+  for (const variant of [{}, { depositOverride: 2000 }]) {
+    const studio = resolveRentalPricing(baseProduct, variant, 'studio');
+    assertEqual(studio.deposit, 0, 'studio never charges a deposit');
+    assertEqual(calculateReservationTotals([studio]).totalDue, studio.rentalPrice,
+      'studio total only includes rental price');
+  }
+
 };
 
 const checkTotals = () => {
