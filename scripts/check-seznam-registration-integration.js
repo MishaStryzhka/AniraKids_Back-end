@@ -21,6 +21,7 @@ async function signIn(email) {
     if (name === '../../models') return { User };
     if (name === '../../helpers') return { HttpError: (status, message) => Object.assign(new Error(message), { status }) };
     if (name === '../../helpers/publicUser') return require('../helpers/publicUser');
+    if (name === '../../helpers/sessionTokenOptions.json') return require('../helpers/sessionTokenOptions.json');
     return require(name);
   } };
   vm.runInNewContext(readFileSync(path.join(__dirname, '../controllers/auth/authBySeznam.js'), 'utf8'), context);

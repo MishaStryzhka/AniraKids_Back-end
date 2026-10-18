@@ -1,6 +1,7 @@
 const { default: axios } = require('axios');
 const { User } = require('../../models');
 const jwt = require('jsonwebtoken');
+const sessionTokenOptions = require('../../helpers/sessionTokenOptions.json');
 const { HttpError } = require('../../helpers');
 const publicUser = require('../../helpers/publicUser');
 
@@ -42,7 +43,7 @@ module.exports = async (req, res) => {
   }
   if (user.seznamEmail && user.seznamEmail !== email) throw HttpError(409, 'Seznam account is already linked');
   user.seznamEmail = email;
-  const token = jwt.sign({ id: user._id }, SECRET_KEY, { expiresIn: '23h' });
+  const token = jwt.sign({ id: user._id }, SECRET_KEY, sessionTokenOptions);
   const userAgent = req.headers['user-agent'] || '';
   const device = {
     userAgent,

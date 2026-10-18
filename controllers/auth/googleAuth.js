@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const sessionTokenOptions = require('../../helpers/sessionTokenOptions.json');
 const { User } = require('../../models');
 
 const { SECRET_KEY, FRONTEND_URL } = process.env;
@@ -9,7 +10,7 @@ const googleAuth = async (req, res) => {
     id,
   };
 
-  const token = jwt.sign(payload, SECRET_KEY, { expiresIn: '23h' });
+  const token = jwt.sign(payload, SECRET_KEY, sessionTokenOptions);
 
   await User.findByIdAndUpdate(id, { token });
 

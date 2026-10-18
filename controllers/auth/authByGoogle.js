@@ -1,5 +1,6 @@
 const { User } = require('../../models');
 const jwt = require('jsonwebtoken');
+const sessionTokenOptions = require('../../helpers/sessionTokenOptions.json');
 const { HttpError } = require('../../helpers');
 const publicUser = require('../../helpers/publicUser');
 const verifyGoogleCredential = require('../../helpers/verifyGoogleCredential');
@@ -33,7 +34,7 @@ module.exports = async (req, res) => {
     }
   }
   user.googleId = identity.sub;
-  const token = jwt.sign({ id: user._id }, SECRET_KEY, { expiresIn: '23h' });
+  const token = jwt.sign({ id: user._id }, SECRET_KEY, sessionTokenOptions);
   const userAgent = req.headers['user-agent'] || '';
   const device = { userAgent,
     platform: req.headers['sec-ch-ua-platform'] || userAgent.match(/\(([^)]+)\)/)?.[1] || 'unknown',
