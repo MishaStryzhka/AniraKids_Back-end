@@ -4,6 +4,10 @@ on:
     branches: [main]
     paths:
       - 'middlewares/authenticate.js'
+      - 'helpers/createUserSession.js'
+      - 'helpers/sessionTokenOptions.json'
+      - 'controllers/auth/**'
+      - 'scripts/check-session-token-lifetime.js'
       - 'scripts/check-auth-session.js'
       - '.github/workflows/auth-session-verify.yml'
 permissions:
@@ -15,4 +19,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: 20}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node scripts/check-auth-session.js
+      - run: node scripts/check-session-token-lifetime.js
+      - run: node scripts/check-google-auth.js
+      - run: node scripts/check-seznam-auth.js

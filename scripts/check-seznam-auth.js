@@ -9,7 +9,8 @@ async function run({ existing = false, agent, denied = false, email = 'test@exam
   const user = { _id: 'test-user', tokens: [], _doc: { email, password: 'test-hash', token: 'old', tokens: ['other-session'] }, save: async options => { assert.equal(options.validateModifiedOnly, true); saved = true; } };
   const User = { findOne: async query => { queried = query; return existing || created ? user : null; }, create: async () => { created = true; return user; } };
   const axios = { post: async () => { calls++; if (denied) throw new Error('secret upstream content'); return { data: { access_token: 'provider-token', account_name: 'not-an-email' } }; }, get: async (_url, config) => { assert.equal(config.headers.Authorization, 'Bearer provider-token'); return { data: { email } }; } };
-  const modules = { axios: { default: axios }, '../../models': { User }, jsonwebtoken: { sign: payload => { assert.equal(payload.id, 'test-user'); return 'app-token'; } }, '../../helpers': { HttpError: (status, message) => Object.assign(new Error(message), { status }) }, '../../helpers/publicUser': publicUser };
+  const modules = { axios: { default: axios }, '../../models': { User }, jsonwebtoken: { sign: (payload, secret, options) => { assert.equal(options.expiresIn, 30 * 24 * 60 * 60); assert.equal(payload.id, 'test-user'); return 'app-token'; } }, '../../helpers': { HttpError: (status, message) => Object.assign(new Error(message), { status }) }, '../../helpers/publicUser': publicUser };
+  modules['../../helpers/sessionTokenOptions.json'] = require('../helpers/sessionTokenOptions.json');
   const context = { require: name => modules[name], module: { exports: {} }, process: { env: { SECRET_KEY: 'test', SEZNAM_CLIENT_ID: 'test', SEZNAM_CLIENT_SECRET: 'test' } } };
   vm.runInNewContext(source, context);
   const response = { set: (key, value) => assert.equal(value, 'no-store'), status: value => { status = value; return response; }, json: value => { output = value; } };
