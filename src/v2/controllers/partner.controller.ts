@@ -1,3 +1,4 @@
+import { AdminAccessModel } from '../models/admin-access.model';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
 import type { HttpHandler, HttpRequest } from '../types/http';
@@ -5,7 +6,7 @@ import {
   authenticateLegacyBearer,
   parseBearerAuthorization,
 } from '../auth/legacy-bearer';
-import { parseAdminUserIds } from '../middleware/admin.middleware';
+import { getAdminOwnerIds } from '../middleware/admin.middleware';
 import { PartnerModel, PartnerMemberModel } from '../models/partner.model';
 import {
   ReservationV2Model,
@@ -47,6 +48,7 @@ const User = require('../../../models/user');
 export type PartnerAccess = {
   userId: string;
   owner: boolean;
+  managePartners?: boolean;
   role: 'administrator' | 'photographer';
   partnerId: string;
 };
@@ -68,9 +70,12 @@ async function accessFor(req: HttpRequest): Promise<PartnerAccess> {
       : null;
   if (!identity) throw new PartnerError('UNAUTHORIZED', 401);
   const userId = String(identity.userId),
-    owner = parseAdminUserIds().has(userId);
+    owner = (await getAdminOwnerIds()).has(userId);
   if (owner)
     return { userId, owner: true, role: 'administrator', partnerId: 'blaze' };
+  const grant = await AdminAccessModel.findById(identity.userId).select('permissions').lean().exec();
+  if (grant?.permissions?.includes('partners'))
+    return { userId, owner: false, managePartners: true, role: 'administrator', partnerId: 'blaze' };
   const member = (await PartnerMemberModel.findOne({
     userId: identity.userId,
     partnerId: 'blaze',
@@ -87,8 +92,8 @@ const id = (v: unknown) => {
     throw new PartnerError('VALIDATION_ERROR');
   return new Types.ObjectId(v);
 };
-const requireOwner = (a: PartnerAccess) => {
-  if (!a.owner) throw new PartnerError('FORBIDDEN', 403);
+const requirePartnerAdmin = (a: PartnerAccess) => {
+  if (!a.owner && !a.managePartners) throw new PartnerError('FORBIDDEN', 403);
 };
 const requireManager = (a: PartnerAccess) => {
   if (a.role !== 'administrator') throw new PartnerError('FORBIDDEN', 403);
@@ -150,7 +155,7 @@ export function partnerHandler(action: string): HttpHandler {
       const access = await accessFor(req),
         scope = partnerScope(access),
         body = (req.body || {}) as any;
-      const actor = (access.owner ? 'owner:' : 'partner:') + access.userId;
+      const actor = (access.owner ? 'owner:' : access.managePartners ? 'admin:' : 'partner:') + access.userId;
       if (action === 'access') {
         const partner = (await PartnerModel.findById(access.partnerId)
           .lean()
@@ -169,7 +174,7 @@ export function partnerHandler(action: string): HttpHandler {
         });
       }
       if (action === 'setup') {
-        requireOwner(access);
+        requirePartnerAdmin(access);
         if (typeof body.enabled !== 'boolean')
           throw new PartnerError('VALIDATION_ERROR');
         await PartnerModel.updateOne(
@@ -210,7 +215,7 @@ export function partnerHandler(action: string): HttpHandler {
         });
       }
       if (action === 'save-member') {
-        requireOwner(access);
+        requirePartnerAdmin(access);
         if (
           typeof body.email !== 'string' ||
           body.email.length > 254 ||
@@ -260,7 +265,7 @@ export function partnerHandler(action: string): HttpHandler {
         return res.status(200).json(await partnerBalance(access.partnerId));
       }
       if (action === 'settle') {
-        requireOwner(access);
+        requirePartnerAdmin(access);
         if (
           !isCanonicalUuidV4(body.operationId) ||
           typeof body.amount !== 'number' ||
@@ -410,7 +415,7 @@ export function partnerHandler(action: string): HttpHandler {
             requireManager(access);
             const input = parsePaymentInput(body.payment);
             if (
-              !access.owner &&
+              !access.owner && !access.managePartners &&
               (input.method !== 'cash' ||
                 ![
                   'advance_received',
@@ -447,7 +452,7 @@ export function partnerHandler(action: string): HttpHandler {
             break;
           }
           case 'source': {
-            requireOwner(access);
+            requirePartnerAdmin(access);
             if (
               !['anirak', 'partner'].includes(body.source) ||
               typeof body.reason !== 'string' ||
@@ -546,7 +551,7 @@ export function partnerHandler(action: string): HttpHandler {
           ).exec();
           if (!changed.modifiedCount) throw new PartnerError('CONFLICT', 409);
         } else {
-          if (!access.owner && !['complete', 'credit'].includes(body.action))
+          if (!access.owner && !access.managePartners && !['complete', 'credit'].includes(body.action))
             throw new PartnerError('FORBIDDEN', 403);
           if (body.action === 'credit') {
             const r = await ReservationV2Model.exists({

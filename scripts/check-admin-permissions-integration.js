@@ -17,7 +17,7 @@ module.exports=async({test,registry,insertOwned})=>{
   await test('Admin permissions: owner lookup exposes only identity, exact email and protected owner',async()=>{
    assert.equal((await request('/admin/access')).status,401);
    assert.equal((await request('/admin/access',tokens[2])).status,403);
-   const access=await request('/admin/access',tokens[0]);assert.equal(access.body.owner,true);assert.equal(access.body.permissions.length,4);
+   const access=await request('/admin/access',tokens[0]);assert.equal(access.body.owner,true);assert.equal(access.body.permissions.length,5);
    const lookup=await request('/admin/administrators/lookup',tokens[0],'POST',{email:' STAFF-PERMISSIONS@example.test '});assert.equal(lookup.status,200);assert.equal(lookup.body.id,String(staff));assert.equal(lookup.body.password,undefined);assert.equal(lookup.body.tokens,undefined);assert.equal(lookup.body.seznamEmail,undefined);
    assert.equal((await request('/admin/administrators/lookup',tokens[0],'POST',{email:'missing@example.test'})).status,404);
    assert.equal((await request('/admin/administrators/'+owner,tokens[0],'PATCH',{permissions:[],revision:0})).status,409);
@@ -33,6 +33,24 @@ module.exports=async({test,registry,insertOwned})=>{
    for(const {path,method} of routes.filter(r=>/^\/admin\/(?:settings|fitting|overview|reservation|administrators)/.test(r.path))){const actual=path.replace(/:[A-Za-z]+/g,String(staff));const result=await request(actual,tokens[1],method.toUpperCase(),method==='get'?undefined:{});assert.equal(result.status,403,method+' '+path);}
    assert.equal((await save(tokens[1],['products','settings'],1)).status,403);
    const list=await request('/admin/administrators',tokens[0]);assert.ok(list.body.items.some(x=>x.id===String(staff)));assert.ok(list.body.owners.some(x=>x.id===String(owner)));
+  });
+  await test('Admin permissions: partner delegation does not grant administrator management and revokes immediately',async()=>{
+   assert.equal((await request('/partner/access',tokens[1])).status,403);
+   await AdminAccessModel.updateOne({_id:staff},{$set:{permissions:['partners']}});
+   const access=await request('/partner/access',tokens[1]);assert.equal(access.status,200);assert.equal(access.body.owner,false);assert.equal(access.body.managePartners,true);
+   assert.equal((await request('/admin/administrators',tokens[1])).status,403);
+   assert.equal((await request('/admin/settings',tokens[1])).status,403);
+   await AdminAccessModel.updateOne({_id:staff},{$set:{permissions:['products']}});
+   assert.equal((await request('/partner/access',tokens[1])).status,403);
+  });
+  await test('Admin permissions: primary owner email requires verification and is protected',async()=>{
+   await User.collection.updateOne({_id:customer},{$set:{email:'mykhailo.stryzhka@seznam.cz',emailVerified:false}});
+   assert.equal((await request('/admin/access',tokens[2])).status,403);
+   await User.collection.updateOne({_id:customer},{$set:{emailVerified:true}});
+   assert.equal((await request('/admin/access',tokens[2])).body.owner,true);
+   assert.equal((await request('/partner/access',tokens[2])).body.owner,true);
+   assert.equal((await request('/admin/administrators/'+customer,tokens[0],'PATCH',{permissions:[],revision:0})).status,409);
+   await User.collection.updateOne({_id:customer},{$set:{email:'customer-permissions@example.test',emailVerified:false}});
   });
   await test('Admin permissions: stale writes cannot override changes, revocation blocks the next request',async()=>{
    const writes=await Promise.all([save(tokens[0],['fittings'],1),save(tokens[0],['settings'],1)]);assert.deepEqual(writes.map(x=>x.status).sort(),[200,409]);

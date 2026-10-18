@@ -1,6 +1,6 @@
 import {Types} from 'mongoose';
 import {AdminAccessModel,ADMIN_PERMISSIONS} from '../models/admin-access.model';
-import {parseAdminUserIds} from '../middleware/admin.middleware';
+import {getAdminOwnerIds} from '../middleware/admin.middleware';
 import type {HttpHandler} from '../types/http';
 const User=require('../../../models/user');
 const fields='_id email firstName lastName';
@@ -15,7 +15,7 @@ export function administrators(action:'list'|'lookup'|'save'):HttpHandler{return
  try{
   // Defense in depth: delegation cannot create more grant managers.
   if(!req.adminOwner||!req.authenticatedUserId)return fail(403,'ADMIN_FORBIDDEN');
-  const owners=parseAdminUserIds();
+  const owners=await getAdminOwnerIds();
   if(action==='lookup'){
    const email=(req.body as any)?.email;
    if(typeof email!=='string'||email.length>254||!/^\S+@\S+\.\S+$/.test(email.trim()))return fail(400,'VALIDATION_ERROR');
@@ -35,7 +35,7 @@ export function administrators(action:'list'|'lookup'|'save'):HttpHandler{return
    return res.status(200).json({owners:ownerUsers.map((u:any)=>({...userView(u),owner:true,permissions:[...ADMIN_PERMISSIONS],revision:0})),items:grants.filter((g:any)=>!owners.has(String(g._id))).map((g:any)=>{const u=users.find((u:any)=>String(u._id)===String(g._id));return {...(u?userView(u):{id:String(g._id),email:'',name:'Odstraněný účet'}),owner:false,permissions:g.permissions,revision:g.revision};}),total,page,limit});
   }
   const id=req.params?.userId,body=req.body as any;
-  if(!id||!/^[a-f0-9]{24}$/i.test(id)||!body||Object.keys(body).some(k=>!['permissions','revision'].includes(k))||!Number.isSafeInteger(body.revision)||body.revision<0||!Array.isArray(body.permissions)||body.permissions.length>4||new Set(body.permissions).size!==body.permissions.length||body.permissions.some((p:any)=>!ADMIN_PERMISSIONS.includes(p)))return fail(400,'VALIDATION_ERROR');
+  if(!id||!/^[a-f0-9]{24}$/i.test(id)||!body||Object.keys(body).some(k=>!['permissions','revision'].includes(k))||!Number.isSafeInteger(body.revision)||body.revision<0||!Array.isArray(body.permissions)||body.permissions.length>ADMIN_PERMISSIONS.length||new Set(body.permissions).size!==body.permissions.length||body.permissions.some((p:any)=>!ADMIN_PERMISSIONS.includes(p)))return fail(400,'VALIDATION_ERROR');
   if(owners.has(id.toLowerCase()))return fail(409,'OWNER_PROTECTED');
   if(!await User.exists({_id:new Types.ObjectId(id)}))return fail(404,'USER_NOT_FOUND');
   const permissions=[...body.permissions].sort(),audit={by:req.authenticatedUserId.toHexString(),at:new Date(),permissions};
