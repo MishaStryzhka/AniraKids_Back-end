@@ -67,7 +67,7 @@ async function read(token, page = '1') {
   assert.equal(blocks.blocks.length,1);assert.equal(blocks.blocks[0].productId,String(productId));assert.equal(blocks.blocks[0].productName,'Fixture dress');assert.equal(blocks.blocks[0].internalCode,'TEST-1');assert.equal(blocks.blocksTruncated,false);assert.ok(!JSON.stringify(blocks).includes('PRIVATE'));
   // Registration must use the same auth/config guards as existing admin endpoints.
   const routeSource=readFileSync(path.join(__dirname,'../src/v2/routes/admin.routes.ts'),'utf8');
-  assert.ok(routeSource.includes("router.get('/admin/overview', ...guards, adminOverview)"));
+  assert.ok(routeSource.includes("router.get('/admin/overview', ...guards, requireAdminPermission('reservations'), adminOverview)"));
   console.log('PASS: Prague due dates, expired pending exclusion, held-deposit ledger, maintenance/drafts and inventory→variant→product block joins');
 
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
