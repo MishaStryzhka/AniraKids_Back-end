@@ -1,4 +1,5 @@
 import { Types } from 'mongoose';
+import {AdminAccessModel,ADMIN_PERMISSIONS,type AdminPermission} from '../models/admin-access.model';
 
 import {
   LegacyAuthConfigurationError,
@@ -170,7 +171,10 @@ export const requireAdminAuth: HttpHandler = async (
 
     const adminIds = parseAdminUserIds();
 
-    if (!adminIds.has(identity.userId.toHexString().toLowerCase())) {
+    const owner=adminIds.has(identity.userId.toHexString().toLowerCase());
+    const grant=owner?null:await AdminAccessModel.findById(identity.userId).select('permissions').lean().exec();
+    const permissions=owner?[...ADMIN_PERMISSIONS]:(grant?.permissions??[]).filter((p:string)=>ADMIN_PERMISSIONS.includes(p as AdminPermission));
+    if (!permissions.length) {
       return sendError(
         response,
         403,
@@ -180,6 +184,8 @@ export const requireAdminAuth: HttpHandler = async (
     }
 
     request.authenticatedUserId = identity.userId;
+    request.adminOwner=owner;
+    request.adminPermissions=permissions;
     return next();
   } catch (error) {
     if (
@@ -196,6 +202,11 @@ export const requireAdminAuth: HttpHandler = async (
 
     return next(error);
   }
+};
+
+export const requireAdminPermission=(permission:AdminPermission|'administrators'):HttpHandler=>(request,response,next)=>{
+ if(request.adminOwner||(permission!=='administrators'&&request.adminPermissions?.includes(permission)))return next();
+ return sendError(response,403,'ADMIN_FORBIDDEN','This permission is required');
 };
 
 export const validateObjectIdParam = (
