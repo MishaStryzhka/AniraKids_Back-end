@@ -62,9 +62,11 @@
     "sharp": "^0.33.2",
     "socket.io": "^4.7.2",
     "swagger-ui-express": "^5.0.0",
-    "validator": "^13.11.0"
+    "validator": "^13.11.0",
+    "web-push": "3.6.7"
   },
   "devDependencies": {
+    "@types/web-push": "3.6.4",
     "ejs": "^3.1.9",
     "eslint": "7.19.0",
     "eslint-config-prettier": "^8.3.0",

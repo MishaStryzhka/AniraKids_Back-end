@@ -1,5 +1,5 @@
 import type {HttpHandler} from '../types/http';
-import {pushVapidConfig, registerOwnerPush, unregisterOwnerPush, ownerPushPreferences, parsePushTopics, validPushEndpoint} from '../services/admin-push.service';
+import {pushVapidConfig, registerOwnerPush, unregisterOwnerPush, ownerPushPreferences, parsePushTopics, validPushEndpoint, validPushKeys, PushKeys} from '../services/admin-push.service';
 
 export const adminPushHandler = (action: 'config' | 'subscribe' | 'unsubscribe' | 'preferences'): HttpHandler =>
   async (req, res, next) => {
@@ -13,15 +13,19 @@ export const adminPushHandler = (action: 'config' | 'subscribe' | 'unsubscribe' 
       if (!config.enabled) return res.status(503).json({error: {code: 'PUSH_NOT_CONFIGURED'}});
       const body = req.body;
       if (!body || typeof body !== 'object' || Array.isArray(body) ||
-          Object.keys(body).some(k => k !== 'endpoint' && (action !== 'subscribe' || k !== 'topics')) ||
+          Object.keys(body).some(k => k !== 'endpoint' && (action !== 'subscribe' || !['topics', 'keys'].includes(k))) ||
           !validPushEndpoint((body as {endpoint?: unknown}).endpoint) ||
           (action === 'subscribe' && 'topics' in body && !parsePushTopics((body as {topics?: unknown}).topics))) {
         return res.status(400).json({error: {code: 'INVALID_PUSH_ENDPOINT'}});
       }
+      if (action === 'subscribe' && 'keys' in body && !validPushKeys((body as {keys?: unknown}).keys)) {
+        return res.status(400).json({error: {code: 'INVALID_PUSH_KEYS'}});
+      }
       const endpoint = (body as {endpoint: string}).endpoint;
       if (action === 'preferences') return res.status(200).json(await ownerPushPreferences(req.authenticatedUserId, endpoint));
       if (action === 'subscribe') await registerOwnerPush(req.authenticatedUserId, endpoint,
-        'topics' in body ? parsePushTopics((body as {topics: unknown}).topics)! : undefined);
+        'topics' in body ? parsePushTopics((body as {topics: unknown}).topics)! : undefined,
+        (body as {keys?: PushKeys}).keys);
       else await unregisterOwnerPush(req.authenticatedUserId, endpoint);
       return res.status(200).json({ok: true});
     } catch (error) {
@@ -31,6 +35,8 @@ export const adminPushHandler = (action: 'config' | 'subscribe' | 'unsubscribe' 
         return res.status(409).json({error: {code: 'PUSH_DEVICE_LIMIT'}});
       if (error instanceof Error && error.message === 'INVALID_PUSH_ENDPOINT')
         return res.status(400).json({error: {code: 'INVALID_PUSH_ENDPOINT'}});
+      if (error instanceof Error && error.message === 'INVALID_PUSH_KEYS')
+        return res.status(400).json({error: {code: 'INVALID_PUSH_KEYS'}});
       return next(error);
     }
   };

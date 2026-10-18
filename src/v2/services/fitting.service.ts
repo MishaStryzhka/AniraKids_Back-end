@@ -10,7 +10,7 @@ import {getFittingSettings,fittingSlots} from './fitting-settings.service';
 import {paymentSummary,recordPayment} from './payment.service';
 import {parseDateOnly} from '../utils/date-only';
 import {notifyFitting} from './fitting-email.service';
-import {notifyOwnerFittingPaymentReported} from './admin-push.service';
+import {notifyOwnerFittingCreated,notifyOwnerFittingPaymentReported} from './admin-push.service';
 export class FittingError extends Error{constructor(public code:string,public status=409){super(code);}}
 const hash=(v:string)=>createHash('sha256').update(v).digest('hex');
 const createSchema=Joi.object({operationId:Joi.string().guid({version:['uuidv4']}).required(),token:Joi.string().pattern(/^[a-f0-9]{64}$/).required(),date:Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),time:Joi.string().pattern(/^(?:[01]\d|2[0-3]):(?:00|30)$/).required(),name:Joi.string().trim().min(2).max(160).required(),email:Joi.string().email({tlds:{allow:false}}).max(254).required(),phone:Joi.string().trim().pattern(/^\+?[\d ()-]{5,32}$/).required(),productId:Joi.string().hex().length(24)}).unknown(false);
@@ -36,7 +36,7 @@ export async function createFitting(body:unknown,now=new Date(),customerId?:Type
  await expireFittings(now);
  try{
   const doc=await FittingModel.create({partner,customerId,operationId:v.operationId,tokenHash:hash(v.token),requestHash,number:'ZK-'+randomUUID().replace(/-/g,'').slice(0,12).toUpperCase(),date:v.date,time:v.time,startAt:slot.startAt,address:settings.address,slotKey:v.date+'T'+v.time,activeEmail:hash(v.email),expiresAt:new Date(now.getTime()+60*60000),status:'pending',paymentStatus:'unpaid',customer:{name:v.name,email:v.email,phone:v.phone},product,creditOperationId:randomUUID(),revision:0,audit:[{action:'created',at:now,by:partner?.createdBy||'customer'}]});
-  await notifyFitting(doc.toObject(),'created',v.token);
+  await Promise.all([notifyFitting(doc.toObject(),'created',v.token),notifyOwnerFittingCreated()]);
   return publicFitting(doc.toObject(),now);
  }catch(error){
   if((error as any).code===11000){const winner=await FittingModel.findOne({operationId:v.operationId}).select('+tokenHash +requestHash').lean().exec() as any;if(winner&&winner.tokenHash===hash(v.token)&&winner.requestHash===requestHash){if(winner.status==='pending'&&new Date(winner.expiresAt)>now)await notifyFitting(winner,'created',v.token);return publicFitting(winner,now);}throw new FittingError('SLOT_OR_PENDING_CONFLICT');}throw error;
