@@ -1,0 +1,18 @@
+name: Authentication Session Verify
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'middlewares/authenticate.js'
+      - 'scripts/check-auth-session.js'
+      - '.github/workflows/auth-session-verify.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 20}
+      - run: node scripts/check-auth-session.js

@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const {generateKeyPairSync, verify} = require('node:crypto');
-const {validPushEndpoint, pushVapidConfig, makeAuthorization} = require('../build/v2/services/admin-push.service');
+const {validPushEndpoint, pushVapidConfig, makeAuthorization, parsePushTopics, PUSH_TOPICS} = require('../build/v2/services/admin-push.service');
 
 const pair = generateKeyPairSync('ec', {namedCurve: 'prime256v1'});
 const privateJwk = pair.privateKey.export({format: 'jwk'});
@@ -10,6 +10,12 @@ process.env.V2_PUSH_VAPID_PUBLIC_KEY = Buffer.concat([
 process.env.V2_PUSH_VAPID_PRIVATE_KEY = privateJwk.d;
 process.env.V2_PUSH_VAPID_SUBJECT = 'mailto:glamgarbrentals@seznam.cz';
 
+assert.deepEqual(PUSH_TOPICS,['fitting_payment_reported']);
+assert.deepEqual(parsePushTopics(['fitting_payment_reported']),['fitting_payment_reported']);
+assert.deepEqual(parsePushTopics([]),[]);
+assert.equal(parsePushTopics(['new_reservation']),null);
+assert.equal(parsePushTopics('fitting_payment_reported'),null);
+assert.equal(parsePushTopics(['fitting_payment_reported','fitting_payment_reported']),null);
 const cfg = pushVapidConfig();
 assert.equal(cfg.enabled, true);
 const endpoint = 'https://fcm.googleapis.com/fcm/send/abc1230123456789abcdef';

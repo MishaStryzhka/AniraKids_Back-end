@@ -4,6 +4,7 @@ const schema = new Schema({
   endpointHash: {type: String, required: true, unique: true},
   endpoint: {type: String, required: true},
   ownerId: {type: Schema.Types.ObjectId, required: true, index: true},
+  topics: {type: [String], default: ['fitting_payment_reported']},
 }, {collection: 'v2_admin_push_subscriptions', timestamps: true, strict: 'throw'});
 schema.index({ownerId: 1, updatedAt: -1});
 export const AdminPushSubscriptionModel =
