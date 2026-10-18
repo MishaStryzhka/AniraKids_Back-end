@@ -67,7 +67,7 @@ export async function cancelPublicFitting(number:string,token:string,now=new Dat
 export async function adminFittings(from:string,to:string){
  try{if(parseDateOnly(to).getTime()-parseDateOnly(from).getTime()>93*86400000||to<from)throw Error();}catch{throw new FittingError('VALIDATION_ERROR',400);}
  await expireFittings();
- const docs=await FittingModel.find({date:{$gte:from,$lte:to}}).sort({date:1,time:1}).limit(501).lean().exec();
+ const docs=await FittingModel.find({date:{$gte:from,$lte:to}}).sort({createdAt:-1,_id:-1}).limit(501).lean().exec();
  const credits=await ReservationV2Model.find({fittingCreditId:{$in:docs.map((d:any)=>d._id.toString())}}).select('fittingCreditId reservationNumber').lean().exec();
  return {truncated:docs.length>500,items:docs.slice(0,500).map((d:any)=>({...publicFitting(d),id:d._id.toString(),revision:d.revision,customer:d.customer,audit:d.audit,credit:credits.find(c=>c.fittingCreditId===d._id.toString())?{reservationId:credits.find(c=>c.fittingCreditId===d._id.toString())!._id.toString(),reservationNumber:credits.find(c=>c.fittingCreditId===d._id.toString())!.reservationNumber}:null}))};
 }
