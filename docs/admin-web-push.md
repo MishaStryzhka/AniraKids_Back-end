@@ -19,7 +19,7 @@ Configure these three environment variables **only in the backend deployment's s
 
 Redeploy backend so the settings are available. `GET /api/v2/admin/push/config` requires owner authentication and returns `enabled:false` until valid keys are present. Do not rotate keys casually: it invalidates device subscriptions.
 
-Deploy frontend (including `/admin-push-sw.js`), then open **Admin → Zkoušky → Zapnout upozornění** and allow notifications in the browser. Re-enable separately on each desired device.
+Deploy frontend (including `/admin-push-sw.js`), then open **Admin → Nastavení → Upozornění → Zapnout upozornění** and allow notifications in the browser. Re-enable separately on each desired device.
 
 On iPhone/iPad, install the ANIRAK website **to the Home Screen** and open it from the installed icon before enabling notifications; ordinary browser tabs do not support iOS Web Push.
 
@@ -35,3 +35,10 @@ On iPhone/iPad, install the ANIRAK website **to the Home Screen** and open it fr
 - Browser notification permission remains under the user's browser/OS settings.
 
 Notification delivery is best effort. Browser, OS focus modes, connectivity and push provider may delay or drop notifications. Continue to use the admin fitting list as the source of truth.
+
+
+## Upozornění — subscriptions
+
+Manage all subscriptions in **Admin → Nastavení → Upozornění**, not in the Zkoušky list. The browser device subscription is separate from the list of chosen event types. Each device stores `topics` as a separate array in its authenticated owner subscription; initial supported topic is `fitting_payment_reported`. Other events must be implemented and registered server-side before they appear as selectable options. Browsers already subscribed before this change continue receiving fitting-payment alerts by default.
+
+The owner-scoped `POST /api/v2/admin/push/preferences` accepts only `{endpoint}` and returns `{subscribed,topics}`. `POST /api/v2/admin/push/subscribe` now additionally accepts a validated `topics` array. Empty array silences all events on that device without revoking OS permission. Unknown topics are rejected. The event sender filters subscribers by type.
