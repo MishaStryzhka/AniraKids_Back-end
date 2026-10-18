@@ -16,6 +16,8 @@ export interface HttpRequest {
   params?: Record<string, string | undefined>;
   query?: Record<string, unknown>;
   authenticatedUserId?: Types.ObjectId;
+  adminOwner?: boolean;
+  adminPermissions?: string[];
   reservationRequestNow?: Date;
   reservationIdempotencyKey?: string;
   reservationIdempotency?: TrustedReservationIdempotencyContext;

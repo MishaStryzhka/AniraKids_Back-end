@@ -1,3 +1,4 @@
+import {adminAccess,administrators} from '../controllers/admin-access.controller';
 import {fittingHandler} from '../controllers/fitting.controller';
 import {readSiteSettings, updateSiteSettings} from '../controllers/site-settings.controller';
 import {productAssistantHandler} from '../controllers/product-assistant.controller';
@@ -42,6 +43,7 @@ import {
   adminApiConfigurationReady,
   adminApiEnabled,
   requireAdminAuth,
+  requireAdminPermission,
   validateAdminAvailabilityBlockListQuery,
   validateAdminCreateAvailabilityBlock,
   validateAdminCreateInventoryItem,
@@ -92,49 +94,53 @@ export const registerAdminRoutes = (
   dependencies: AdminRouteDependencies
 ): void => {
   const guards = commonAdminGuards(dependencies);
-  router.get('/admin/fitting-settings', ...guards, fittingHandler('settings'));
-  router.patch('/admin/fitting-settings', ...guards, fittingHandler('save-settings'));
-  router.get('/admin/fittings', ...guards, fittingHandler('list'));
-  router.post('/admin/fittings/:fittingId/actions', ...guards, fittingHandler('act'));
-  router.get('/admin/settings', ...guards, readSiteSettings);
-  router.patch('/admin/settings', ...guards, updateSiteSettings);
-  router.post('/admin/product-drafts', ...guards, productAssistantHandler('create'));
-  router.post('/admin/product-drafts/:draftId/photos/sign', ...guards, productMediaConfigurationReady, productAssistantHandler('sign'));
-  router.post('/admin/product-drafts/:draftId/photos/complete', ...guards, productMediaConfigurationReady, productAssistantHandler('complete'));
-  router.post('/admin/product-drafts/:draftId/photos/remove', ...guards, productAssistantHandler('remove'));
-  router.post('/admin/product-drafts/:draftId/suggest', ...guards, productAssistantHandler('suggest'));
-  router.post('/admin/product-drafts/:draftId/save', ...guards, productAssistantHandler('save'));
-  router.get('/admin/overview', ...guards, adminOverview);
-  router.get('/admin/reservations/:reservationId/payments', ...guards, validateObjectIdParam('reservationId'), adminPayments);
-  router.post('/admin/reservations/:reservationId/payments', ...guards, validateObjectIdParam('reservationId'), adminRecordPayment);
+  router.get('/admin/access', ...guards, adminAccess);
+  router.get('/admin/administrators', ...guards, requireAdminPermission('administrators'), administrators('list'));
+  router.post('/admin/administrators/lookup', ...guards, requireAdminPermission('administrators'), administrators('lookup'));
+  router.patch('/admin/administrators/:userId', ...guards, requireAdminPermission('administrators'), administrators('save'));
+  router.get('/admin/fitting-settings', ...guards, requireAdminPermission('settings'), fittingHandler('settings'));
+  router.patch('/admin/fitting-settings', ...guards, requireAdminPermission('settings'), fittingHandler('save-settings'));
+  router.get('/admin/fittings', ...guards, requireAdminPermission('fittings'), fittingHandler('list'));
+  router.post('/admin/fittings/:fittingId/actions', ...guards, requireAdminPermission('fittings'), fittingHandler('act'));
+  router.get('/admin/settings', ...guards, requireAdminPermission('settings'), readSiteSettings);
+  router.patch('/admin/settings', ...guards, requireAdminPermission('settings'), updateSiteSettings);
+  router.post('/admin/product-drafts', ...guards, requireAdminPermission('products'), productAssistantHandler('create'));
+  router.post('/admin/product-drafts/:draftId/photos/sign', ...guards, requireAdminPermission('products'), productMediaConfigurationReady, productAssistantHandler('sign'));
+  router.post('/admin/product-drafts/:draftId/photos/complete', ...guards, requireAdminPermission('products'), productMediaConfigurationReady, productAssistantHandler('complete'));
+  router.post('/admin/product-drafts/:draftId/photos/remove', ...guards, requireAdminPermission('products'), productAssistantHandler('remove'));
+  router.post('/admin/product-drafts/:draftId/suggest', ...guards, requireAdminPermission('products'), productAssistantHandler('suggest'));
+  router.post('/admin/product-drafts/:draftId/save', ...guards, requireAdminPermission('products'), productAssistantHandler('save'));
+  router.get('/admin/overview', ...guards, requireAdminPermission('reservations'), adminOverview);
+  router.get('/admin/reservations/:reservationId/payments', ...guards, requireAdminPermission('reservations'), validateObjectIdParam('reservationId'), adminPayments);
+  router.post('/admin/reservations/:reservationId/payments', ...guards, requireAdminPermission('reservations'), validateObjectIdParam('reservationId'), adminRecordPayment);
   const mediaHandlers = createAdminProductMediaHandlers(
     dependencies.productMediaService ?? productMediaService
   );
 
   router.get(
     '/admin/products',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateAdminProductListQuery,
     listAdminProducts
   );
 
   router.get(
     '/admin/products/:productId',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('productId'),
     getAdminProductDetail
   );
 
   router.post(
     '/admin/products',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateAdminCreateProduct,
     createAdminProduct
   );
 
   router.patch(
     '/admin/products/:productId',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('productId'),
     validateAdminUpdateProduct,
     updateAdminProduct
@@ -142,7 +148,7 @@ export const registerAdminRoutes = (
 
   router.post(
     '/admin/products/:productId/photos/sign',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     productMediaConfigurationReady,
     validateObjectIdParam('productId'),
     mediaHandlers.signProductPhotoUpload
@@ -150,7 +156,7 @@ export const registerAdminRoutes = (
 
   router.post(
     '/admin/products/:productId/photos/complete',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     productMediaConfigurationReady,
     validateObjectIdParam('productId'),
     validateAdminCompleteProductPhoto,
@@ -159,7 +165,7 @@ export const registerAdminRoutes = (
 
   router.patch(
     '/admin/products/:productId/photos/order',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     productMediaConfigurationReady,
     validateObjectIdParam('productId'),
     validateAdminReorderProductPhotos,
@@ -168,7 +174,7 @@ export const registerAdminRoutes = (
 
   router.patch(
     '/admin/products/:productId/photos',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     productMediaConfigurationReady,
     validateObjectIdParam('productId'),
     validateAdminUpdateProductPhotoAlt,
@@ -177,7 +183,7 @@ export const registerAdminRoutes = (
 
   router.delete(
     '/admin/products/:productId/photos',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     productMediaConfigurationReady,
     validateObjectIdParam('productId'),
     validateAdminDeleteProductPhoto,
@@ -186,28 +192,28 @@ export const registerAdminRoutes = (
 
   router.post(
     '/admin/products/:productId/activate',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('productId'),
     activateAdminProduct
   );
 
   router.post(
     '/admin/products/:productId/hide',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('productId'),
     hideAdminProduct
   );
 
   router.post(
     '/admin/products/:productId/archive',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('productId'),
     archiveAdminProduct
   );
 
   router.post(
     '/admin/products/:productId/variants',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('productId'),
     validateAdminCreateVariant,
     createAdminVariant
@@ -215,7 +221,7 @@ export const registerAdminRoutes = (
 
   router.patch(
     '/admin/variants/:variantId',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('variantId'),
     validateAdminUpdateVariant,
     updateAdminVariant
@@ -223,7 +229,7 @@ export const registerAdminRoutes = (
 
   router.post(
     '/admin/variants/:variantId/inventory-items',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('variantId'),
     validateAdminCreateInventoryItem,
     createAdminInventoryItem
@@ -231,7 +237,7 @@ export const registerAdminRoutes = (
 
   router.patch(
     '/admin/inventory-items/:inventoryItemId',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('inventoryItemId'),
     validateAdminUpdateInventoryItem,
     updateAdminInventoryItem
@@ -239,28 +245,28 @@ export const registerAdminRoutes = (
 
   router.post(
     '/admin/inventory-items/:inventoryItemId/maintenance',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('inventoryItemId'),
     moveAdminInventoryItemToMaintenance
   );
 
   router.post(
     '/admin/inventory-items/:inventoryItemId/activate',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('inventoryItemId'),
     activateAdminInventoryItem
   );
 
   router.post(
     '/admin/inventory-items/:inventoryItemId/retire',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('inventoryItemId'),
     retireAdminInventoryItem
   );
 
   router.get(
     '/admin/inventory-items/:inventoryItemId/availability-blocks',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('inventoryItemId'),
     validateAdminAvailabilityBlockListQuery,
     listAdminAvailabilityBlocks
@@ -268,7 +274,7 @@ export const registerAdminRoutes = (
 
   router.post(
     '/admin/inventory-items/:inventoryItemId/availability-blocks',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('inventoryItemId'),
     validateAdminCreateAvailabilityBlock,
     createAdminAvailabilityBlock
@@ -276,35 +282,35 @@ export const registerAdminRoutes = (
 
   router.delete(
     '/admin/availability-blocks/:availabilityBlockId',
-    ...guards,
+    ...guards, requireAdminPermission('products'),
     validateObjectIdParam('availabilityBlockId'),
     deleteAdminAvailabilityBlock
   );
 
   router.get(
     '/admin/reservations',
-    ...guards,
+    ...guards, requireAdminPermission('reservations'),
     validateAdminReservationListQuery,
     listAdminReservations
   );
 
   router.get(
     '/admin/reservations/calendar',
-    ...guards,
+    ...guards, requireAdminPermission('reservations'),
     validateAdminReservationCalendarQuery,
     getAdminReservationCalendar
   );
 
   router.get(
     '/admin/reservations/:reservationId',
-    ...guards,
+    ...guards, requireAdminPermission('reservations'),
     validateObjectIdParam('reservationId'),
     getAdminReservationDetail
   );
 
   router.patch(
     '/admin/reservations/:reservationId/notes',
-    ...guards,
+    ...guards, requireAdminPermission('reservations'),
     validateObjectIdParam('reservationId'),
     validateAdminUpdateReservationNotes,
     updateAdminReservationNotes
@@ -312,35 +318,35 @@ export const registerAdminRoutes = (
 
   router.post(
     '/admin/reservations/:reservationId/confirm',
-    ...guards,
+    ...guards, requireAdminPermission('reservations'),
     validateObjectIdParam('reservationId'),
     confirmAdminReservation
   );
 
   router.post(
     '/admin/reservations/:reservationId/prepare',
-    ...guards,
+    ...guards, requireAdminPermission('reservations'),
     validateObjectIdParam('reservationId'),
     prepareAdminReservation
   );
 
   router.post(
     '/admin/reservations/:reservationId/rent',
-    ...guards,
+    ...guards, requireAdminPermission('reservations'),
     validateObjectIdParam('reservationId'),
     rentAdminReservation
   );
 
   router.post(
     '/admin/reservations/:reservationId/return',
-    ...guards,
+    ...guards, requireAdminPermission('reservations'),
     validateObjectIdParam('reservationId'),
     returnAdminReservation
   );
 
   router.post(
     '/admin/reservations/:reservationId/cancel',
-    ...guards,
+    ...guards, requireAdminPermission('reservations'),
     validateObjectIdParam('reservationId'),
     validateAdminCancelReservation,
     cancelAdminReservation
