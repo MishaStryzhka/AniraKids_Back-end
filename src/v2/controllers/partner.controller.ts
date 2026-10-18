@@ -486,7 +486,7 @@ export function partnerHandler(action: string): HttpHandler {
           ...scope,
           date: { $gte: from, $lt: to },
         })
-          .sort({ date: 1, time: 1 })
+          .sort({ createdAt: -1, _id: -1 })
           .limit(501)
           .lean()
           .exec()) as any[];
