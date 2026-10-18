@@ -1,0 +1,26 @@
+name: Owner Fitting Push Verify
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/v2/**'
+      - 'scripts/check-admin-push.js'
+      - 'docs/admin-web-push.md'
+      - '.github/workflows/admin-push-verify.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with: {node-version: 20, cache: npm}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build:v2
+      - run: node scripts/check-admin-push.js
+      - run: node scripts/check-fitting-email.js

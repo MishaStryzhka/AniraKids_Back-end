@@ -1,4 +1,5 @@
 import {createHash} from 'crypto';
+import {notifyOwnerFittingPaymentReported} from '../services/admin-push.service';
 import {authenticateLegacyBearer,parseBearerAuthorization} from '../auth/legacy-bearer';
 import {FittingModel} from '../models/fitting.model';
 import {expireFittings,FittingError,publicFitting} from '../services/fitting.service';
@@ -37,7 +38,10 @@ export function customerFittingHandler(action:'list'|'read'|'claim'|'report'|'ca
    }
    const filter={number,customerId};
    if(!await FittingModel.exists(filter))throw new FittingError('FITTING_NOT_FOUND',404);
-   if(action==='report')await FittingModel.updateOne({...filter,status:'pending',expiresAt:{$gt:now}},{$set:{status:'review'},$inc:{revision:1},$push:{audit:{action:'payment_reported',at:now,by:customerId.toHexString()}}}).exec();
+   if(action==='report') {
+    const changed = await FittingModel.updateOne({...filter,status:'pending',expiresAt:{$gt:now}},{$set:{status:'review'},$inc:{revision:1},$push:{audit:{action:'payment_reported',at:now,by:customerId.toHexString()}}}).exec();
+    if (changed.modifiedCount) await notifyOwnerFittingPaymentReported();
+   }
    if(action==='cancel')await FittingModel.updateOne({...filter,status:{$in:['pending','review','confirmed']}},{$set:{status:'cancelled'},$unset:{slotKey:1,activeEmail:1},$inc:{revision:1},$push:{audit:{action:'cancelled',at:now,by:customerId.toHexString()}}}).exec();
    const record=await FittingModel.findOne(filter).lean().exec();
    if(!record)throw new FittingError('FITTING_NOT_FOUND',404);
