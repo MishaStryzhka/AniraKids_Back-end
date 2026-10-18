@@ -14,7 +14,7 @@ const { ProductMediaService } = require('../build/v2/services/product-media.serv
 const { mapAdminApiError } = require('../build/v2/http/admin-error-mapper');
 const { validateUpdateProductAdminBody } = require('../build/v2/schemas/admin-catalogue.schema');
 
-const {SiteSettingsModel, SITE_SETTINGS_ID, getSiteSettings, patchSiteSettings, parseSiteSettingsPatch} = require('../build/v2/services/site-settings.service');
+const {SiteSettingsModel, SITE_SETTINGS_ID, DEFAULT_CATALOGUE_FILTERS, getSiteSettings, patchSiteSettings, parseSiteSettingsPatch} = require('../build/v2/services/site-settings.service');
 const conflictMessage = 'Product changed during the operation. Refresh and try again.';
 const context = new AsyncLocalStorage();
 const service = new CatalogueAdminService();
@@ -221,15 +221,18 @@ async function suite() {
   await require('./check-admin-permissions-integration')({test,registry,insertOwned});
   await test('Site settings persist only supplied booleans and preserve independent concurrent changes', async () => {
     registry.get(SiteSettingsModel).push(SITE_SETTINGS_ID);
-    assert.deepEqual(await getSiteSettings(),{sections:{suits:true,familyLooks:false}});
+    assert.deepEqual(await getSiteSettings(),{sections:{girlsDresses:true,womenDresses:true,suits:true,familyLooks:false},filters:DEFAULT_CATALOGUE_FILTERS});
     for(const body of [undefined,{}, {sections:{}}, {sections:{suits:'false'}}, {sections:{suits:0}},
       {sections:{familyLooks:null}}, {sections:{unknown:true}}, {sections:{suits:true},admin:true}])
       assert.equal(parseSiteSettingsPatch(body),null);
-    assert.deepEqual(parseSiteSettingsPatch({sections:{suits:false}}),{suits:false});
+    assert.deepEqual(parseSiteSettingsPatch({sections:{suits:false}}),{sections:{suits:false}});
     await Promise.all([patchSiteSettings({suits:false}),patchSiteSettings({familyLooks:true})]);
-    assert.deepEqual(await getSiteSettings(),{sections:{suits:false,familyLooks:true}});
+    assert.deepEqual(await getSiteSettings(),{sections:{girlsDresses:true,womenDresses:true,suits:false,familyLooks:true},filters:DEFAULT_CATALOGUE_FILTERS});
     await patchSiteSettings({familyLooks:false});
-    assert.deepEqual(await getSiteSettings(),{sections:{suits:false,familyLooks:false}});
+    assert.deepEqual(await getSiteSettings(),{sections:{girlsDresses:true,womenDresses:true,suits:false,familyLooks:false},filters:DEFAULT_CATALOGUE_FILTERS});
+    for(const body of [{filters:{girlsDresses:['gender']}},{filters:{suits:['color','color']}},{filters:{familyLooks:['unknown']}},{filters:{}},{filters:{suits:null}}])assert.equal(parseSiteSettingsPatch(body),null);
+    await Promise.all([patchSiteSettings({girlsDresses:false}),patchSiteSettings({}, {womenDresses:[],suits:['color']})]);
+    const saved=await getSiteSettings();assert.equal(saved.sections.girlsDresses,false);assert.equal(saved.sections.womenDresses,true);assert.deepEqual(saved.filters.womenDresses,[]);assert.deepEqual(saved.filters.suits,['color']);assert.deepEqual(saved.filters.girlsDresses,DEFAULT_CATALOGUE_FILTERS.girlsDresses);
     assert.equal(await SiteSettingsModel.countDocuments({}),1);
   });
 
