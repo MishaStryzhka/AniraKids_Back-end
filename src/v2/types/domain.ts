@@ -173,6 +173,8 @@ export interface CustomerSnapshot {
 }
 
 export interface Reservation {
+  partner?: import('../services/partner-referral.service').PartnerAttribution;
+  partnerAudit?: Array<{action:string;at:Date;by:string}>;
   fittingCreditId?: string;
   advanceRequired?: number;
   paymentRevision?: number;

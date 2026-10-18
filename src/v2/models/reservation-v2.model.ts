@@ -1,4 +1,5 @@
 import { PAYMENT_ENTRY_TYPES } from '../services/payment.types';
+import {partnerAttributionSchema} from './partner.model';
 import { model, models, Schema, type Model } from 'mongoose';
 
 import {
@@ -107,6 +108,8 @@ const paymentEntrySchema = new Schema({
 
 export const ReservationV2Schema = new Schema<Reservation>(
   {
+    partner: {type: partnerAttributionSchema},
+    partnerAudit: [{_id:false,action:String,at:Date,by:String}],
     fittingCreditId: { type: String },
     advanceRequired: { type: Number, min: 0, max: 200, validate: Number.isSafeInteger },
     paymentRevision: { type: Number, min: 0, validate: Number.isSafeInteger },

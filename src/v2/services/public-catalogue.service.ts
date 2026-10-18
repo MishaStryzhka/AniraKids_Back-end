@@ -1,4 +1,5 @@
 import { resolveProductSeo } from '../utils/product-seo';
+import {PartnerModel} from '../models/partner.model';
 import { colorKey, colorLabel, colorKeysExpression } from '../utils/product-colors';
 import { compareSizes, fitSizesExpression } from '../utils/variant-sizes';
 import { Types, PipelineStage } from 'mongoose';
@@ -281,6 +282,7 @@ export class PublicCatalogueService {
         available: result.available,
         checkedAt: now.toISOString(),
         pricing: quote,
+        ...(product.category==='dress'&&await PartnerModel.exists({_id:'blaze',enabled:true})?{additionalDressDiscount:20}:{}),
       },
     };
   }

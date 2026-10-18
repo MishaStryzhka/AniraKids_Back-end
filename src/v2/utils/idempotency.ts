@@ -30,6 +30,7 @@ export class IdempotencyConfigurationError extends Error {
 }
 
 export interface ReservationFingerprintInput {
+  referralToken?: string;
   items?: Array<{ productId: string; variantId: string }>;
   productId: string;
   variantId: string;
@@ -92,6 +93,7 @@ export const normalizeReservationFingerprint = (
       phone: customer.phone,
     },
     notes,
+    ...(input.referralToken ? {referralToken:input.referralToken} : {}),
     authenticatedUserId,
     ...(input.items ? { items: input.items.map(item => ({
       productId: item.productId.toLowerCase(), variantId: item.variantId.toLowerCase(),

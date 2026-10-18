@@ -13,6 +13,7 @@ import type {
 } from '../types/domain';
 import {
   calculateReservationTotals,
+  discountAdditionalDresses,
   resolveRentalPricing,
 } from '../utils/pricing';
 import {
@@ -298,6 +299,7 @@ export class ReservationService {
 
         try {
           const reservationDocument = await createReservationAtomically({
+            partner: command.partner,
             reservationNumber,
             customerId: command.customerId,
             guestAccessTokenHash: guestToken?.hash,
@@ -406,7 +408,7 @@ export class ReservationService {
     now: Date, options?: CreateReservationOptions
   ): Promise<CreateReservationResult> {
     if (!command.items?.length || command.items.length > 20) throw new TypeError('Invalid reservation items');
-    const resolved = [];
+    let resolved = [];
     for (const selection of command.items) {
       const product = await ProductV2Model.findById(selection.productId).exec();
       if (!product) throw new ReservationServiceError('PRODUCT_NOT_FOUND', 'Product not found');
@@ -420,6 +422,7 @@ export class ReservationService {
         throw new ReservationServiceError('VARIANT_PRODUCT_MISMATCH', 'Variant does not belong to product');
       resolved.push({ product, variant, pricing: resolveRentalPricing(product, variant, command.rentalMode) });
     }
+    if(command.partner)resolved=discountAdditionalDresses(resolved);
     const totals = calculateReservationTotals(resolved.map(item => item.pricing));
     const guestToken = command.customerId ? undefined :
       options?.idempotency?.guestAccessToken ?? generateGuestAccessToken();
@@ -446,6 +449,7 @@ export class ReservationService {
       for (let numberAttempt = 0; numberAttempt < MAX_RESERVATION_NUMBER_ATTEMPTS; numberAttempt++) {
         try {
           const document = await createReservationAtomically({
+            partner: command.partner,
             reservationNumber: generateReservationNumber(now),
             customerId: command.customerId, guestAccessTokenHash: guestToken?.hash,
             idempotencyKeyHash: options?.idempotency?.keyHash,

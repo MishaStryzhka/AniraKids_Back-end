@@ -100,7 +100,7 @@ export const readPayments = async (id: Types.ObjectId) => {
   return paymentSummary(r);
 };
 
-export const recordPayment = async (id: Types.ObjectId, input: PaymentInput, actor: string, fittingCreditId?: string) => {
+export const recordPayment = async (id: Types.ObjectId, input: PaymentInput, actor: string, fittingCreditId?: string, fittingPartner?:import('./partner-referral.service').PartnerAttribution) => {
   const r = await ReservationV2Model.findById(id).lean().exec();
   if (!r) throw new PaymentError('RESERVATION_NOT_FOUND', 404);
   const existing = r.paymentEntries?.find(e => e.operationId === input.operationId);
@@ -121,7 +121,7 @@ export const recordPayment = async (id: Types.ObjectId, input: PaymentInput, act
     ...(fittingCreditId ? {fittingCreditId: {$exists:false}, ...(r.status === 'pending' ? {expiresAt: {$gt: new Date()}} : {})} : {}),
     ...(r.paymentRevision === undefined ? { paymentRevision: { $exists: false } } : { paymentRevision: expectedRevision }),
     'paymentEntries.operationId': { $ne: input.operationId },
-  }, { $push: { paymentEntries: entry }, $inc: { paymentRevision: 1 }, $set: { paymentStatus, ...(fittingCreditId ? {fittingCreditId} : {}) } }, { new: true, runValidators: true }).lean().exec();
+  }, { $push: { paymentEntries: entry }, $inc: { paymentRevision: 1 }, $set: { paymentStatus, ...(fittingCreditId ? {fittingCreditId,...(fittingPartner?{partner:fittingPartner}:{})} : {}) } }, { new: true, runValidators: true }).lean().exec();
   if (updated) return paymentSummary(updated);
   const current = await ReservationV2Model.findById(id).lean().exec();
   const replay = current?.paymentEntries?.find(e => e.operationId === input.operationId);
