@@ -1,5 +1,6 @@
 import {adminAccess,administrators} from '../controllers/admin-access.controller';
 import {fittingHandler} from '../controllers/fitting.controller';
+import {adminPushHandler} from '../controllers/admin-push.controller';
 import {readSiteSettings, updateSiteSettings} from '../controllers/site-settings.controller';
 import {productAssistantHandler} from '../controllers/product-assistant.controller';
 import { adminOverview } from '../controllers/admin-overview.controller';
@@ -100,6 +101,9 @@ export const registerAdminRoutes = (
   router.patch('/admin/administrators/:userId', ...guards, requireAdminPermission('administrators'), administrators('save'));
   router.get('/admin/fitting-settings', ...guards, requireAdminPermission('settings'), fittingHandler('settings'));
   router.patch('/admin/fitting-settings', ...guards, requireAdminPermission('settings'), fittingHandler('save-settings'));
+  router.get('/admin/push/config', ...guards, requireAdminPermission('fittings'), adminPushHandler('config'));
+  router.post('/admin/push/subscribe', ...guards, requireAdminPermission('fittings'), adminPushHandler('subscribe'));
+  router.post('/admin/push/unsubscribe', ...guards, requireAdminPermission('fittings'), adminPushHandler('unsubscribe'));
   router.get('/admin/fittings', ...guards, requireAdminPermission('fittings'), fittingHandler('list'));
   router.post('/admin/fittings/:fittingId/actions', ...guards, requireAdminPermission('fittings'), fittingHandler('act'));
   router.get('/admin/settings', ...guards, requireAdminPermission('settings'), readSiteSettings);
