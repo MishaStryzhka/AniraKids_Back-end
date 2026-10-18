@@ -52,6 +52,11 @@ on:
       - helpers/publicUser.js
       - scripts/check-seznam-auth.js
       - helpers/sendEmail.js
+      - helpers/fittingEmail*.js
+      - src/v2/services/fitting*.ts
+      - src/v2/models/fitting.model.ts
+      - scripts/check-fitting*.js
+      - scripts/fitting-email-fixture.js
       - controllers/auth/verifiedEmail/verifiedEmail.js
       - controllers/auth/refreshEmail.js
       - scripts/check-email-delivery.js
@@ -98,6 +103,7 @@ jobs:
           node scripts/check-seznam-auth.js
           node scripts/check-google-auth.js
           node scripts/check-email-delivery.js
+          node scripts/check-fitting-email.js
           node scripts/check-verification-email.js
       - name: Public input validation
         run: node scripts/check-v2-public-catalogue.js

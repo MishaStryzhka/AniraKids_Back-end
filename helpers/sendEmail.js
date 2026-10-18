@@ -3,7 +3,7 @@ const nodemailer = require('nodemailer');
 
 // Keep the current provider until SMTP credentials have been provisioned.
 // Never automatically retry through another provider: acceptance can be ambiguous.
-const sendEmail = async ({ to, text, html, subject }) => {
+const sendEmail = async ({ to, text, html, subject, attachments }) => {
   const provider = process.env.EMAIL_PROVIDER || 'sendgrid';
   const message = {
     to,
@@ -25,7 +25,10 @@ const sendEmail = async ({ to, text, html, subject }) => {
         connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000,
         logger: false, debug: false,
       });
-      const result = await transport.sendMail(message);
+      const result = await transport.sendMail({ ...message, ...(attachments ? {
+        attachments: attachments.map(a => ({ filename: a.filename, content: a.content,
+          encoding: 'base64', contentType: a.type, cid: a.content_id, contentDisposition: 'inline' })),
+      } : {}) });
       if (!result.accepted || result.accepted.length === 0 ||
           (result.rejected && result.rejected.length > 0)) {
         throw new Error('SMTP did not accept every recipient');
@@ -41,7 +44,9 @@ const sendEmail = async ({ to, text, html, subject }) => {
   }
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
   try {
-    await sgMail.send(message);
+    await sgMail.send({ ...message, ...(attachments ? { attachments } : {}),
+      trackingSettings: { clickTracking: { enable: false, enableText: false }, openTracking: { enable: false } },
+    });
   } catch (_error) {
     throw new Error('Email provider did not accept the message');
   }

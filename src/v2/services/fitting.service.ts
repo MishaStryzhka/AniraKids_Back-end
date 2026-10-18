@@ -9,6 +9,7 @@ import {BOOKING_POLICY} from './booking-policy';
 import {getFittingSettings,fittingSlots} from './fitting-settings.service';
 import {paymentSummary,recordPayment} from './payment.service';
 import {parseDateOnly} from '../utils/date-only';
+import {notifyFitting} from './fitting-email.service';
 export class FittingError extends Error{constructor(public code:string,public status=409){super(code);}}
 const hash=(v:string)=>createHash('sha256').update(v).digest('hex');
 const createSchema=Joi.object({operationId:Joi.string().guid({version:['uuidv4']}).required(),token:Joi.string().pattern(/^[a-f0-9]{64}$/).required(),date:Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),time:Joi.string().pattern(/^(?:[01]\d|2[0-3]):(?:00|30)$/).required(),name:Joi.string().trim().min(2).max(160).required(),email:Joi.string().email({tlds:{allow:false}}).max(254).required(),phone:Joi.string().trim().pattern(/^\+?[\d ()-]{5,32}$/).required(),productId:Joi.string().hex().length(24)}).unknown(false);
@@ -26,7 +27,7 @@ export async function createFitting(body:unknown,now=new Date(),customerId?:Type
  const v=parseFittingCreate(body),requestHash=hash(JSON.stringify([v.operationId,v.date,v.time,v.name,v.email,v.phone,v.productId||'',...(customerId?[customerId.toHexString()]:[]),...(partner?[partner]:[])]));
  await FittingModel.createIndexes();
  const replay=await FittingModel.findOne({operationId:v.operationId}).select('+tokenHash +requestHash').lean().exec() as any;
- if(replay){if(replay.tokenHash!==hash(v.token)||replay.requestHash!==requestHash)throw new FittingError('IDEMPOTENCY_CONFLICT');return publicFitting(replay,now);}
+ if(replay){if(replay.tokenHash!==hash(v.token)||replay.requestHash!==requestHash)throw new FittingError('IDEMPOTENCY_CONFLICT');if(replay.status==='pending'&&new Date(replay.expiresAt)>now)await notifyFitting(replay,'created',v.token);return publicFitting(replay,now);}
  const settings=await getFittingSettings(),slot=fittingSlots(v.date,settings,now).find(s=>s.time===v.time);
  if(!slot)throw new FittingError('SLOT_UNAVAILABLE');
  let product: {id:string;name:string;slug:string}|undefined;
@@ -34,9 +35,10 @@ export async function createFitting(body:unknown,now=new Date(),customerId?:Type
  await expireFittings(now);
  try{
   const doc=await FittingModel.create({partner,customerId,operationId:v.operationId,tokenHash:hash(v.token),requestHash,number:'ZK-'+randomUUID().replace(/-/g,'').slice(0,12).toUpperCase(),date:v.date,time:v.time,startAt:slot.startAt,address:settings.address,slotKey:v.date+'T'+v.time,activeEmail:hash(v.email),expiresAt:new Date(now.getTime()+60*60000),status:'pending',paymentStatus:'unpaid',customer:{name:v.name,email:v.email,phone:v.phone},product,creditOperationId:randomUUID(),revision:0,audit:[{action:'created',at:now,by:partner?.createdBy||'customer'}]});
+  await notifyFitting(doc.toObject(),'created',v.token);
   return publicFitting(doc.toObject(),now);
  }catch(error){
-  if((error as any).code===11000){const winner=await FittingModel.findOne({operationId:v.operationId}).select('+tokenHash +requestHash').lean().exec() as any;if(winner&&winner.tokenHash===hash(v.token)&&winner.requestHash===requestHash)return publicFitting(winner,now);throw new FittingError('SLOT_OR_PENDING_CONFLICT');}throw error;
+  if((error as any).code===11000){const winner=await FittingModel.findOne({operationId:v.operationId}).select('+tokenHash +requestHash').lean().exec() as any;if(winner&&winner.tokenHash===hash(v.token)&&winner.requestHash===requestHash){if(winner.status==='pending'&&new Date(winner.expiresAt)>now)await notifyFitting(winner,'created',v.token);return publicFitting(winner,now);}throw new FittingError('SLOT_OR_PENDING_CONFLICT');}throw error;
  }
 }
 export function publicFitting(doc:any,now=new Date()){
@@ -100,5 +102,6 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
  }
  try{const changed=await FittingModel.updateOne({_id:doc._id,revision:doc.revision},{$set:set,$unset:unset,$inc:{revision:1},$push:{audit:{action:body.action,at:now,by:actor}}}).exec();if(!changed.modifiedCount)throw new FittingError('FITTING_CONFLICT');}
  catch(e){if((e as any).code===11000)throw new FittingError('SLOT_UNAVAILABLE');throw e;}
+ if(body.action==='confirm')await notifyFitting({...doc,...set},'confirmed');
  return {ok:true};
 }

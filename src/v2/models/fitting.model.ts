@@ -9,6 +9,7 @@ const schema=new Schema({
  paymentStatus:{type:String,enum:['unpaid','paid','refunded'],required:true},
  customer:{name:String,email:String,phone:String},product:{id:String,name:String,slug:String},
  creditOperationId:{type:String,required:true},revision:{type:Number,default:0},
+ emailDelivery:{created:{status:String,attemptedAt:Date,sentAt:Date},confirmed:{status:String,attemptedAt:Date,sentAt:Date}},
  audit:[{_id:false,action:String,at:Date,by:String}],
 },{collection:'v2_fittings',timestamps:true,strict:'throw'});
 schema.index({operationId:1},{unique:true});schema.index({number:1},{unique:true});
