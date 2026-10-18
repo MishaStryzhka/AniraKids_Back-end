@@ -19,6 +19,8 @@ on:
       - src/v2/services/reservation.service.ts
       - src/v2/services/reservation.types.ts
       - src/v2/schemas/reservation.schema.ts
+      - src/v2/utils/pricing.ts
+      - scripts/check-v2-utils.js
       - src/v2/utils/idempotency.ts
       - src/v2/middleware/idempotency.middleware.ts
       - src/v2/controllers/reservation.controller.ts

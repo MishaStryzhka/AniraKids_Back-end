@@ -70,7 +70,8 @@ export const resolveRentalPricing = (
   rentalMode: RentalMode
 ): ResolvedRentalPricing => ({
   rentalPrice: resolveRentalPrice(product, variant, rentalMode),
-  deposit: resolveDeposit(product, variant),
+  // Studio use does not require a refundable security deposit.
+  deposit: rentalMode === 'studio' ? 0 : resolveDeposit(product, variant),
 });
 
 export const calculateReservationTotals = (
