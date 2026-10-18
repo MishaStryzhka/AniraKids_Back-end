@@ -2,6 +2,14 @@ import {createHash, createPrivateKey, sign} from 'crypto';
 import {Types} from 'mongoose';
 import {AdminPushSubscriptionModel} from '../models/admin-push-subscription.model';
 
+export const PUSH_TOPICS = ['fitting_payment_reported'] as const;
+export type PushTopic = typeof PUSH_TOPICS[number];
+export function parsePushTopics(input: unknown): PushTopic[] | null {
+  if (!Array.isArray(input) || input.length > PUSH_TOPICS.length ||
+      !input.every(v => typeof v === 'string' && PUSH_TOPICS.includes(v as PushTopic))) return null;
+  return [...new Set(input)] as PushTopic[];
+}
+
 // Empty-payload Web Push: no personal or payment details leave the API.
 // The service worker displays a fixed Czech notification and opens the admin fittings view.
 const hashEndpoint = (endpoint: string) => createHash('sha256').update(endpoint).digest('hex');
@@ -36,15 +44,26 @@ export function pushVapidConfig() {
   return {enabled, publicKey: enabled ? publicKey : '', privateKey, subject};
 }
 
-export async function registerOwnerPush(ownerId: Types.ObjectId, endpoint: string) {
+export async function registerOwnerPush(ownerId: Types.ObjectId, endpoint: string, topics: PushTopic[] = ['fitting_payment_reported']) {
   if (!validPushEndpoint(endpoint)) throw new Error('INVALID_PUSH_ENDPOINT');
   const existing = await AdminPushSubscriptionModel.countDocuments({ownerId}).exec();
   const endpointHash = hashEndpoint(endpoint);
+  const previous = await AdminPushSubscriptionModel.findOne({endpointHash}).select('ownerId').lean().exec();
+  if (previous && String(previous.ownerId) !== String(ownerId)) throw new Error('PUSH_OWNER_CONFLICT');
   if (existing >= 10 && !await AdminPushSubscriptionModel.exists({ownerId, endpointHash})) {
     throw new Error('PUSH_DEVICE_LIMIT');
   }
   await AdminPushSubscriptionModel.updateOne({endpointHash},
-    {$set: {endpoint, ownerId}}, {upsert: true}).exec();
+    {$set: {endpoint, ownerId, topics}}, {upsert: true}).exec();
+}
+
+export async function ownerPushPreferences(ownerId: Types.ObjectId, endpoint: string) {
+  if (!validPushEndpoint(endpoint)) throw new Error('INVALID_PUSH_ENDPOINT');
+  const record = await AdminPushSubscriptionModel.findOne({ownerId, endpointHash: hashEndpoint(endpoint)})
+    .select('topics').lean().exec() as {topics?: string[]} | null;
+  return {subscribed: Boolean(record), topics: record
+    ? (record.topics === undefined ? ['fitting_payment_reported'] :
+        (parsePushTopics(record.topics) || [])) : []};
 }
 
 export async function unregisterOwnerPush(ownerId: Types.ObjectId, endpoint: string) {
@@ -98,7 +117,10 @@ export async function notifyOwnerFittingPaymentReported() {
   const config = pushVapidConfig();
   if (!config.enabled) return;
   try {
-    const subscriptions = await AdminPushSubscriptionModel.find({})
+    // Preserve legacy subscriptions without the topics field as opted into the original alert.
+    const subscriptions = await AdminPushSubscriptionModel.find({$or: [
+      {topics: 'fitting_payment_reported'}, {topics: {$exists: false}},
+    ]})
       .select('endpoint endpointHash').limit(50).lean().exec() as Array<{endpoint: string; endpointHash: string}>;
     await Promise.allSettled(subscriptions.map(subscription => deliver(subscription, config)));
   } catch {
