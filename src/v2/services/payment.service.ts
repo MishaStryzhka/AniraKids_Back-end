@@ -83,6 +83,8 @@ export const validatePaymentChange = (r: Reservation, input: PaymentInput): void
   // Late transfers still have to be recorded and refunded, without reviving a booking.
   if (input.type.endsWith('_received') && r.status === 'cancelled' && (!input.note || input.note.trim().length < 5)) throw new PaymentError('PAYMENT_NOT_ALLOWED');
   const amount = input.amount;
+  if (input.type === 'deposit_received' && amount < r.deposit - s.depositHeld)
+    throw new PaymentError('PAYMENT_FULL_DEPOSIT_REQUIRED');
   const invalid =
     (input.type === 'advance_received' && amount > Math.max(0, (r.advanceRequired ?? Math.min(200, r.subtotal)) - s.rentalNet - s.fittingCredit)) ||
     (input.type === 'rental_received' && amount > r.subtotal - s.rentalNet) ||
