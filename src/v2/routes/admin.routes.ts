@@ -105,6 +105,7 @@ export const registerAdminRoutes = (
   router.post('/admin/push/subscribe', ...guards, requireAdminPermission('fittings'), adminPushHandler('subscribe'));
   router.post('/admin/push/unsubscribe', ...guards, requireAdminPermission('fittings'), adminPushHandler('unsubscribe'));
   router.post('/admin/push/preferences', ...guards, requireAdminPermission('fittings'), adminPushHandler('preferences'));
+  router.get('/admin/reservations/:reservationId/fitting-discount', ...guards, requireAdminPermission('reservations'), requireAdminPermission('fittings'), fittingHandler('discount-options'));
   router.get('/admin/fittings', ...guards, requireAdminPermission('fittings'), fittingHandler('list'));
   router.post('/admin/fittings/:fittingId/actions', ...guards, requireAdminPermission('fittings'), fittingHandler('act'));
   router.get('/admin/settings', ...guards, requireAdminPermission('settings'), readSiteSettings);
