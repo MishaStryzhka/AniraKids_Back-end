@@ -25,7 +25,7 @@ async function main(){
  const {customerDiscountOptions:options,releaseUnusedFittingDiscounts:release}=require('../build/v2/services/fitting-discount.service');
  const {notifyFittingDiscount}=require('../build/v2/services/fitting-discount-email.service');
  const {actOnFitting}=require('../build/v2/services/fitting.service');
- const {recordPayment}=require('../build/v2/services/payment.service');
+ const {recordPayment,paymentSummary,publicPaymentSummary}=require('../build/v2/services/payment.service');
  const {hashReservationFingerprint}=require('../build/v2/utils/idempotency');
  const {randomBytes,randomUUID,createHash}=require('crypto');
  await Promise.all([F.init(),R.init(),I.init(),B.init()]);
@@ -34,7 +34,7 @@ async function main(){
  assert.equal((await options(owner)).items.length,1);assert.equal((await options(other)).items.length,0);assert.equal((await options()).items.length,0);
  assert.equal((await options(undefined,{number:fit.number,token:'0'.repeat(64)})).items.length,0);
  assert.equal((await options(undefined,{number:fit.number,token})).items.length,1);
- await Promise.all([notifyFittingDiscount(fit.toObject()),notifyFittingDiscount(fit.toObject())]);assert.equal(emails.length,1);assert.match(emails[0].text,/Vybrat šaty se slevou 200 Kč/);
+ await Promise.all([notifyFittingDiscount(fit.toObject()),notifyFittingDiscount(fit.toObject())]);assert.equal(emails.length,1);assert.match(emails[0].text,/Vybrat šaty a započíst 200 Kč/);
  const capability=emails[0].text.match(/#fitting=ZK-ABCDEF123456&token=([a-f0-9]{64})/)[1];
  assert.equal((await options(undefined,{number:fit.number,token:capability})).items.length,1);
  let sequence=0;
@@ -45,7 +45,29 @@ async function main(){
  const winning=concurrent.find(r=>r.status==='fulfilled').value;assert.equal(winning.subtotal,800);assert.equal(winning.totalDue,1300);assert.equal(winning.items[0].rentalPriceSnapshot,1000);assert.equal(winning.paymentEntries.length,0);assert.equal((await options(owner)).items.length,0);
  await R.updateOne({_id:winning._id},{$set:{expiresAt:new Date(now.getTime()-1)}});await release(now);const expired=await R.findById(winning._id);assert.equal(expired.fittingCreditId,undefined);assert.equal(expired.subtotal,1000);assert.equal(expired.paymentRevision,1);assert.equal((await options(owner)).items.length,1);
  const again=await create(await input());await R.updateOne({_id:again._id},{$set:{status:'cancelled'}});await release(now);assert.equal((await options(owner)).items.length,1);
- const paid=await create(await input());await recordPayment(paid._id,{operationId:randomUUID(),expectedRevision:0,type:'advance_received',amount:200,method:'bank_transfer'},'fixture');await R.updateOne({_id:paid._id},{$set:{status:'cancelled'}});await release(now);assert.equal((await options(owner)).items.length,0);assert.equal((await R.findById(paid._id)).fittingCreditId,String(fit._id));
+ const paid=await create(await input());
+ assert.equal(paymentSummary(paid).advanceBalance,0);
+ assert.equal(paymentSummary(paid).fittingCredit,200);
+ assert.equal(publicPaymentSummary(paid).paymentInstructions,null);
+ assert.equal(publicPaymentSummary(paid).fullPaymentInstructions.amount,1300);
+ await assert.rejects(recordPayment(paid._id,{operationId:randomUUID(),expectedRevision:0,type:'advance_received',amount:200,method:'bank_transfer'},'fixture'),e=>e.code==='PAYMENT_LIMIT_EXCEEDED');
+ await recordPayment(paid._id,{operationId:randomUUID(),expectedRevision:0,type:'rental_received',amount:200,method:'bank_transfer'},'fixture');await R.updateOne({_id:paid._id},{$set:{status:'cancelled'}});await release(now);assert.equal((await options(owner)).items.length,0);assert.equal((await R.findById(paid._id)).fittingCreditId,String(fit._id));
+ // Existing 800 Kč reservation: the paid fitting covers the advance once,
+ // leaves 600 Kč (not 400 Kč), and never invents another payment entry.
+ const studio={...paid,items:[{...paid.items[0],rentalPriceSnapshot:800,depositSnapshot:0}],subtotal:600,deposit:0,totalDue:600,paymentEntries:[]};
+ const before=JSON.stringify(studio);
+ for(let i=0;i<2;i++){
+  assert.equal(paymentSummary(studio).advanceBalance,0);
+  assert.equal(paymentSummary(studio).rentalBalance,600);
+  assert.equal(paymentSummary(studio).rentalReceived,0);
+  assert.equal(publicPaymentSummary(studio).paymentInstructions,null);
+  assert.match(publicPaymentSummary(studio).fullPaymentInstructions.qrPayload,/\*AM:600\.00\*/);
+ }
+ assert.equal(JSON.stringify(studio),before);
+ const extra={...studio,paymentEntries:[{operationId:randomUUID(),type:'rental_received',amount:200,method:'cash',recordedAt:now,recordedBy:'fixture'}]};
+ assert.equal(paymentSummary(extra).rentalBalance,400);
+ const legacy={...studio,subtotal:800,totalDue:800,fittingDiscount:undefined,paymentEntries:extra.paymentEntries};
+ assert.equal(paymentSummary(legacy).fittingCredit,0);assert.equal(paymentSummary(legacy).rentalBalance,600);assert.equal(paymentSummary(legacy).advanceBalance,0);
  const freeFit=await F.create({...fit.toObject(),_id:new mongoose.Types.ObjectId(),number:'ZK-ABCDEF123457',operationId:randomUUID()});
  const manualData=await input(null);manualData.status='confirmed';manualData.paymentEntries=[{operationId:randomUUID(),type:'rental_received',amount:1000,method:'cash',recordedAt:now,recordedBy:'fixture'}];const manual=await R.create(manualData);
  await actOnFitting(String(freeFit._id),{action:'credit',revision:0,reservationNumber:manual.reservationNumber},'fixture');const adjusted=await R.findById(manual._id);assert.equal(adjusted.subtotal,800);assert.equal(adjusted.paymentEntries[0].amount,1000);

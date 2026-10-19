@@ -21,7 +21,7 @@ export async function invoicePreview(input:any,session?:mongoose.ClientSession,a
  const total=fitting?200:source.subtotal;
  const paid=fitting?(source.paymentStatus==='paid'?200:0):summary!.rentalNet;
  const lines=fitting?[{description:'Osobní zkouška šatů',amount:200}]:source.items.map((i:any)=>({description:`Pronájem: ${i.productNameSnapshot} (${i.sizeSnapshot})`,amount:i.rentalPriceSnapshot}));
- if(!fitting&&source.fittingDiscount)lines.push({description:`Sleva za zkoušku ${source.fittingDiscount.number}`,amount:-source.fittingDiscount.amount});
+ if(!fitting&&source.fittingDiscount)lines.push({description:`Započtená platba za zkoušku ${source.fittingDiscount.number}`,amount:-source.fittingDiscount.amount});
  if(lines.reduce((n:number,l:any)=>n+l.amount,0)!==total)throw new PaymentError('INVOICE_TOTAL_MISMATCH');
  const completion=fitting?source.audit?.filter((a:any)=>a.action==='complete').slice(-1)[0]?.at:source.partnerAudit?.filter((a:any)=>a.action==='return').slice(-1)[0]?.at;
  const receiptDate=fitting?source.audit?.filter((a:any)=>a.action==='confirm').slice(-1)[0]?.at:summary?.entries.filter(e=>['advance_received','rental_received'].includes(e.type)).slice(-1)[0]?.recordedAt;
