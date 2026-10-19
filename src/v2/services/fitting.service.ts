@@ -7,7 +7,7 @@ import {ProductV2Model} from '../models/product-v2.model';
 import {ReservationV2Model} from '../models/reservation-v2.model';
 import {BOOKING_POLICY} from './booking-policy';
 import {getFittingSettings,fittingSlots} from './fitting-settings.service';
-import {paymentSummary,recordPayment} from './payment.service';
+import {paymentSummary} from './payment.service';
 import {parseDateOnly} from '../utils/date-only';
 import {notifyFitting} from './fitting-email.service';
 import {notifyOwnerFittingCreated,notifyOwnerFittingPaymentReported} from './admin-push.service';
@@ -71,6 +71,18 @@ export async function adminFittings(from:string,to:string){
  const credits=await ReservationV2Model.find({fittingCreditId:{$in:docs.map((d:any)=>d._id.toString())}}).select('fittingCreditId reservationNumber').lean().exec();
  return {truncated:docs.length>500,items:docs.slice(0,500).map((d:any)=>({...publicFitting(d),id:d._id.toString(),revision:d.revision,customer:d.customer,audit:d.audit,credit:credits.find(c=>c.fittingCreditId===d._id.toString())?{reservationId:credits.find(c=>c.fittingCreditId===d._id.toString())!._id.toString(),reservationNumber:credits.find(c=>c.fittingCreditId===d._id.toString())!.reservationNumber}:null}))};
 }
+export async function fittingDiscountOptions(reservationId:string,now=new Date()){
+ if(!Types.ObjectId.isValid(reservationId))throw new FittingError('VALIDATION_ERROR',400);
+ const r=await ReservationV2Model.findById(reservationId).lean().exec();if(!r)throw new FittingError('RESERVATION_NOT_FOUND',404);
+ const applied=r.fittingCreditId?await FittingModel.findById(r.fittingCreditId).select('number').lean().exec():null;
+ const summary=paymentSummary(r);
+ const eligible=!r.fittingCreditId&&!summary.legacyUnreconciled&&summary.rentalBalance>=200&&['pending','confirmed','prepared'].includes(r.status)&&!(r.status==='pending'&&(!r.expiresAt||r.expiresAt<=now));
+ const candidates=eligible?await FittingModel.find({status:'completed',paymentStatus:'paid','customer.email':r.customerSnapshot.email.toLowerCase().trim()}).select('_id number date time revision').sort({date:-1,time:-1}).lean().exec():[];
+ const used=await ReservationV2Model.find({fittingCreditId:{$in:candidates.map(f=>String(f._id))}}).select('fittingCreditId').lean().exec();
+ const usedIds=new Set(used.map(x=>x.fittingCreditId));
+ return {eligible,applied:r.fittingCreditId?{number:r.fittingDiscount?.number||applied?.number||'',amount:200,kind:r.fittingDiscount?'discount':'legacy_credit'}:null,
+  items:candidates.filter(f=>!usedIds.has(String(f._id))).map(f=>({id:String(f._id),number:f.number,date:f.date,time:f.time,revision:f.revision}))};
+}
 export async function actOnFitting(id:string,body:any,actor:string,now=new Date()){
  if(!Types.ObjectId.isValid(id)||!Number.isSafeInteger(body?.revision)||body.revision<0)throw new FittingError('VALIDATION_ERROR',400);
  const doc=await FittingModel.findById(id).lean().exec() as any;if(!doc)throw new FittingError('FITTING_NOT_FOUND',404);
@@ -83,8 +95,23 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
   await ReservationV2Model.collection.createIndex({fittingCreditId:1},{unique:true,partialFilterExpression:{fittingCreditId:{$type:'string'}}});
   if(reservation.fittingCreditId===id)return {ok:true};
   if(reservation.fittingCreditId||!['pending','confirmed','prepared'].includes(reservation.status)||(reservation.status==='pending'&&(!reservation.expiresAt||new Date(reservation.expiresAt)<=now))||reservation.customerSnapshot.email.toLowerCase()!==doc.customer.email)throw new FittingError('CREDIT_RESERVATION_MISMATCH');
-  const summary=paymentSummary(reservation);if(summary.rentalBalance<200)throw new FittingError('CREDIT_BALANCE_TOO_LOW');
-  try{await recordPayment(reservation._id,{operationId:doc.creditOperationId,expectedRevision:summary.revision,type:'rental_received',amount:200,method:'bank_transfer',reference:doc.number,note:'Započtení zaplacené zkoušky'},actor,id,doc.partner);}catch(e){if((e as any).code===11000)throw new FittingError('FITTING_ALREADY_CREDITED');throw e;}
+  const summary=paymentSummary(reservation);
+  if(summary.legacyUnreconciled)throw new FittingError('PAYMENT_LEGACY_RECONCILIATION_REQUIRED');
+  if(summary.rentalBalance<200)throw new FittingError('CREDIT_BALANCE_TOO_LOW');
+  const subtotal=reservation.subtotal-200;
+  const paymentStatus=summary.rentalNet>=subtotal&&summary.depositHeld>=reservation.deposit?'paid':'unpaid';
+  // Unique fittingCreditId prevents reuse across reservations; payment CAS protects
+  // against simultaneous payments, discounts and reservation lifecycle changes.
+  try{
+   const changed=await ReservationV2Model.updateOne({_id:reservation._id,status:reservation.status,paymentStatus:reservation.paymentStatus,
+    fittingCreditId:{$exists:false},subtotal:reservation.subtotal,
+    ...(reservation.paymentRevision===undefined?{paymentRevision:{$exists:false}}:{paymentRevision:reservation.paymentRevision}),
+    ...(reservation.status==='pending'?{expiresAt:{$gt:now}}:{})},
+    {$set:{fittingCreditId:id,fittingDiscount:{amount:200,number:doc.number,appliedAt:now,appliedBy:actor},subtotal,totalDue:subtotal+reservation.deposit,
+     ...(reservation.advanceRequired===undefined?{}:{advanceRequired:Math.min(reservation.advanceRequired,subtotal)}),paymentStatus,
+     ...(doc.partner?{partner:doc.partner}:{})},$inc:{paymentRevision:1}}, {runValidators:true}).exec();
+   if(!changed.modifiedCount){const current=await ReservationV2Model.findById(reservation._id).lean().exec();if(current?.fittingCreditId===id)return {ok:true};throw new FittingError('PAYMENT_CONFLICT');}
+  }catch(e){if((e as any).code===11000)throw new FittingError('FITTING_ALREADY_CREDITED');throw e;}
   return {ok:true};
  }
  if(doc.revision!==body.revision)throw new FittingError('FITTING_CONFLICT');

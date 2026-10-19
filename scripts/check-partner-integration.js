@@ -340,10 +340,10 @@ module.exports = async function ({ request, models }) {
     assert.equal(creditedRecord.fittingCreditId, String(fitting._id));
     assert.equal(
       creditedRecord.paymentEntries.length,
-      1,
-      'fitting credit replay cannot duplicate payment'
+      0,
+      'fitting discount never creates a payment'
     );
-    assert.equal(creditedRecord.paymentEntries[0].amount, 200);
+    assert.equal(creditedRecord.fittingDiscount.amount, 200);
     const base = {
       _id: 'fit',
       number: 'ZK-EXAMPLE',

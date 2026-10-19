@@ -176,6 +176,7 @@ export interface Reservation {
   partner?: import('../services/partner-referral.service').PartnerAttribution;
   partnerAudit?: Array<{action:string;at:Date;by:string}>;
   fittingCreditId?: string;
+  fittingDiscount?: {amount:number;number:string;appliedAt:Date;appliedBy:string};
   advanceRequired?: number;
   paymentRevision?: number;
   paymentEntries?: PaymentEntry[];
