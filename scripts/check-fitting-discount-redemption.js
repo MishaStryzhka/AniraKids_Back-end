@@ -54,7 +54,8 @@ async function main(){
  await recordPayment(paid._id,{operationId:randomUUID(),expectedRevision:0,type:'rental_received',amount:200,method:'bank_transfer'},'fixture');await R.updateOne({_id:paid._id},{$set:{status:'cancelled'}});await release(now);assert.equal((await options(owner)).items.length,0);assert.equal((await R.findById(paid._id)).fittingCreditId,String(fit._id));
  // Existing 800 Kč reservation: the paid fitting covers the advance once,
  // leaves 600 Kč (not 400 Kč), and never invents another payment entry.
- const studio={...paid,items:[{...paid.items[0],rentalPriceSnapshot:800,depositSnapshot:0}],subtotal:600,deposit:0,totalDue:600,paymentEntries:[]};
+ const paidSnapshot=paid.toObject();
+ const studio={...paidSnapshot,items:[{...paidSnapshot.items[0],rentalPriceSnapshot:800,depositSnapshot:0}],subtotal:600,deposit:0,totalDue:600,paymentEntries:[]};
  const before=JSON.stringify(studio);
  for(let i=0;i<2;i++){
   assert.equal(paymentSummary(studio).advanceBalance,0);
