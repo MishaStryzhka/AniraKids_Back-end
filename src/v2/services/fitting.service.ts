@@ -97,6 +97,7 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
   case 'refund':if(!['cancelled','expired'].includes(doc.status)||doc.paymentStatus!=='paid')throw new FittingError('FITTING_CONFLICT');set={paymentStatus:'refunded'};break;
   case 'reschedule':{
    if(doc.status!=='confirmed')throw new FittingError('FITTING_CONFLICT');
+   if(body.date===doc.date&&body.time===doc.time)return {ok:true};
    const settings=await getFittingSettings();let slot;try{slot=fittingSlots(body.date,settings,now).find(s=>s.time===body.time);}catch{throw new FittingError('VALIDATION_ERROR',400);}if(!slot)throw new FittingError('SLOT_UNAVAILABLE');
    await expireFittings(now);set={date:body.date,time:body.time,startAt:slot.startAt,slotKey:body.date+'T'+body.time,address:settings.address};break;
   }
@@ -105,5 +106,6 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
  try{const changed=await FittingModel.updateOne({_id:doc._id,revision:doc.revision},{$set:set,$unset:unset,$inc:{revision:1},$push:{audit:{action:body.action,at:now,by:actor}}}).exec();if(!changed.modifiedCount)throw new FittingError('FITTING_CONFLICT');}
  catch(e){if((e as any).code===11000)throw new FittingError('SLOT_UNAVAILABLE');throw e;}
  if(body.action==='confirm')await notifyFitting({...doc,...set},'confirmed');
+ if(body.action==='reschedule')await notifyFitting({...doc,...set,revision:doc.revision+1},'rescheduled',undefined,{date:doc.date,time:doc.time});
  return {ok:true};
 }
