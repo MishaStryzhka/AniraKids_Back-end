@@ -26,3 +26,9 @@ For rental advances the document covers the full agreed rental price, including 
 Delivery statuses: pending (no provider attempt), sending (claimed), sent (provider accepted; not proof of inbox delivery), failed (acceptance unverified). A failed PDF remains pending. Resends reuse the same numbered snapshot and require an explicit owner action. A failed issue remains in the pending source queue. There is no background cron; interruption recovery is available through payment replay and the owner queue.
 
 Verify automatic behavior with scripts/check-automatic-invoices-integration.js in the same disposable replica-set environment. Tests mock the mail provider, cover actual confirmation/payment controllers, duplicate confirmations, partial/full payments, deposits, cancellation, provider/PDF failures, recovery and retry compare-and-set.
+
+## PDF layout
+
+All invoice downloads, email attachments, and ZIP exports use the same reference-based IBM Plex Sans template (two party columns, grey rules, item prices, total and registry footer). Fonts are bundled under the SIL Open Font License. Existing issued amounts, numbers and customer snapshots are preserved. The QR contains only the outstanding service amount at issuance, with the source booking reference and invoice number as the variable symbol; deposits are excluded. Fully paid documents and corrections have no payment QR. Later payments do not rewrite the original invoice. Long item lists continue on additional pages.
+
+Payment confirmation now uses one compact email with the PDF attachment. Fitting confirmation no longer sends its own separate message; the combined message includes the current appointment time and address. Initial booking/payment instructions, actual rescheduling and post-visit discount messages remain separate lifecycle events. Issuance or PDF failures leave the combined email pending for owner recovery; there is no competing fallback confirmation.
