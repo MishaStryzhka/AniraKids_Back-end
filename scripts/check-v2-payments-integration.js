@@ -157,6 +157,11 @@ async function main() {
   assert.equal(races.filter(x=>x.status==='fulfilled').length,1);rev=2;
   await assert.rejects(post('rental_received',201),e=>e.code==='PAYMENT_LIMIT_EXCEEDED');
   await post('rental_received',200);
+  for (const method of ['cash','bank_transfer','card']) {
+    await assert.rejects(post('deposit_received',1999,{method}),e=>e.code==='PAYMENT_FULL_DEPOSIT_REQUIRED');
+    assert.equal(paymentSummary(await Reservation.findById(r._id)).depositHeld,0);
+  }
+  await assert.rejects(post('deposit_received',2001),e=>e.code==='PAYMENT_LIMIT_EXCEEDED');
   const paid=await post('deposit_received',2000);assert.equal(paid.rentalBalance,0);assert.equal(paid.depositHeld,2000);
   assert.equal((await Reservation.findById(r._id)).paymentStatus,'paid');
   assert.equal(publicPaymentSummary(await Reservation.findById(r._id)).fullPaymentInstructions,null);
