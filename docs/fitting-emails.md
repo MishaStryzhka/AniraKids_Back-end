@@ -19,3 +19,9 @@ Creation retries can recover an unattempted email while the reservation is still
 ## Validation
 
 `node scripts/check-fitting-email.js`, `node scripts/check-email-delivery.js` and the fitting lifecycle integration suite use fixtures, never real recipients. The integration harness installs a fake sender before loading routes. A real received-message check in Seznam/Outlook is still required to establish inbox rendering and delivery.
+
+## Rescheduling
+
+A successful admin `reschedule` sends **Změna termínu zkoušky**, including the previous and new Prague-local appointment, current address and map link. It confirms that the existing payment remains valid and does not ask for another payment. Unchanged date/time, rejected conflicts and direct database edits do not send mail.
+
+Each successful reschedule uses its resulting revision as the atomic delivery key: `emailDelivery.rescheduled.<revision>`. This allows notifications for subsequent moves while preventing duplicate attempts for the same move. Failed sends are recorded without reverting the saved appointment. As with other events, delivery is request-awaited, with no automatic retry or guarantee across a process crash between saving and claiming delivery.
