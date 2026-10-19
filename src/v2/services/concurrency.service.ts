@@ -1,3 +1,4 @@
+import {applyCustomerFittingDiscount} from './fitting-discount.service';
 import type {
   ClientSession,
   HydratedDocument,
@@ -182,8 +183,9 @@ export const createReservationAtomically = async (
           session
         );
 
-        const { now: _now, ...reservationData } = input;
-        const reservationDocument = new ReservationV2Model(reservationData);
+        const { now: _now, fittingDiscountSelection, ...reservationData } = input;
+        const priced = fittingDiscountSelection ? await applyCustomerFittingDiscount(reservationData, fittingDiscountSelection, now, session) : reservationData;
+        const reservationDocument = new ReservationV2Model(priced);
 
         await reservationDocument.save({ session });
         createdReservation = reservationDocument;

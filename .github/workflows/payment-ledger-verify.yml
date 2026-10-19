@@ -40,6 +40,12 @@ jobs:
           INVOICE_TEST_ALLOW: '1'
           INVOICE_MONGOD_BINARY: ${{ runner.temp }}/mongodb-linux-x86_64-ubuntu2204-7.0.14/bin/mongod
         run: node scripts/check-invoices-integration.js
+      - name: Customer fitting discount redemption
+        env:
+          NODE_ENV: test
+          FITTING_DISCOUNT_TEST_ALLOW: '1'
+          FITTING_DISCOUNT_MONGOD_BINARY: ${{ runner.temp }}/mongodb-linux-x86_64-ubuntu2204-7.0.14/bin/mongod
+        run: node scripts/check-fitting-discount-redemption.js
       - name: HTTP booking and payment ledger concurrency
         env:
           NODE_ENV: test

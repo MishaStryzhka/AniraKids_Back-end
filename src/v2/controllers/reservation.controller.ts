@@ -1,3 +1,4 @@
+import {FittingDiscountError} from '../services/fitting-discount.service';
 import { Types } from 'mongoose';
 import {resolveBookingPartner,PartnerError} from '../services/partner-referral.service';
 
@@ -31,6 +32,7 @@ export const createReservation: HttpHandler = async (
     productId: new Types.ObjectId(body.productId),
     variantId: new Types.ObjectId(body.variantId),
     rentalMode: body.rentalMode,
+    fittingDiscount: body.fittingDiscount,
     startDate: body.startDate,
     endDate: body.endDate,
     customer: body.customer,
@@ -67,6 +69,8 @@ export const createReservation: HttpHandler = async (
       .status(status)
       .json(publicResponse);
   } catch (error) {
+    if((error as any)?.code===11000&&(error as any)?.keyPattern?.fittingCreditId)return response.status(409).json({error:{code:'FITTING_DISCOUNT_UNAVAILABLE'}});
+    if(error instanceof FittingDiscountError)return response.status(error.status).json({error:{code:error.code}});
     if(error instanceof PartnerError)return response.status(error.status).json({error:{code:error.code,message:error.code}});
     return next(error);
   }

@@ -115,6 +115,7 @@ export const resolveReservationIdempotency: HttpHandler = async (
       customer: body.customer,
       notes: body.notes,
       referralToken: body.referralToken,
+      fittingDiscount: body.fittingDiscount,
       authenticatedUserId: request.authenticatedUserId,
     });
 
