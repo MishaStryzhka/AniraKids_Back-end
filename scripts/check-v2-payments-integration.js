@@ -1,3 +1,4 @@
+require('./fitting-email-fixture');
 // Owns a fresh loopback-only replica set. Never accepts database URIs or loads .env.
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');

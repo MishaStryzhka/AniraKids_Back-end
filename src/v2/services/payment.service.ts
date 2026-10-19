@@ -121,7 +121,7 @@ export const recordPayment = async (id: Types.ObjectId, input: PaymentInput, act
     ...(fittingCreditId ? {fittingCreditId: {$exists:false}, ...(r.status === 'pending' ? {expiresAt: {$gt: new Date()}} : {})} : {}),
     ...(r.paymentRevision === undefined ? { paymentRevision: { $exists: false } } : { paymentRevision: expectedRevision }),
     'paymentEntries.operationId': { $ne: input.operationId },
-  }, { $push: { paymentEntries: entry }, $inc: { paymentRevision: 1 }, $set: { paymentStatus, ...(fittingCreditId ? {fittingCreditId,...(fittingPartner?{partner:fittingPartner}:{})} : {}) } }, { new: true, runValidators: true }).lean().exec();
+  }, { $push: { paymentEntries: entry }, $inc: { paymentRevision: 1 }, $set: { paymentStatus, ...(!r.invoiceAutomation && ['advance_received','rental_received'].includes(input.type) && r.status!=='cancelled' ? {invoiceAutomation:{status:'pending',requestedAt:entry.recordedAt,requestedBy:actor}} : {}), ...(fittingCreditId ? {fittingCreditId,...(fittingPartner?{partner:fittingPartner}:{})} : {}) } }, { new: true, runValidators: true }).lean().exec();
   if (updated) return paymentSummary(updated);
   const current = await ReservationV2Model.findById(id).lean().exec();
   const replay = current?.paymentEntries?.find(e => e.operationId === input.operationId);

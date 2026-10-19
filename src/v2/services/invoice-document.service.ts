@@ -15,10 +15,13 @@ export async function invoicePdf(invoice:any):Promise<Buffer>{
   const s=invoice.snapshot;
   doc.fontSize(23).text(`${invoice.sourceType==='correction'?'Opravný doklad':'Faktura'} ${invoice.number}`);
   doc.moveDown().fontSize(10).text(`Vystaveno: ${new Date(invoice.issuedAt).toLocaleDateString('cs-CZ',{timeZone:'Europe/Prague'})}`)
-   .text(`Datum poskytnutí služby: ${s.serviceDate}`).text(`Zkouška / rezervace: ${invoice.sourceNumber}`);
+   .text(`${s.serviceDatePlanned?'Plánovaný termín služby':'Datum poskytnutí služby'}: ${s.serviceDate}`).text(`Zkouška / rezervace: ${invoice.sourceNumber}`);
+  if(s.accountingDate)doc.text(`Platba zaznamenána dne: ${s.accountingDate}`);
   if(s.originalNumber)doc.text(`Oprava faktury: ${s.originalNumber}`).text(`Důvod: ${s.reason}`);
   doc.moveDown().fontSize(12).text('Dodavatel').fontSize(10).text(s.company.name).text(s.company.address).text(`IČO: ${s.company.ico}`).text(s.company.register).text('Nejsme plátci DPH.');
-  doc.moveDown().fontSize(12).text('Odběratel').fontSize(10).text(s.buyer.name).text(s.buyer.address);
+  doc.moveDown().fontSize(12).text('Odběratel').fontSize(10).text(s.buyer.name);
+  if(s.buyer.address)doc.text(s.buyer.address);
+  if(s.buyer.email)doc.text(s.buyer.email);
   if(s.buyer.ico)doc.text(`IČO: ${s.buyer.ico}`);
   doc.moveDown().text(`Období služby: ${s.period}`).moveDown();
   for(const line of s.lines){if(doc.y>680)doc.addPage();doc.fontSize(11).text(line.description).text(money(line.amount),{align:'right'}).moveDown(.4);}

@@ -5,7 +5,8 @@ const schema = new Schema({
  sourceNumber:{type:String,required:true}, issuedAt:{type:Date,required:true}, issuedBy:{type:String,required:true},
  // Immutable accounting snapshot. Payments made later remain in the source ledger.
  snapshot:{type:Schema.Types.Mixed,required:true},
- email:{status:String,attemptedAt:Date,sentAt:Date},
+ automatic:{type:Boolean},
+ email:{status:String,attemptedAt:Date,sentAt:Date,attemptId:String},
 },{collection:'v2_invoices',strict:'throw'});
 schema.index({issuedAt:-1});
 export const InvoiceModel=models.Invoice ?? model('Invoice',schema);

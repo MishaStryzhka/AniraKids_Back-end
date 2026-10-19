@@ -97,6 +97,8 @@ export const registerAdminRoutes = (
 ): void => {
   const guards = commonAdminGuards(dependencies);
   router.get('/admin/invoices', ...guards, invoiceHandler('list'));
+  router.get('/admin/invoices/pending', ...guards, invoiceHandler('pending'));
+  router.post('/admin/invoices/process', ...guards, invoiceHandler('process'));
   router.post('/admin/invoices/preview', ...guards, invoiceHandler('preview'));
   router.post('/admin/invoices', ...guards, invoiceHandler('issue'));
   router.get('/admin/invoices/export', ...guards, invoiceHandler('export'));

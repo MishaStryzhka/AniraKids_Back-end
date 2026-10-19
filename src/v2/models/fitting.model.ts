@@ -8,6 +8,7 @@ const schema=new Schema({
  status:{type:String,enum:['pending','review','confirmed','completed','cancelled','expired'],required:true},
  paymentStatus:{type:String,enum:['unpaid','paid','refunded'],required:true},
  customer:{name:String,email:String,phone:String},product:{id:String,name:String,slug:String},
+ invoiceAutomation:{status:String,requestedAt:Date,requestedBy:String,errorCode:String},
  discountTokenHash:{type:String,select:false},
  creditOperationId:{type:String,required:true},revision:{type:Number,default:0},
  emailDelivery:{completed:{status:String,attemptedAt:Date,sentAt:Date},created:{status:String,attemptedAt:Date,sentAt:Date},confirmed:{status:String,attemptedAt:Date,sentAt:Date},rescheduled:{type:Map,of:new Schema({status:String,attemptedAt:Date,sentAt:Date},{_id:false})}},

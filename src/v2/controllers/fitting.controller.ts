@@ -1,3 +1,4 @@
+import {processAutomaticInvoice} from '../services/invoice-automation.service';
 import type {HttpHandler} from '../types/http';
 import {resolveBookingPartner,PartnerError} from '../services/partner-referral.service';
 import {getFittingSettings,saveFittingSettings,parseFittingSettings} from '../services/fitting-settings.service';
@@ -22,6 +23,7 @@ export function fittingHandler(action:string):HttpHandler{return async(req,res,n
    case 'list':result=await adminFittings(String(req.query?.from||''),String(req.query?.to||''));break;
    case 'act':if(!req.authenticatedUserId)throw new FittingError('ADMIN_UNAUTHORIZED',401);result=await actOnFitting(req.params?.fittingId||'',req.body,req.authenticatedUserId.toHexString());break;
   }
+  if(action==='act'&&(req.body as any)?.action==='confirm'){const invoiceAutomation=await processAutomaticInvoice('fitting',req.params!.fittingId!);result={...(result as object),invoiceAutomation};}
   return res.status(200).json(result);
  }catch(e){if(e instanceof FittingError||e instanceof PaymentError||e instanceof PartnerError)return res.status(e.status).json({error:{code:e.code,message:e.code}});return next(e);}
 };}

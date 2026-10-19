@@ -113,6 +113,8 @@ export const ReservationV2Schema = new Schema<Reservation>(
     fittingCreditId: { type: String },
     fittingDiscount: {type: new Schema({amount:{type:Number,enum:[200],required:true},number:{type:String,required:true},appliedAt:{type:Date,required:true},appliedBy:{type:String,required:true}},{_id:false})},
     advanceRequired: { type: Number, min: 0, max: 200, validate: Number.isSafeInteger },
+    invoiceIssuedId: String,
+    invoiceAutomation: {type: new Schema({status:String,requestedAt:Date,requestedBy:String,errorCode:String},{_id:false})},
     paymentRevision: { type: Number, min: 0, validate: Number.isSafeInteger },
     paymentEntries: { type: [paymentEntrySchema], default: undefined },
     reservationNumber: {
