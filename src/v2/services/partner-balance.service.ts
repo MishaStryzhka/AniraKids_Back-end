@@ -3,7 +3,7 @@ import { ReservationV2Model } from '../models/reservation-v2.model';
 import { FittingModel } from '../models/fitting.model';
 import { paymentSummary } from './payment.service';
 
-// Fitting credits are transfers of an existing payment, never a second receipt.
+// Preserve the agreed partner share basis for both historical credits and new discounts.
 export function calculatePartnerBalance(
   reservations: any[],
   fittings: any[],
@@ -21,8 +21,8 @@ export function calculatePartnerBalance(
     const source = r.partner?.source || fitting?.partner?.source || 'anirak';
     const summary = paymentSummary(r);
     const share =
-      source === 'partner' ? Math.round((r.subtotal * 100) / 2) / 100 : 0;
-    const net = Math.max(0, Math.min(r.subtotal, summary.rentalNet));
+      source === 'partner' ? Math.round(((r.subtotal + (r.fittingDiscount?.amount || 0)) * 100) / 2) / 100 : 0;
+    const net = Math.max(0, Math.min(r.subtotal + (r.fittingDiscount?.amount || 0), summary.rentalNet + (r.fittingDiscount?.amount || 0)));
     const accrued =
       r.status === 'returned'
         ? Math.round(
