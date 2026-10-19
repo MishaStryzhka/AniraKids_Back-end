@@ -22,3 +22,19 @@ assert.equal(created.attachments.length,2);
 for(const attachment of created.attachments){assert.equal(attachment.type,'image/png');assert.ok(created.html.includes('cid:'+attachment.content_id));assert.equal(Buffer.from(attachment.content,'base64').subarray(1,4).toString(),'PNG');}
 assert.throws(()=>fittingEmail(doc,'created','bad'));
 console.log('PASS: Czech fitting emails, full width, escaped customer data, private payment link, confirmation copy, CID social icons');
+
+const moved=fittingEmail(doc,'rescheduled',undefined,{date:'2026-10-24',time:'10:00'});
+assert.ok(moved.subject.includes('Změna termínu zkoušky'));
+for(const content of [moved.text,moved.html]){
+ assert.ok(content.includes('Původní termín'));
+ assert.ok(content.includes('24. října 2026 v 10:00'));
+ assert.ok(content.includes('Nový termín'));
+ assert.ok(content.includes('25. října 2026 v 16:00'));
+ assert.ok(content.includes(doc.address));
+ assert.ok(content.includes('Uhrazená platba zůstává platná'));
+ assert.ok(!content.includes('Zobrazit rezervaci a zaplatit'));
+ assert.ok(!content.includes('#undefined'));
+}
+assert.ok(!moved.html.includes('<script>'));
+assert.throws(()=>fittingEmail(doc,'rescheduled'));
+console.log('PASS: reschedule email includes both appointments and address without requesting payment');
