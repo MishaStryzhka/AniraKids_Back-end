@@ -1,4 +1,5 @@
 import path = require('path');
+import {readFileSync} from 'fs';
 import {ReservationV2Model} from '../models/reservation-v2.model';
 import {FittingModel} from '../models/fitting.model';
 import {invoicePeriod} from './invoice.service';
@@ -9,7 +10,8 @@ export async function invoicePdf(invoice:any):Promise<Buffer>{
  return new Promise((resolve,reject)=>{
   const doc=new PDFDocument({size:'A4',margin:48,info:{Title:`Faktura ${invoice.number}`,Author:'GlamGarb Rentals s.r.o.'}}),chunks:Buffer[]=[];
   doc.on('data',(c:Buffer)=>chunks.push(c));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);
-  doc.font(path.join(__dirname,'../../../assets/fonts/DejaVuSans.ttf'));
+  // Direct fs read keeps the bundled font visible to serverless file tracing.
+  doc.font(readFileSync(path.join(__dirname,'../../../assets/fonts/DejaVuSans.ttf')));
   const s=invoice.snapshot;
   doc.fontSize(23).text(`${invoice.sourceType==='correction'?'Opravný doklad':'Faktura'} ${invoice.number}`);
   doc.moveDown().fontSize(10).text(`Vystaveno: ${new Date(invoice.issuedAt).toLocaleDateString('cs-CZ',{timeZone:'Europe/Prague'})}`)
