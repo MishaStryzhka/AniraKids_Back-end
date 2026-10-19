@@ -61,18 +61,18 @@ export function calculatePartnerBalance(
   }
   for (const f of fittings) {
     const r = credited.get(String(f._id));
-    // A credited partner rental already includes the fitting in the 50% share.
-    const absorbed =
-      r && (r.partner?.source || f.partner?.source) === 'partner';
-    const studio =
-      f.studioBooked === true ||
-      (r &&
+    // Only a linked, confirmed rental in this fitting's Blaze studio waives the fee.
+    // Legacy studioBooked flags and referral source are not evidence of a rental.
+    const studio = Boolean(
+      r &&
+        f.partner?.partnerId === 'blaze' &&
+        r.partner?.partnerId === f.partner.partnerId &&
         r.rentalMode === 'studio' &&
-        ['confirmed', 'prepared', 'rented', 'returned'].includes(r.status));
+        ['confirmed', 'prepared', 'rented', 'returned'].includes(r.status)
+    );
     const amount =
       f.status === 'completed' &&
       f.paymentStatus === 'paid' &&
-      !absorbed &&
       !studio
         ? 200
         : 0;
@@ -82,11 +82,7 @@ export function calculatePartnerBalance(
       number: f.number,
       amount,
       status: f.status,
-      reason: absorbed
-        ? 'included_in_share'
-        : studio
-          ? 'studio_booked'
-          : 'fitting',
+      reason: studio ? 'studio_rental' : 'fitting',
     });
   }
   const transferred = settlements.reduce(

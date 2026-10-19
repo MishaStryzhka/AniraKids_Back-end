@@ -522,34 +522,8 @@ export function partnerHandler(action: string): HttpHandler {
           .exec()) as any;
         if (!f) throw new PartnerError('NOT_FOUND', 404);
         if (body.action === 'studio-booked') {
-          requireManager(access);
-          if (
-            typeof body.studioBooked !== 'boolean' ||
-            typeof body.reference !== 'string' ||
-            body.reference.length > 120 ||
-            (body.studioBooked && !body.reference.trim())
-          )
-            throw new PartnerError('VALIDATION_ERROR');
-          const changed = await FittingModel.updateOne(
-            { _id: f._id, revision: body.revision },
-            {
-              $set: {
-                studioBooked: body.studioBooked,
-                studioBookingReference: body.reference,
-              },
-              $inc: { revision: 1 },
-              $push: {
-                audit: {
-                  action: body.studioBooked
-                    ? 'studio_booked'
-                    : 'studio_booking_removed',
-                  at: new Date(),
-                  by: actor,
-                },
-              },
-            }
-          ).exec();
-          if (!changed.modifiedCount) throw new PartnerError('CONFLICT', 409);
+          // Retired: external studio bookings must never waive fitting fees.
+          throw new PartnerError('VALIDATION_ERROR');
         } else {
           if (!access.owner && !access.managePartners && !['complete', 'credit'].includes(body.action))
             throw new PartnerError('FORBIDDEN', 403);
