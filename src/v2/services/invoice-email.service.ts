@@ -1,8 +1,10 @@
 import {randomUUID} from 'crypto';
+import {FittingModel} from '../models/fitting.model';
 import {InvoiceModel} from '../models/invoice.model';
 import {invoicePdf} from './invoice-document.service';
 import {PaymentError} from './payment.types';
 const sendEmail=require('../../../helpers/sendEmail');
+const {invoiceEmail}=require('../../../helpers/invoiceEmail');
 export interface InvoiceSendOptions {retry?:boolean;expectedAttemptedAt?:string;}
 export async function sendInvoice(id:string,options:InvoiceSendOptions={}){
  const invoice:any=await InvoiceModel.findById(id).lean();
@@ -15,14 +17,15 @@ export async function sendInvoice(id:string,options:InvoiceSendOptions={}){
   if(email.status==='sending'&&Date.now()-expected.getTime()<600000)throw new PaymentError('INVOICE_EMAIL_IN_PROGRESS');
   filter={_id:id,'email.attemptedAt':expected,'email.status':email.status};
  }else if(email?.status&&!['pending'].includes(email.status))return {status:email.status};
+ const fitting=invoice.sourceType==='fitting'?await FittingModel.findById(invoice.sourceId).select('date time address status paymentStatus').lean():null;
+ const message=invoiceEmail(invoice,fitting);
  let pdf:Buffer;try{pdf=await invoicePdf(invoice);}catch{throw new PaymentError('INVOICE_PDF_FAILED',503);}
  // The claim survives provider timeouts. Never retry an ambiguous send automatically.
  const attemptId=randomUUID(),attemptedAt=new Date(Math.max(Date.now(),new Date(email?.attemptedAt||0).getTime()+1));
  const claimed=await InvoiceModel.updateOne(filter,{$set:{email:{status:'sending',attemptedAt,attemptId}}});
  if(!claimed.modifiedCount){if(options.retry)throw new PaymentError('INVOICE_EMAIL_CHANGED');return {status:'sending'};}
- const s=invoice.snapshot,cs=(n:number)=>new Intl.NumberFormat('cs-CZ',{style:'currency',currency:'CZK'}).format(n);
  try{
-  await sendEmail({to:s.buyer.email,subject:`Faktura ${invoice.number} – GlamGarb Rentals`,text:`Dobrý den,\n\nv příloze zasíláme ${invoice.sourceType==='correction'?'opravný doklad':'fakturu'} ${invoice.number} k ${invoice.sourceType==='fitting'?'zkoušce':'rezervaci'} ${invoice.sourceNumber}.\nCena služby: ${cs(s.total)}.\n${invoice.sourceType==='correction'?'Doklad sám nepotvrzuje vrácení peněz.':`Uhrazeno při vystavení: ${cs(s.paid)}. Zbývalo uhradit: ${cs(s.balance)}.\nVratná kauce není součástí ceny služby. Další platby se evidují u rezervace; údaje této faktury zachycují stav při vystavení.`}\n\nDěkujeme,\nANIRAK · GlamGarb Rentals s.r.o.`,attachments:[{filename:`${invoice.number}.pdf`,content:pdf.toString('base64'),type:'application/pdf',disposition:'attachment'}]});
+  await sendEmail({...message,attachments:[{filename:`${invoice.number}.pdf`,content:pdf.toString('base64'),type:'application/pdf',disposition:'attachment'}]});
   await InvoiceModel.updateOne({_id:id,'email.attemptId':attemptId},{$set:{'email.status':'sent','email.sentAt':new Date()}});
   return {status:'sent'};
  }catch{

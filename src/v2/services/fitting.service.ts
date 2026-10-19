@@ -141,7 +141,7 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
  try{const changed=await FittingModel.updateOne({_id:doc._id,revision:doc.revision},{$set:set,$unset:unset,$inc:{revision:1},$push:{audit:{action:body.action,at:now,by:actor}}}).exec();if(!changed.modifiedCount)throw new FittingError('FITTING_CONFLICT');}
  catch(e){if((e as any).code===11000)throw new FittingError('SLOT_UNAVAILABLE');throw e;}
  if(body.action==='complete')await notifyFittingDiscount({...doc,...set});
- if(body.action==='confirm')await notifyFitting({...doc,...set},'confirmed');
+ // Payment confirmation and PDF are sent together by invoice automation.
  if(body.action==='reschedule')await notifyFitting({...doc,...set,revision:doc.revision+1},'rescheduled',undefined,{date:doc.date,time:doc.time});
  return {ok:true};
 }

@@ -1,42 +1,9 @@
-import path = require('path');
-import {readFileSync} from 'fs';
 import {ReservationV2Model} from '../models/reservation-v2.model';
 import {FittingModel} from '../models/fitting.model';
 import {invoicePeriod} from './invoice.service';
 import {zipSync,strToU8} from 'fflate';
-const PDFDocument=require('pdfkit');
-const money=(n:number)=>`${n.toFixed(2).replace('.',',')} Kč`;
-export async function invoicePdf(invoice:any):Promise<Buffer>{
- return new Promise((resolve,reject)=>{
-  const doc=new PDFDocument({size:'A4',margin:48,info:{Title:`Faktura ${invoice.number}`,Author:'GlamGarb Rentals s.r.o.'}}),chunks:Buffer[]=[];
-  doc.on('data',(c:Buffer)=>chunks.push(c));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);
-  // Direct fs read keeps the bundled font visible to serverless file tracing.
-  doc.font(readFileSync(path.join(__dirname,'../../../assets/fonts/DejaVuSans.ttf')));
-  const s=invoice.snapshot;
-  doc.fontSize(23).text(`${invoice.sourceType==='correction'?'Opravný doklad':'Faktura'} ${invoice.number}`);
-  doc.moveDown().fontSize(10).text(`Vystaveno: ${new Date(invoice.issuedAt).toLocaleDateString('cs-CZ',{timeZone:'Europe/Prague'})}`)
-   .text(`${s.serviceDatePlanned?'Plánovaný termín služby':'Datum poskytnutí služby'}: ${s.serviceDate}`).text(`Zkouška / rezervace: ${invoice.sourceNumber}`);
-  if(s.accountingDate)doc.text(`Platba zaznamenána dne: ${s.accountingDate}`);
-  if(s.originalNumber)doc.text(`Oprava faktury: ${s.originalNumber}`).text(`Důvod: ${s.reason}`);
-  doc.moveDown().fontSize(12).text('Dodavatel').fontSize(10).text(s.company.name).text(s.company.address).text(`IČO: ${s.company.ico}`).text(s.company.register).text('Nejsme plátci DPH.');
-  doc.moveDown().fontSize(12).text('Odběratel').fontSize(10).text(s.buyer.name);
-  if(s.buyer.address)doc.text(s.buyer.address);
-  if(s.buyer.email)doc.text(s.buyer.email);
-  if(s.buyer.ico)doc.text(`IČO: ${s.buyer.ico}`);
-  doc.moveDown().text(`Období služby: ${s.period}`).moveDown();
-  for(const line of s.lines){if(doc.y>680)doc.addPage();doc.fontSize(11).text(line.description).text(money(line.amount),{align:'right'}).moveDown(.4);}
-  if(doc.y>610)doc.addPage();
-  doc.moveDown().fontSize(15).text(`Celkem: ${money(s.total)}`,{align:'right'}).fontSize(10);
-  if(invoice.sourceType!=='correction'){
-   doc.text(`Uhrazeno k vystavení: ${money(s.paid)}`,{align:'right'}).text(`Zbývá uhradit k vystavení: ${money(s.balance)}`,{align:'right'});
-   if(s.overpayment)doc.text(`Přeplatek k vypořádání: ${money(s.overpayment)}`,{align:'right'});
-   if(s.balance)doc.text('Splatnost: při převzetí služby (dle rezervace).');
-   doc.moveDown().text(`Vratná kauce evidovaná zvlášť: ${money(s.deposit)}. Není součástí ceny služby.`);
-  }else doc.moveDown().text('Tento doklad sám nepotvrzuje vrácení platby. Vrácení peněz je evidováno samostatně.');
-  doc.moveDown().text(`Účet: ${s.bank.accountNumber}`).text(`IBAN: ${s.bank.iban}`).text(`Zpráva pro příjemce: ${invoice.sourceNumber}`);
-  doc.end();
- });
-}
+import {invoicePdf as renderInvoicePdf} from './invoice-pdf.service';
+export async function invoicePdf(invoice:any):Promise<Buffer>{return renderInvoicePdf(invoice);}
 const csv=(rows:unknown[][])=>'\uFEFF'+rows.map(row=>row.map(v=>'"'+(typeof v==='number'?String(v):String(v??'').replace(/^[=+\-@\t\r]/,"'$&")).replace(/"/g,'""')+'"').join(';')).join('\r\n');
 export async function invoiceArchive(invoices:any[],period:string){
  const files:Record<string,Uint8Array>={};

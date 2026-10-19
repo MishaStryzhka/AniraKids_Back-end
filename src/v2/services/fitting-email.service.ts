@@ -5,6 +5,8 @@ const { fittingEmail } = require('../../../helpers/fittingEmail');
 /** At most one provider attempt per lifecycle event. Provider errors can be ambiguous:
  * never retry automatically and risk duplicate messages. Booking success is independent. */
 export async function notifyFitting(doc: any, event: 'created' | 'confirmed' | 'rescheduled', token?: string, previous?: {date:string;time:string}) {
+  // Legacy callers must not send a second confirmation alongside the invoice.
+  if (event === 'confirmed') return;
   try {
     if (event === 'rescheduled' && (!Number.isSafeInteger(doc.revision) || doc.revision < 1 || !previous)) throw new Error('Invalid reschedule event');
     const field = event === 'rescheduled' ? `emailDelivery.rescheduled.${doc.revision}` : `emailDelivery.${event}`;

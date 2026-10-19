@@ -39,8 +39,8 @@ async function main(){
  const f=await fitting();const confirm=()=>call(fittingHandler('act'),{action:'confirm',revision:0},{fittingId:String(f._id)});
  const confirmation=await confirm();assert.equal(confirmation.code,200);assert.equal(confirmation.body.invoiceAutomation.emailStatus,'sent');
  const fi=await I.findOne({sourceKey:'fitting:'+f._id}).lean();assert.equal(fi.snapshot.total,200);assert.equal(fi.snapshot.paid,200);assert.equal(fi.snapshot.serviceDatePlanned,true);assert.equal(fi.snapshot.buyer.address,'');assert.equal(fi.snapshot.buyer.email,'invoice@example.test');assert.equal(fi.email.status,'sent');
- const fm=mail.messages.filter(m=>m.subject.startsWith('Faktura '));assert.equal(fm.length,1);assert.equal(Buffer.from(fm[0].attachments[0].content,'base64').subarray(0,4).toString(),'%PDF');assert.match(fm[0].text,/200/);
- await Promise.all([confirm(),confirm()]);assert.equal(await I.countDocuments(),1);assert.equal(mail.messages.filter(m=>m.subject.startsWith('Faktura ')).length,1);
+ const fm=mail.messages.filter(m=>m.subject.includes(fi.number));assert.equal(mail.messages.length,1,'one combined confirmation and PDF, no standalone confirmation');assert.match(fm[0].text,/10:00/);assert.match(fm[0].text,/Test/);assert.match(fm[0].subject,/Zkouška potvrzena/);assert.equal(fm[0].attachments.length,1);assert.ok(!fm[0].html.includes('Zobrazit rezervaci a zaplatit'));assert.equal(fm.length,1);assert.equal(Buffer.from(fm[0].attachments[0].content,'base64').subarray(0,4).toString(),'%PDF');assert.match(fm[0].text,/200/);
+ await Promise.all([confirm(),confirm()]);assert.equal(await I.countDocuments(),1);assert.equal(mail.messages.length,1);
  const r=await rental();const input={operationId:randomUUID(),expectedRevision:0,type:'advance_received',amount:200,method:'bank_transfer'};
  const pay=()=>call(adminRecordPayment,input,{reservationId:String(r._id)});
  const payments=await Promise.all([pay(),pay()]);assert.ok(payments.every(x=>x.code===200));
@@ -69,7 +69,16 @@ async function main(){
  const pdfFailure=await processAutomaticInvoice('reservation',String(interrupted._id));assert.equal(pdfFailure.status,'issued');assert.equal(pdfFailure.emailStatus,'pending');
  const beforePdfRetry=await I.findOne({sourceKey:'reservation:'+interrupted._id}).lean();assert.equal(beforePdfRetry.email.status,'pending');
  pdfModule.invoicePdf=originalPdf;await processAutomaticInvoice('reservation',String(interrupted._id));assert.equal((await I.findById(beforePdfRetry._id)).email.status,'sent');
- assert.equal(await I.countDocuments(),6);assert.equal((await C.findOne()).value,6);
+ const failedFitting=await fitting(),beforeCombinedFailure=mail.messages.length;mail.failNext=true;
+ const failedConfirmation=await call(fittingHandler('act'),{action:'confirm',revision:0},{fittingId:String(failedFitting._id)});
+ assert.equal(failedConfirmation.code,200);assert.equal(failedConfirmation.body.invoiceAutomation.emailStatus,'failed');
+ assert.equal(mail.messages.length,beforeCombinedFailure+1,'failed combined delivery never triggers a second standalone confirmation');
+ assert.equal((await F.findById(failedFitting._id)).paymentStatus,'paid');
+ await processAutomaticInvoice('fitting',String(failedFitting._id));assert.equal(mail.messages.length,beforeCombinedFailure+1);
+ const failedFittingInvoice=await I.findOne({sourceKey:'fitting:'+failedFitting._id}).lean();
+ await sendInvoice(String(failedFittingInvoice._id),{retry:true,expectedAttemptedAt:failedFittingInvoice.email.attemptedAt.toISOString()});
+ assert.equal(mail.messages.length,beforeCombinedFailure+2);assert.equal(mail.messages.at(-1).attachments.length,1);
+ assert.equal(await I.countDocuments(),7);assert.equal((await C.findOne()).value,7);
  writeFileSync('/tmp/automatic-fitting-invoice.pdf',Buffer.from(fm[0].attachments[0].content,'base64'));
  console.log('PASS automatic invoices: fitting confirmation, partial/full rental payments, discount/deposit separation, concurrent retries, immutable snapshots, provider failure, explicit retry CAS, interrupted-job recovery, historical opt-in and owner guard');
  }finally{clearTimeout(timer);await mongoose.disconnect();child.kill('SIGTERM');await new Promise(resolve=>child.exitCode!==null?resolve():child.once('exit',resolve));rmSync(directory,{recursive:true,force:true});}
