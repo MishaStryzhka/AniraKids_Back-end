@@ -173,6 +173,8 @@ export interface CustomerSnapshot {
 }
 
 export interface Reservation {
+  invoiceIssuedId?: string;
+  invoiceAutomation?: {status: string; requestedAt: Date; requestedBy: string; errorCode?: string};
   partner?: import('../services/partner-referral.service').PartnerAttribution;
   partnerAudit?: Array<{action:string;at:Date;by:string}>;
   fittingCreditId?: string;

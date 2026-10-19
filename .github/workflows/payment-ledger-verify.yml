@@ -39,7 +39,9 @@ jobs:
           NODE_ENV: test
           INVOICE_TEST_ALLOW: '1'
           INVOICE_MONGOD_BINARY: ${{ runner.temp }}/mongodb-linux-x86_64-ubuntu2204-7.0.14/bin/mongod
-        run: node scripts/check-invoices-integration.js
+        run: |
+          node scripts/check-invoices-integration.js
+          node scripts/check-automatic-invoices-integration.js
       - name: Customer fitting discount redemption
         env:
           NODE_ENV: test

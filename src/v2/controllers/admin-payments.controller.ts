@@ -1,3 +1,4 @@
+import {processAutomaticInvoice} from '../services/invoice-automation.service';
 import { Types } from 'mongoose';
 import type { HttpHandler } from '../types/http';
 import { PaymentError } from '../services/payment.types';
@@ -18,7 +19,8 @@ export const adminRecordPayment: HttpHandler = async (request, response, next) =
     if (!request.authenticatedUserId) throw new PaymentError('ADMIN_UNAUTHORIZED', 401);
     const input = parsePaymentInput(request.body);
     const payments = await recordPayment(new Types.ObjectId(request.params!.reservationId), input, request.authenticatedUserId.toHexString());
-    return response.status(200).json({ payments });
+    const invoiceAutomation=['advance_received','rental_received'].includes(input.type)?await processAutomaticInvoice('reservation',request.params!.reservationId!):undefined;
+    return response.status(200).json({ payments, ...(invoiceAutomation?{invoiceAutomation}:{}) });
   } catch (error) {
     if (error instanceof PaymentError) return response.status(error.status).json({ error: { code: error.code, message: error.message } });
     return next(error);

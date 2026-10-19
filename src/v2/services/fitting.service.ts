@@ -90,6 +90,7 @@ export async function fittingDiscountOptions(reservationId:string,now=new Date()
 export async function actOnFitting(id:string,body:any,actor:string,now=new Date()){
  if(!Types.ObjectId.isValid(id)||!Number.isSafeInteger(body?.revision)||body.revision<0)throw new FittingError('VALIDATION_ERROR',400);
  const doc=await FittingModel.findById(id).lean().exec() as any;if(!doc)throw new FittingError('FITTING_NOT_FOUND',404);
+ if(body.action==='confirm'&&doc.paymentStatus==='paid'&&['confirmed','completed'].includes(doc.status))return {ok:true};
  if(body.action==='complete'&&doc.status==='completed'){await notifyFittingDiscount(doc);return {ok:true};}
  if(body.action==='credit'){
   await releaseUnusedFittingDiscounts(now);
@@ -111,7 +112,7 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
   // against simultaneous payments, discounts and reservation lifecycle changes.
   try{
    const changed=await ReservationV2Model.updateOne({_id:reservation._id,status:reservation.status,paymentStatus:reservation.paymentStatus,
-    fittingCreditId:{$exists:false},subtotal:reservation.subtotal,
+    fittingCreditId:{$exists:false},invoiceIssuedId:{$exists:false},subtotal:reservation.subtotal,
     ...(reservation.paymentRevision===undefined?{paymentRevision:{$exists:false}}:{paymentRevision:reservation.paymentRevision}),
     ...(reservation.status==='pending'?{expiresAt:{$gt:now}}:{})},
     {$set:{fittingCreditId:id,fittingDiscount:{amount:200,number:doc.number,appliedAt:now,appliedBy:actor},subtotal,totalDue:subtotal+reservation.deposit,
@@ -124,7 +125,7 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
  if(doc.revision!==body.revision)throw new FittingError('FITTING_CONFLICT');
  let set:any={},unset:any={};
  switch(body.action){
-  case 'confirm':if(!['pending','review'].includes(doc.status)||!doc.slotKey||(doc.status==='pending'&&new Date(doc.expiresAt)<=now))throw new FittingError('FITTING_CONFLICT');set={status:'confirmed',paymentStatus:'paid'};unset={activeEmail:1};break;
+  case 'confirm':if(!['pending','review'].includes(doc.status)||!doc.slotKey||(doc.status==='pending'&&new Date(doc.expiresAt)<=now))throw new FittingError('FITTING_CONFLICT');set={status:'confirmed',paymentStatus:'paid',...(!doc.invoiceAutomation?{invoiceAutomation:{status:'pending',requestedAt:now,requestedBy:actor}}:{})};unset={activeEmail:1};break;
   case 'late-payment':if(!['expired','cancelled'].includes(doc.status)||doc.paymentStatus!=='unpaid')throw new FittingError('FITTING_CONFLICT');set={paymentStatus:'paid'};break;
   case 'complete':if(doc.status!=='confirmed'||new Date(doc.startAt)>now)throw new FittingError('FITTING_CONFLICT');set={status:'completed'};unset={slotKey:1,activeEmail:1};break;
   case 'cancel':if(!['pending','review','confirmed'].includes(doc.status))throw new FittingError('FITTING_CONFLICT');set={status:'cancelled'};unset={slotKey:1,activeEmail:1};break;
