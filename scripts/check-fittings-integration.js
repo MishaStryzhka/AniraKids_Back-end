@@ -120,7 +120,7 @@ module.exports=async({test,registry,insertOwned})=>{
    const results=await Promise.allSettled([act(r.number,'credit',{reservationNumber:a.number}),act(r.number,'credit',{reservationNumber:b.number})]);
    assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
    const credited=await Reservation.findOne({fittingCreditId:String(fitting._id)}).lean();assert.ok(credited);
-   assert.equal(paymentSummary(credited).rentalBalance,600);assert.equal(paymentSummary(credited).advanceBalance,200);assert.equal(paymentSummary(credited).depositRequired,2000);
+   assert.equal(paymentSummary(credited).rentalBalance,600);assert.equal(paymentSummary(credited).advanceBalance,0);assert.equal(paymentSummary(credited).fittingCredit,200);assert.equal(paymentSummary(credited).depositRequired,2000);
    await act(r.number,'credit',{reservationNumber:credited.reservationNumber});
    assert.equal((await Reservation.findById(credited._id).lean()).paymentEntries.length,0);
    assert.equal(credited.subtotal,600);assert.equal(credited.totalDue,2600);assert.equal(credited.fittingDiscount.amount,200);

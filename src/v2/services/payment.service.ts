@@ -36,13 +36,17 @@ export const paymentSummary = (r: Reservation & { _id?: Types.ObjectId }) => {
   const depositReceived = sum('deposit_received'), depositRefunded = sum('deposit_refunded');
   const cancellationFee = sum('cancellation_fee') - sum('cancellation_fee_reversed');
   const advanceRequired = r.advanceRequired ?? 0;
+  // Historical fittingDiscount stores the paid fitting already deducted from
+  // subtotal. It covers the advance too; never subtract it from rentalBalance
+  // again or create a second receipt for money recorded on the fitting.
+  const fittingCredit = r.fittingDiscount?.amount ?? 0;
   return {
     reservationId: r._id?.toHexString() ?? '', revision: r.paymentRevision ?? 0,
-    currency: 'CZK' as const, advanceRequired, rentalTotal: r.subtotal, depositRequired: r.deposit,
+    currency: 'CZK' as const, advanceRequired, fittingCredit, rentalTotal: r.subtotal, depositRequired: r.deposit,
     rentalReceived, rentalRefunded, rentalNet, depositReceived, depositRefunded,
     depositHeld: depositReceived - depositRefunded, cancellationFee,
     rentalBalance: r.status === 'cancelled' ? 0 : Math.max(0, r.subtotal - rentalNet),
-    advanceBalance: r.status === 'cancelled' ? 0 : Math.max(0, advanceRequired - rentalNet),
+    advanceBalance: r.status === 'cancelled' ? 0 : Math.max(0, advanceRequired - rentalNet - fittingCredit),
     refundableRental: rentalNet - cancellationFee,
     legacyUnreconciled: entries.length === 0 && r.paymentStatus !== 'unpaid' && !r.fittingDiscount,
     entries: entries.map(e => ({ operationId: e.operationId, type: e.type, amount: e.amount,
@@ -82,7 +86,7 @@ export const validatePaymentChange = (r: Reservation, input: PaymentInput): void
   if (input.type === 'deposit_received' && amount < r.deposit - s.depositHeld)
     throw new PaymentError('PAYMENT_FULL_DEPOSIT_REQUIRED');
   const invalid =
-    (input.type === 'advance_received' && amount > Math.max(0, (r.advanceRequired ?? Math.min(200, r.subtotal)) - s.rentalNet)) ||
+    (input.type === 'advance_received' && amount > Math.max(0, (r.advanceRequired ?? Math.min(200, r.subtotal)) - s.rentalNet - s.fittingCredit)) ||
     (input.type === 'rental_received' && amount > r.subtotal - s.rentalNet) ||
     (input.type === 'deposit_received' && amount > r.deposit - s.depositHeld) ||
     (input.type === 'rental_refunded' && amount > s.refundableRental) ||

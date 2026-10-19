@@ -41,7 +41,9 @@ async function main(){
  const fi=await I.findOne({sourceKey:'fitting:'+f._id}).lean();assert.equal(fi.snapshot.total,200);assert.equal(fi.snapshot.paid,200);assert.equal(fi.snapshot.serviceDatePlanned,true);assert.equal(fi.snapshot.buyer.address,'');assert.equal(fi.snapshot.buyer.email,'invoice@example.test');assert.equal(fi.email.status,'sent');
  const fm=mail.messages.filter(m=>m.subject.includes(fi.number));assert.equal(mail.messages.length,1,'one combined confirmation and PDF, no standalone confirmation');assert.match(fm[0].text,/10:00/);assert.match(fm[0].text,/Test/);assert.match(fm[0].subject,/Zkouška potvrzena/);assert.equal(fm[0].attachments.length,1);assert.ok(!fm[0].html.includes('Zobrazit rezervaci a zaplatit'));assert.equal(fm.length,1);assert.equal(Buffer.from(fm[0].attachments[0].content,'base64').subarray(0,4).toString(),'%PDF');assert.match(fm[0].text,/200/);
  await Promise.all([confirm(),confirm()]);assert.equal(await I.countDocuments(),1);assert.equal(mail.messages.length,1);
- const r=await rental();const input={operationId:randomUUID(),expectedRevision:0,type:'advance_received',amount:200,method:'bank_transfer'};
+ const r=await rental();
+ const duplicateAdvance=await call(adminRecordPayment,{operationId:randomUUID(),expectedRevision:0,type:'advance_received',amount:200,method:'bank_transfer'},{reservationId:String(r._id)});assert.equal(duplicateAdvance.code,409);
+ const input={operationId:randomUUID(),expectedRevision:0,type:'rental_received',amount:200,method:'bank_transfer'};
  const pay=()=>call(adminRecordPayment,input,{reservationId:String(r._id)});
  const payments=await Promise.all([pay(),pay()]);assert.ok(payments.every(x=>x.code===200));
  let ri=await I.findOne({sourceKey:'reservation:'+r._id}).lean();assert.equal(ri.snapshot.total,800);assert.equal(ri.snapshot.paid,200);assert.equal(ri.snapshot.balance,600);assert.equal(ri.snapshot.lines[1].amount,-200);assert.equal(ri.snapshot.deposit,0);assert.equal((await R.findById(r._id)).paymentEntries.length,1);
