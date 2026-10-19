@@ -310,6 +310,11 @@ module.exports = async function ({ request, models }) {
       partner: { partnerId: 'blaze', source: 'anirak' },
       revision: 0,
     });
+    const retired = await call('/partner/fittings/' + fitting._id, 0, {
+      action: 'studio-booked', revision: 0, studioBooked: true, reference: 'EXT-123',
+    });
+    assert.equal(retired.status, 400, 'external studio confirmation is retired');
+    assert.equal((await FittingModel.findById(fitting._id).lean()).studioBooked, false);
     const { actOnFitting } = require('../build/v2/services/fitting.service');
     await actOnFitting(
       String(fitting._id),
@@ -349,12 +354,12 @@ module.exports = async function ({ request, models }) {
       number: 'ZK-EXAMPLE',
       status: 'completed',
       paymentStatus: 'paid',
-      partner: { source: 'anirak' },
+      partner: { partnerId: 'blaze', source: 'anirak' },
     };
     assert.equal(calculatePartnerBalance([], [base]).earned, 200);
     assert.equal(
       calculatePartnerBalance([], [{ ...base, studioBooked: true }]).earned,
-      0
+      200
     );
     const rental = {
       reservationNumber: 'TEST',
@@ -363,7 +368,7 @@ module.exports = async function ({ request, models }) {
       deposit: 0,
       rentalMode: 'external',
       fittingCreditId: 'fit',
-      partner: { source: 'partner' },
+      partner: { partnerId: 'blaze', source: 'partner' },
       paymentEntries: [
         { type: 'rental_received', amount: 800, recordedAt: new Date() },
       ],
@@ -371,14 +376,14 @@ module.exports = async function ({ request, models }) {
     assert.equal(
       calculatePartnerBalance(
         [rental],
-        [{ ...base, partner: { source: 'partner' } }]
+        [{ ...base, partner: { partnerId: 'blaze', source: 'partner' } }]
       ).earned,
-      400,
-      'fitting is included in 50 percent'
+      600,
+      'external partner rental retains the separate fitting fee'
     );
     assert.equal(
       calculatePartnerBalance(
-        [{ ...rental, partner: { source: 'anirak' } }],
+        [{ ...rental, partner: { partnerId: 'blaze', source: 'anirak' } }],
         [base]
       ).earned,
       200,
@@ -386,8 +391,8 @@ module.exports = async function ({ request, models }) {
     );
     assert.equal(
       calculatePartnerBalance(
-        [{ ...rental, partner: { source: 'anirak' } }],
-        [{ ...base, partner: { source: 'partner' } }]
+        [{ ...rental, partner: { partnerId: 'blaze', source: 'anirak' } }],
+        [{ ...base, partner: { partnerId: 'blaze', source: 'partner' } }]
       ).earned,
       200,
       'owner source correction takes precedence over inherited fitting source'
@@ -399,7 +404,7 @@ module.exports = async function ({ request, models }) {
             ...rental,
             status: 'pending',
             rentalMode: 'studio',
-            partner: { source: 'anirak' },
+            partner: { partnerId: 'blaze', source: 'anirak' },
           },
         ],
         [base]
@@ -409,11 +414,32 @@ module.exports = async function ({ request, models }) {
     );
     assert.equal(
       calculatePartnerBalance(
-        [{ ...rental, rentalMode: 'studio', partner: { source: 'anirak' } }],
+        [{ ...rental, rentalMode: 'studio', partner: { partnerId: 'blaze', source: 'anirak' } }],
         [base]
       ).earned,
       0
     );
+    for (const source of ['anirak', 'partner']) {
+      for (const mode of ['external', 'studio']) {
+        for (const status of ['pending', 'confirmed', 'prepared', 'rented', 'returned', 'cancelled', 'expired']) {
+          const linked = { ...rental, rentalMode: mode, status, partner: { partnerId: 'blaze', source } };
+          const line = calculatePartnerBalance([linked], [base]).lines.find(l => l.kind === 'fitting');
+          const waived = mode === 'studio' && ['confirmed', 'prepared', 'rented', 'returned'].includes(status);
+          assert.equal(line.amount, waived ? 0 : 200, `${source} ${mode} ${status} fitting fee`);
+        }
+      }
+    }
+    for (const patch of [
+      { fittingCreditId: 'another-fitting' },
+      { partner: { partnerId: 'another-studio', source: 'partner' } },
+      { partner: undefined },
+    ]) {
+      const linked = { ...rental, status: 'confirmed', rentalMode: 'studio', ...patch };
+      assert.equal(calculatePartnerBalance([linked], [base]).lines.find(l => l.kind === 'fitting').amount, 200, 'only same Blaze fitting link waives fee');
+    }
+    for (const patch of [{ status: 'confirmed' }, { paymentStatus: 'unpaid' }, { paymentStatus: 'refunded' }]) {
+      assert.equal(calculatePartnerBalance([], [{ ...base, ...patch }]).earned, 0, 'only completed paid fitting earns fee');
+    }
     assert.deepEqual(
       discountAdditionalDresses([
         {
