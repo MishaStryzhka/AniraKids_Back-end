@@ -1,3 +1,5 @@
+import { ReservationAdminError } from '../services/reservation-admin.types';
+import { mapAdminApiError } from '../http/admin-error-mapper';
 import { AdminAccessModel } from '../models/admin-access.model';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
@@ -586,23 +588,34 @@ export function partnerHandler(action: string): HttpHandler {
       }
       throw new PartnerError('NOT_FOUND', 404);
     } catch (e) {
+      const requestId = randomUUID();
+      const reply = (status: number, payload: { error: { code: string; message: string } }) => {
+        const record = { requestId, handler: action, code: payload.error.code, status };
+        if (status >= 500) {
+          // Never log customer data, authorization headers or request bodies.
+          console.error('V2 partner API error', { ...record,
+            errorType: e instanceof Error ? e.name : 'UnknownError',
+            frames: e instanceof Error ? e.stack?.split('\n').slice(1, 6) : undefined });
+        } else console.warn('V2 partner API rejected', record);
+        return res.status(status).json({ error: { ...payload.error, requestId } });
+      };
+      if (e instanceof ReservationAdminError) {
+        const mapped = mapAdminApiError(e);
+        return reply(mapped.status, mapped.body);
+      }
       if (e instanceof ReservationServiceError) {
         const mapped = mapReservationApiError(e);
-        return res.status(mapped.status).json(mapped.body);
+        return reply(mapped.status, mapped.body);
       }
       if (
         e instanceof PartnerError ||
         e instanceof PaymentError ||
         e instanceof FittingError
       )
-        return res
-          .status(e.status)
-          .json({ error: { code: e.code, message: e.code } });
+        return reply(e.status, { error: { code: e.code, message: e.code } });
       if ((e as any)?.code === 11000)
-        return res
-          .status(409)
-          .json({ error: { code: 'CONFLICT', message: 'CONFLICT' } });
-      return next(e);
+        return reply(409, { error: { code: 'CONFLICT', message: 'CONFLICT' } });
+      return reply(500, { error: { code: 'INTERNAL_ERROR', message: 'Partner operation failed' } });
     }
   };
 }

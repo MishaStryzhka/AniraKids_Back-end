@@ -207,6 +207,28 @@ module.exports = async function ({ request, models }) {
       ).status,
       403
     );
+    const unpaidConfirmation = await call('/partner/reservations/' + r._id, 1, { action: 'confirm' });
+    assert.equal(unpaidConfirmation.status, 409);
+    assert.equal(unpaidConfirmation.body.error.code, 'PAYMENT_ADVANCE_REQUIRED');
+    assert.match(unpaidConfirmation.body.error.requestId, /^[a-f0-9-]{36}$/);
+    assert.equal((await models.ReservationV2Model.findById(r._id).lean()).status, 'pending');
+    const { reservationAdminService } = require('../build/v2/services/reservation-admin.service');
+    const originalConfirm = reservationAdminService.confirm;
+    const originalError = console.error;
+    const capturedErrors = [];
+    try {
+      reservationAdminService.confirm = async () => { throw new Error('private-customer-data'); };
+      console.error = (...args) => capturedErrors.push(args);
+      const failed = await call('/partner/reservations/' + r._id, 1, { action: 'confirm' });
+      assert.equal(failed.status, 500);
+      assert.equal(failed.body.error.code, 'INTERNAL_ERROR');
+      assert.equal(failed.body.error.message, 'Partner operation failed');
+      assert.equal(capturedErrors[0][1].requestId, failed.body.error.requestId);
+      assert.ok(!JSON.stringify([failed.body, capturedErrors]).includes('private-customer-data'));
+    } finally {
+      reservationAdminService.confirm = originalConfirm;
+      console.error = originalError;
+    }
     const cash = {
       operationId: randomUUID(),
       expectedRevision: 0,
