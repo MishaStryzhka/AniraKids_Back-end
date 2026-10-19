@@ -44,7 +44,7 @@ export const paymentSummary = (r: Reservation & { _id?: Types.ObjectId }) => {
     rentalBalance: r.status === 'cancelled' ? 0 : Math.max(0, r.subtotal - rentalNet),
     advanceBalance: r.status === 'cancelled' ? 0 : Math.max(0, advanceRequired - rentalNet),
     refundableRental: rentalNet - cancellationFee,
-    legacyUnreconciled: entries.length === 0 && r.paymentStatus !== 'unpaid',
+    legacyUnreconciled: entries.length === 0 && r.paymentStatus !== 'unpaid' && !r.fittingDiscount,
     entries: entries.map(e => ({ operationId: e.operationId, type: e.type, amount: e.amount,
       ...(e.method ? { method: e.method } : {}), ...(e.reference ? { reference: e.reference } : {}),
       ...(e.note ? { note: e.note } : {}), recordedAt: new Date(e.recordedAt).toISOString(), recordedBy: e.recordedBy })),
