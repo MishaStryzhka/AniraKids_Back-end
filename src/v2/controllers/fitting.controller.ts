@@ -1,7 +1,7 @@
 import type {HttpHandler} from '../types/http';
 import {resolveBookingPartner,PartnerError} from '../services/partner-referral.service';
 import {getFittingSettings,saveFittingSettings,parseFittingSettings} from '../services/fitting-settings.service';
-import {FittingError,availableFittingSlots,createFitting,readFitting,reportFittingPayment,cancelPublicFitting,adminFittings,actOnFitting} from '../services/fitting.service';
+import {FittingError,availableFittingSlots,createFitting,readFitting,reportFittingPayment,cancelPublicFitting,adminFittings,actOnFitting,fittingDiscountOptions} from '../services/fitting.service';
 import {PaymentError} from '../services/payment.types';
 export function fittingHandler(action:string):HttpHandler{return async(req,res,next)=>{
  try{
@@ -18,6 +18,7 @@ export function fittingHandler(action:string):HttpHandler{return async(req,res,n
    case 'read':result=await readFitting(number,token);break;
    case 'report':result=await reportFittingPayment(number,token);break;
    case 'cancel':result=await cancelPublicFitting(number,token);break;
+   case 'discount-options':result=await fittingDiscountOptions(req.params?.reservationId||'');break;
    case 'list':result=await adminFittings(String(req.query?.from||''),String(req.query?.to||''));break;
    case 'act':if(!req.authenticatedUserId)throw new FittingError('ADMIN_UNAUTHORIZED',401);result=await actOnFitting(req.params?.fittingId||'',req.body,req.authenticatedUserId.toHexString());break;
   }
