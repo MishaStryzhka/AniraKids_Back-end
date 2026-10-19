@@ -5,6 +5,7 @@ import type {
 } from '../types/domain';
 
 export interface ReservationRequestBody {
+  fittingDiscount?: import('../services/fitting-discount.service').FittingDiscountSelection;
   referralToken?: string;
   items?: Array<{ productId: string; variantId: string }>;
   productId: string;
@@ -53,6 +54,7 @@ const customerSchema = Joi.object({
   .required();
 
 export const reservationRequestSchema = Joi.object({
+  fittingDiscount: Joi.object({number:Joi.string().pattern(/^ZK-[A-F0-9]{12}$/).required(),token:Joi.string().pattern(/^[a-f0-9]{64}$/)}).unknown(false),
   referralToken: Joi.string().max(1200),
   productId: Joi.string().pattern(objectIdPattern),
   variantId: Joi.string().pattern(objectIdPattern),

@@ -23,6 +23,7 @@ export interface PublicReservationItemDto {
 }
 
 export interface PublicReservationDto {
+  fittingDiscount?: {number:string;amount:number};
   payment?: ReturnType<typeof publicPaymentSummary>;
   reservationNumber: string;
   status: ReservationStatus;
@@ -77,6 +78,7 @@ export const toPublicReservationResponse = (
       productName: item.productNameSnapshot, size: item.sizeSnapshot,
       rentalPrice: item.rentalPriceSnapshot, deposit: item.depositSnapshot,
     })),
+    ...(reservation.fittingDiscount?{fittingDiscount:{number:reservation.fittingDiscount.number,amount:reservation.fittingDiscount.amount}}:{}),
     subtotal: reservation.subtotal,
     deposit: reservation.deposit,
     totalDue: reservation.totalDue,

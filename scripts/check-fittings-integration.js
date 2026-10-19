@@ -132,7 +132,7 @@ module.exports=async({test,registry,insertOwned})=>{
    const result=await api.adminFittings('2030-01-01','2030-01-31');assert.equal(result.items.find(i=>i.number===r.number).credit.reservationNumber,credited.reservationNumber);
    assert.equal(result.items.find(i=>i.number===r.number).tokenHash,undefined);
   });
-  await test('Discount candidates match customer, exclude used fittings and reject paid, closed and mismatched reservations',async()=>{
+  await test('Discount candidates match customer, exclude used fittings, support paid rentals and reject closed or mismatched reservations',async()=>{
    const email=randomUUID()+'@example.test';
    const makeFit=async(time,contact=email)=>{const r=await api.createFitting(input('2030-01-20',time,contact),now);await act(r.number,'confirm');await act(r.number,'complete',{},new Date('2030-01-21'));return await doc(r.number);};
    const first=await makeFit('09:00'),second=await makeFit('10:00');await makeFit('11:00');const stranger=await makeFit('12:00',randomUUID()+'@example.test');
@@ -145,12 +145,14 @@ module.exports=async({test,registry,insertOwned})=>{
    const secondId=await make('DDD002');const remaining=await api.fittingDiscountOptions(String(secondId),now);assert.equal(remaining.items.length,2);assert.ok(!remaining.items.some(x=>x.id===saved.fittingCreditId));
    const unused=await FittingModel.findById(remaining.items[0].id).lean();
    const paid=await make('DDD003',{paymentEntries:[{operationId:randomUUID(),type:'rental_received',amount:800,method:'cash',recordedBy:'admin',recordedAt:now}]});
-   assert.equal((await api.fittingDiscountOptions(String(paid),now)).eligible,false);
-   await reject(act(unused.number,'credit',{reservationNumber:'AK-2030-DDD003'}),'CREDIT_BALANCE_TOO_LOW');
+   assert.equal((await api.fittingDiscountOptions(String(paid),now)).eligible,true);
+   await act(unused.number,'credit',{reservationNumber:'AK-2030-DDD003'});
+   const discountedPaid=await Reservation.findById(paid).lean();assert.equal(discountedPaid.subtotal,600);assert.equal(paymentSummary(discountedPaid).rentalNet,800);assert.equal(discountedPaid.paymentEntries.length,1);
    const closed=await make('DDD004',{status:'cancelled'});assert.equal((await api.fittingDiscountOptions(String(closed),now)).eligible,false);
    await reject(act(unused.number,'credit',{reservationNumber:'AK-2030-DDD004'}),'CREDIT_RESERVATION_MISMATCH');
-   const legacy=await make('DDD005',{fittingCreditId:String(unused._id),paymentEntries:[{operationId:randomUUID(),type:'rental_received',amount:200,method:'bank_transfer',recordedBy:'admin',recordedAt:now}]});
-   const old=await Reservation.findById(legacy).lean();await act(unused.number,'credit',{reservationNumber:'AK-2030-DDD005'});const preserved=await Reservation.findById(legacy).lean();assert.equal(preserved.subtotal,800);assert.deepEqual(preserved.paymentEntries,old.paymentEntries);assert.equal(preserved.fittingDiscount,undefined);assert.equal((await api.fittingDiscountOptions(String(legacy),now)).applied.kind,'legacy_credit');
+   const legacyFitting=await makeFit('13:00');
+   const legacy=await make('DDD005',{fittingCreditId:String(legacyFitting._id),paymentEntries:[{operationId:randomUUID(),type:'rental_received',amount:200,method:'bank_transfer',recordedBy:'admin',recordedAt:now}]});
+   const old=await Reservation.findById(legacy).lean();await act(legacyFitting.number,'credit',{reservationNumber:'AK-2030-DDD005'});const preserved=await Reservation.findById(legacy).lean();assert.equal(preserved.subtotal,800);assert.deepEqual(preserved.paymentEntries,old.paymentEntries);assert.equal(preserved.fittingDiscount,undefined);assert.equal((await api.fittingDiscountOptions(String(legacy),now)).applied.kind,'legacy_credit');
    const zero=await make('DDD006',{subtotal:200,deposit:0,totalDue:200,customerSnapshot:{firstName:'Test',lastName:'Customer',email:stranger.customer.email,phone:'+420123456789'}});
    await act(stranger.number,'credit',{reservationNumber:'AK-2030-DDD006'});const free=await Reservation.findById(zero).lean();assert.equal(free.totalDue,0);assert.equal(free.paymentStatus,'paid');assert.equal(paymentSummary(free).legacyUnreconciled,false);assert.equal(paymentSummary(free).advanceBalance,0);
   });

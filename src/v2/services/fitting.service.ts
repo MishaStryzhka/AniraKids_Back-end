@@ -1,3 +1,6 @@
+import {releaseUnusedFittingDiscounts} from './fitting-discount.service';
+import {notifyFittingDiscount} from './fitting-discount-email.service';
+import {InvoiceModel} from '../models/invoice.model';
 import {createHash,randomUUID} from 'crypto';
 import {Types} from 'mongoose';
 import type {PartnerAttribution} from './partner-referral.service';
@@ -72,11 +75,12 @@ export async function adminFittings(from:string,to:string){
  return {truncated:docs.length>500,items:docs.slice(0,500).map((d:any)=>({...publicFitting(d),id:d._id.toString(),revision:d.revision,customer:d.customer,audit:d.audit,credit:credits.find(c=>c.fittingCreditId===d._id.toString())?{reservationId:credits.find(c=>c.fittingCreditId===d._id.toString())!._id.toString(),reservationNumber:credits.find(c=>c.fittingCreditId===d._id.toString())!.reservationNumber}:null}))};
 }
 export async function fittingDiscountOptions(reservationId:string,now=new Date()){
+ await releaseUnusedFittingDiscounts(now);
  if(!Types.ObjectId.isValid(reservationId))throw new FittingError('VALIDATION_ERROR',400);
  const r=await ReservationV2Model.findById(reservationId).lean().exec();if(!r)throw new FittingError('RESERVATION_NOT_FOUND',404);
  const applied=r.fittingCreditId?await FittingModel.findById(r.fittingCreditId).select('number').lean().exec():null;
  const summary=paymentSummary(r);
- const eligible=!r.fittingCreditId&&!summary.legacyUnreconciled&&summary.rentalBalance>=200&&['pending','confirmed','prepared'].includes(r.status)&&!(r.status==='pending'&&(!r.expiresAt||r.expiresAt<=now));
+ const eligible=!r.fittingCreditId&&!summary.legacyUnreconciled&&r.subtotal>=200&&['pending','confirmed','prepared'].includes(r.status)&&!(r.status==='pending'&&(!r.expiresAt||r.expiresAt<=now));
  const candidates=eligible?await FittingModel.find({status:'completed',paymentStatus:'paid','customer.email':r.customerSnapshot.email.toLowerCase().trim()}).select('_id number date time revision').sort({date:-1,time:-1}).lean().exec():[];
  const used=await ReservationV2Model.find({fittingCreditId:{$in:candidates.map(f=>String(f._id))}}).select('fittingCreditId').lean().exec();
  const usedIds=new Set(used.map(x=>x.fittingCreditId));
@@ -86,7 +90,9 @@ export async function fittingDiscountOptions(reservationId:string,now=new Date()
 export async function actOnFitting(id:string,body:any,actor:string,now=new Date()){
  if(!Types.ObjectId.isValid(id)||!Number.isSafeInteger(body?.revision)||body.revision<0)throw new FittingError('VALIDATION_ERROR',400);
  const doc=await FittingModel.findById(id).lean().exec() as any;if(!doc)throw new FittingError('FITTING_NOT_FOUND',404);
+ if(body.action==='complete'&&doc.status==='completed'){await notifyFittingDiscount(doc);return {ok:true};}
  if(body.action==='credit'){
+  await releaseUnusedFittingDiscounts(now);
   if(doc.status!=='completed'||doc.paymentStatus!=='paid')throw new FittingError('FITTING_NOT_CREDITABLE');
   const number=String(body.reservationNumber||'').trim().toUpperCase();
   const reservation=await ReservationV2Model.findOne({reservationNumber:number}).lean().exec();if(!reservation)throw new FittingError('RESERVATION_NOT_FOUND',404);
@@ -97,7 +103,8 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
   if(reservation.fittingCreditId||!['pending','confirmed','prepared'].includes(reservation.status)||(reservation.status==='pending'&&(!reservation.expiresAt||new Date(reservation.expiresAt)<=now))||reservation.customerSnapshot.email.toLowerCase()!==doc.customer.email)throw new FittingError('CREDIT_RESERVATION_MISMATCH');
   const summary=paymentSummary(reservation);
   if(summary.legacyUnreconciled)throw new FittingError('PAYMENT_LEGACY_RECONCILIATION_REQUIRED');
-  if(summary.rentalBalance<200)throw new FittingError('CREDIT_BALANCE_TOO_LOW');
+  if(reservation.subtotal<200)throw new FittingError('CREDIT_BALANCE_TOO_LOW');
+  if(await InvoiceModel.exists({sourceKey:'reservation:'+reservation._id}))throw new FittingError('CREDIT_INVOICE_EXISTS');
   const subtotal=reservation.subtotal-200;
   const paymentStatus=summary.rentalNet>=subtotal&&summary.depositHeld>=reservation.deposit?'paid':'unpaid';
   // Unique fittingCreditId prevents reuse across reservations; payment CAS protects
@@ -132,6 +139,7 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
  }
  try{const changed=await FittingModel.updateOne({_id:doc._id,revision:doc.revision},{$set:set,$unset:unset,$inc:{revision:1},$push:{audit:{action:body.action,at:now,by:actor}}}).exec();if(!changed.modifiedCount)throw new FittingError('FITTING_CONFLICT');}
  catch(e){if((e as any).code===11000)throw new FittingError('SLOT_UNAVAILABLE');throw e;}
+ if(body.action==='complete')await notifyFittingDiscount({...doc,...set});
  if(body.action==='confirm')await notifyFitting({...doc,...set},'confirmed');
  if(body.action==='reschedule')await notifyFitting({...doc,...set,revision:doc.revision+1},'rescheduled',undefined,{date:doc.date,time:doc.time});
  return {ok:true};
