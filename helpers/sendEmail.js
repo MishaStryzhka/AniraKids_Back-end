@@ -27,7 +27,7 @@ const sendEmail = async ({ to, text, html, subject, attachments }) => {
       });
       const result = await transport.sendMail({ ...message, ...(attachments ? {
         attachments: attachments.map(a => ({ filename: a.filename, content: a.content,
-          encoding: 'base64', contentType: a.type, cid: a.content_id, contentDisposition: 'inline' })),
+          encoding: 'base64', contentType: a.type, cid: a.content_id, contentDisposition: a.disposition || 'inline' })),
       } : {}) });
       if (!result.accepted || result.accepted.length === 0 ||
           (result.rejected && result.rejected.length > 0)) {

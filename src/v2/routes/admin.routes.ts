@@ -1,3 +1,4 @@
+import {invoiceHandler} from '../controllers/invoice.controller';
 import {adminAccess,administrators} from '../controllers/admin-access.controller';
 import {fittingHandler} from '../controllers/fitting.controller';
 import {adminPushHandler} from '../controllers/admin-push.controller';
@@ -95,6 +96,13 @@ export const registerAdminRoutes = (
   dependencies: AdminRouteDependencies
 ): void => {
   const guards = commonAdminGuards(dependencies);
+  router.get('/admin/invoices', ...guards, invoiceHandler('list'));
+  router.post('/admin/invoices/preview', ...guards, invoiceHandler('preview'));
+  router.post('/admin/invoices', ...guards, invoiceHandler('issue'));
+  router.get('/admin/invoices/export', ...guards, invoiceHandler('export'));
+  router.get('/admin/invoices/:invoiceId/pdf', ...guards, invoiceHandler('pdf'));
+  router.post('/admin/invoices/:invoiceId/send', ...guards, invoiceHandler('send'));
+  router.post('/admin/invoices/:invoiceId/correct', ...guards, invoiceHandler('correct'));
   router.get('/admin/access', ...guards, adminAccess);
   router.get('/admin/administrators', ...guards, requireAdminPermission('administrators'), administrators('list'));
   router.post('/admin/administrators/lookup', ...guards, requireAdminPermission('administrators'), administrators('lookup'));
