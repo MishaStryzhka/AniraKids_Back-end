@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 import { ReservationV2Model } from '../models/reservation-v2.model';
 import { paymentSummary, publicPaymentSummary } from './payment.service';
 import { PaymentError } from './payment.types';
+import { notifyOwnerReservationPaymentReported } from './admin-push.service';
 
 const schema = Joi.object({
   operationId: Joi.string().guid({version:['uuidv4']}).required(),
@@ -56,7 +57,14 @@ export async function reportReservationPayment(
     $push:{partnerAudit:{action:'payment_reported',at:now,by:actor,
       operationId:input.operationId,amount:input.amount,method:input.kind === 'cash' ? 'cash' : 'bank_transfer',reference:input.kind}},
   }, {new:true,runValidators:true}).lean().exec();
-  if (updated) return updated;
+  if (updated) {
+    // Only the winning write sends an alert. Re-selecting the same pending cash
+    // arrangement (even with a new operation ID) must not notify the owner again.
+    const repeatedCash = input.kind === 'cash' && summary.paymentReport?.status === 'pending' &&
+      summary.paymentReport.kind === 'cash' && summary.paymentReport.amount === input.amount;
+    if (!repeatedCash) await notifyOwnerReservationPaymentReported(input.kind);
+    return updated;
+  }
   const current = await ReservationV2Model.findOne(filter).lean().exec();
   if (current?.paymentReport?.operationId === input.operationId) {
     if (current.paymentReport.amount !== input.amount || current.paymentReport.kind !== input.kind)

@@ -18,6 +18,10 @@ const records=[
   {endpoint:endpoint('created'),endpointHash:'created',topics:['fitting_created'],keys},
   {endpoint:endpoint('payment'),endpointHash:'payment',topics:['fitting_payment_reported'],keys},
   {endpoint:endpoint('both'),endpointHash:'both',topics:['fitting_created','fitting_payment_reported'],keys},
+  {endpoint:endpoint('rental-transfer'),endpointHash:'rental-transfer',topics:['reservation_payment_reported'],keys},
+  {endpoint:endpoint('rental-cash'),endpointHash:'rental-cash',topics:['reservation_cash_selected'],keys},
+  {endpoint:endpoint('rental-both'),endpointHash:'rental-both',topics:['reservation_payment_reported','reservation_cash_selected'],keys},
+  {endpoint:endpoint('rental-no-keys'),endpointHash:'rental-no-keys',topics:['reservation_payment_reported','reservation_cash_selected']},
   {endpoint:endpoint('off'),endpointHash:'off',topics:[],keys},
   {endpoint:endpoint('legacy'),endpointHash:'legacy'},
   {endpoint:endpoint('missing-keys'),endpointHash:'missing-keys',topics:['fitting_created']},
@@ -56,6 +60,12 @@ async function handle(body,owner=true){
   assert.equal((await handle({endpoint:endpoint('new'),topics:['unknown'],keys})).code,400);
   assert.equal((await handle({endpoint:endpoint('new'),keys:{}})).code,400);
   assert.equal((await handle({endpoint:endpoint('new'),topics:['fitting_created'],keys},false)).code,403);
+  for(const topic of ['reservation_payment_reported','reservation_cash_selected']){
+    assert.equal((await handle({endpoint:endpoint('new'),topics:[topic],keys})).code,200);
+    assert.deepEqual(stored.topics,[topic]);
+    assert.equal((await handle({endpoint:endpoint('new'),topics:[topic]})).code,400);
+    assert.equal((await handle({endpoint:endpoint('new'),topics:[topic],keys},false)).code,403);
+  }
   assert.equal((await handle({endpoint:endpoint('old')})).code,200,'legacy payment-only client remains supported');
   await service.notifyOwnerFittingCreated();
   assert.deepEqual(sent.map(item=>item.url),[endpoint('created'),endpoint('both')]);
@@ -63,10 +73,16 @@ async function handle(body,owner=true){
   sent.length=0;await service.notifyOwnerFittingPaymentReported();
   assert.deepEqual(sent.map(item=>item.url),[endpoint('payment'),endpoint('both'),endpoint('legacy')]);
   assert.deepEqual(sent.map(item=>item.payload),[{type:'fitting_payment_reported'},{type:'fitting_payment_reported'},null]);
+  for(const kind of ['advance','full','cash']){
+    sent.length=0;await service.notifyOwnerReservationPaymentReported(kind);
+    const cash=kind==='cash';
+    assert.deepEqual(sent.map(item=>item.url),[endpoint(cash?'rental-cash':'rental-transfer'),endpoint('rental-both')]);
+    assert.ok(sent.every(item=>item.payload.type===(cash?'reservation_cash_selected':'reservation_payment_reported')));
+  }
   status=410;await service.notifyOwnerFittingCreated();
   assert.deepEqual(deleted,[{endpointHash:'created'},{endpointHash:'both'}]);
-  status=503;await service.notifyOwnerFittingCreated();
-  global.fetch=async()=>{throw new Error('offline');};await service.notifyOwnerFittingCreated();
-  Model.find=()=>{throw new Error('database unavailable');};await service.notifyOwnerFittingCreated();
-  console.log('PASS: encrypted event types, independent subscriptions, legacy payment fallback, owner/input validation, expired endpoint cleanup and isolated delivery failures');
+  status=503;await service.notifyOwnerFittingCreated();await service.notifyOwnerReservationPaymentReported('full');
+  global.fetch=async()=>{throw new Error('offline');};await service.notifyOwnerFittingCreated();await service.notifyOwnerReservationPaymentReported('cash');
+  Model.find=()=>{throw new Error('database unavailable');};await service.notifyOwnerFittingCreated();await service.notifyOwnerReservationPaymentReported('full');
+  console.log('PASS: encrypted fitting, rental-transfer and cash event types; independent subscriptions; legacy payment fallback; owner/input validation; expired endpoint cleanup and isolated delivery failures');
 })().catch(error=>{console.error(error);process.exitCode=1;});

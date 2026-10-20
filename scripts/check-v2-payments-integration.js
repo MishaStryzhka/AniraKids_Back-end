@@ -9,6 +9,10 @@ const path = require('node:path');
 const net = require('node:net');
 const mongoose = require('mongoose');
 const express = require('express');
+// Observe notifications without contacting any push provider.
+const paymentPushEvents = [];
+require('../build/v2/services/admin-push.service').notifyOwnerReservationPaymentReported =
+  async kind => { paymentPushEvents.push(kind); };
 const { createV2Router } = require('../build/v2/routes');
 const models = require('../build/v2/models');
 const {
@@ -292,8 +296,10 @@ async function main() {
   assert.equal((await sendReport(notice,`Bearer ${strangerToken}`)).status,404);
   assert.equal((await sendReport({...notice,paymentStatus:'paid'})).status,400);
   assert.equal((await sendReport({...notice,amount:200})).status,409);
+  assert.deepEqual(paymentPushEvents,[],'rejected reports never notify');
   const reported = await Promise.all([sendReport(notice),sendReport(notice)]);
   assert.deepEqual(reported.map(response=>response.status),[200,200]);
+  assert.deepEqual(paymentPushEvents,['full'],'concurrent account retries notify once');
   const reportedDto = (await reported[0].json()).reservation;
   assert.equal(reportedDto.payment.paymentReport.status,'pending');
   assert.equal(reportedDto.payment.paymentReport.pendingRental,600);
@@ -329,6 +335,7 @@ async function main() {
   assert.equal(publicPaymentSummary(paidReport).lastPayment.method,'bank_transfer');
   assert.equal(publicPaymentSummary(paidReport).fullPaymentInstructions,null);
   assert.equal(JSON.stringify(publicPaymentSummary(paidReport)).includes('recordedBy'),false);
+  assert.deepEqual(paymentPushEvents,['full'],'reads, rejected repeats and staff receipts do not send customer-report alerts');
   const cashBooking = await makeBooking('AK-2030-CASHQR',55);
   await Reservation.updateOne({_id:cashBooking._id},{$set:{
     guestAccessTokenHash:hashGuestAccessToken(guestToken),subtotal:600,deposit:0,totalDue:600,
@@ -339,6 +346,7 @@ async function main() {
   const cashResponse = await fetch(cashUrl,{method:'POST',
     headers:{Authorization:`Reservation ${guestToken}`,'Content-Type':'application/json'},body:JSON.stringify(cashNotice)});
   assert.equal(cashResponse.status,200);
+  assert.deepEqual(paymentPushEvents,['full','cash'],'guest cash choice notifies');
   const cashDto = (await cashResponse.json()).reservation;
   assert.equal(cashDto.paymentStatus,'unpaid');
   assert.equal(cashDto.payment.paymentReport.kind,'cash');
@@ -368,14 +376,26 @@ async function main() {
   const switchToQr = await makeBooking('AK-2030-CHNGQR',65);
   await Reservation.updateOne({_id:switchToQr._id},{$set:{...splitAccess,subtotal:600,deposit:0,totalDue:600,
     fittingDiscount:{amount:200,number:'ZK-CHANGE',appliedAt:new Date(),appliedBy:actor}}});
-  await reportReservationPayment(switchToQr.reservationNumber,splitAccess,{operationId:randomUUID(),kind:'cash',amount:600},'guest');
-  await reportReservationPayment(switchToQr.reservationNumber,splitAccess,{operationId:randomUUID(),kind:'full',amount:600},'guest');
+  const switchCash = {operationId:randomUUID(),kind:'cash',amount:600};
+  await reportReservationPayment(switchToQr.reservationNumber,splitAccess,switchCash,'guest');
+  await reportReservationPayment(switchToQr.reservationNumber,splitAccess,switchCash,'guest');
+  await reportReservationPayment(switchToQr.reservationNumber,splitAccess,{...switchCash,operationId:randomUUID()},'guest');
+  assert.deepEqual(paymentPushEvents,['full','cash','full','cash'],'re-selecting the same cash arrangement never duplicates push');
+  const switchTransfer = {operationId:randomUUID(),kind:'full',amount:600};
+  await Promise.all([1,2].map(()=>reportReservationPayment(switchToQr.reservationNumber,splitAccess,switchTransfer,'guest')));
+  assert.deepEqual(paymentPushEvents,['full','cash','full','cash','full'],'cash-to-transfer switch notifies once');
   assert.equal(paymentSummary(await Reservation.findById(switchToQr._id)).paymentReport.kind,'full');
   assert.equal(paymentSummary(await Reservation.findById(switchToQr._id)).rentalBalance,600);
   const expiredReport = await makeBooking('AK-2030-EXPRPT',70,new Date(Date.now()-1000));
   await Reservation.updateOne({_id:expiredReport._id},{$set:splitAccess});
   await assert.rejects(reportReservationPayment(expiredReport.reservationNumber,splitAccess,
     {operationId:randomUUID(),kind:'advance',amount:200},'guest'),e=>e.code==='PAYMENT_REPORT_CHANGED');
+  assert.equal(paymentPushEvents.length,5,'expired report never notifies');
+  const advanceReport = await makeBooking('AK-2030-ADVRPT',75);
+  await Reservation.updateOne({_id:advanceReport._id},{$set:splitAccess});
+  await reportReservationPayment(advanceReport.reservationNumber,splitAccess,{operationId:randomUUID(),kind:'advance',amount:200},'guest');
+  assert.deepEqual(paymentPushEvents,['full','cash','full','cash','full','advance']);
+  evidence.push('Owner push after saved account/guest transfer, advance and cash reports; concurrent/replayed/re-selected cash reports do not duplicate; cash-to-QR switch notifies; rejected and expired reports stay silent');
   evidence.push('Customer and guest report authentication; no payment/hold mutation; concurrent idempotency; admin bank approval; cash intent keeps staff QR; actual cash receipt; split rental/deposit confirmation; cash-to-QR switch; expired hold rejected');
   console.log(JSON.stringify({status:'PASS',database:'owned disposable loopback replica set',tests:evidence},null,2));
 }

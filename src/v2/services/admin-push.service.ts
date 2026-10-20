@@ -3,7 +3,7 @@ import {Types} from 'mongoose';
 import {generateRequestDetails} from 'web-push';
 import {AdminPushSubscriptionModel} from '../models/admin-push-subscription.model';
 
-export const PUSH_TOPICS = ['fitting_created', 'fitting_payment_reported'] as const;
+export const PUSH_TOPICS = ['fitting_created', 'fitting_payment_reported', 'reservation_payment_reported', 'reservation_cash_selected'] as const;
 export type PushTopic = typeof PUSH_TOPICS[number];
 export function parsePushTopics(input: unknown): PushTopic[] | null {
   if (!Array.isArray(input) || input.length > PUSH_TOPICS.length || new Set(input).size !== input.length ||
@@ -60,7 +60,7 @@ export function pushVapidConfig() {
 
 export async function registerOwnerPush(ownerId: Types.ObjectId, endpoint: string, topics: PushTopic[] = ['fitting_payment_reported'], keys?: PushKeys) {
   if (!validPushEndpoint(endpoint)) throw new Error('INVALID_PUSH_ENDPOINT');
-  if ((keys !== undefined && !validPushKeys(keys)) || (topics.includes('fitting_created') && !keys)) throw new Error('INVALID_PUSH_KEYS');
+  if ((keys !== undefined && !validPushKeys(keys)) || (topics.some(topic => topic !== 'fitting_payment_reported') && !keys)) throw new Error('INVALID_PUSH_KEYS');
   const existing = await AdminPushSubscriptionModel.countDocuments({ownerId}).exec();
   const endpointHash = hashEndpoint(endpoint);
   const previous = await AdminPushSubscriptionModel.findOne({endpointHash}).select('ownerId').lean().exec();
@@ -153,3 +153,5 @@ async function notifyOwner(topic: PushTopic) {
 
 export const notifyOwnerFittingCreated = () => notifyOwner('fitting_created');
 export const notifyOwnerFittingPaymentReported = () => notifyOwner('fitting_payment_reported');
+export const notifyOwnerReservationPaymentReported = (kind: 'advance' | 'full' | 'cash') =>
+  notifyOwner(kind === 'cash' ? 'reservation_cash_selected' : 'reservation_payment_reported');
