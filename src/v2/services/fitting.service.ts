@@ -39,7 +39,7 @@ export async function createFitting(body:unknown,now=new Date(),customerId?:Type
  await expireFittings(now);
  try{
   const doc=await FittingModel.create({partner,customerId,operationId:v.operationId,tokenHash:hash(v.token),requestHash,number:'ZK-'+randomUUID().replace(/-/g,'').slice(0,12).toUpperCase(),date:v.date,time:v.time,startAt:slot.startAt,address:settings.address,slotKey:v.date+'T'+v.time,activeEmail:hash(v.email),expiresAt:new Date(now.getTime()+60*60000),status:'pending',paymentStatus:'unpaid',customer:{name:v.name,email:v.email,phone:v.phone},product,creditOperationId:randomUUID(),revision:0,audit:[{action:'created',at:now,by:auditActor||partner?.createdBy||'customer'}]});
-  await Promise.all([notifyFitting(doc.toObject(),'created',v.token),notifyOwnerFittingCreated()]);
+  await Promise.all([notifyFitting(doc.toObject(),'created',v.token),notifyOwnerFittingCreated(doc._id)]);
   return publicFitting(doc.toObject(),now);
  }catch(error){
   if((error as any).code===11000){const winner=await FittingModel.findOne({operationId:v.operationId}).select('+tokenHash +requestHash').lean().exec() as any;if(winner&&winner.tokenHash===hash(v.token)&&winner.requestHash===requestHash){if(winner.status==='pending'&&new Date(winner.expiresAt)>now)await notifyFitting(winner,'created',v.token);return publicFitting(winner,now);}throw new FittingError('SLOT_OR_PENDING_CONFLICT');}throw error;
@@ -58,8 +58,8 @@ export async function readFitting(number:string,token:string,now=new Date()){
 }
 export async function reportFittingPayment(number:string,token:string,now=new Date()){
  await readFitting(number,token,now);
- const changed = await FittingModel.updateOne({number,tokenHash:hash(token),status:'pending',expiresAt:{$gt:now}},{$set:{status:'review'},$inc:{revision:1},$push:{audit:{action:'payment_reported',at:now,by:'customer'}}}).exec();
- if (changed.modifiedCount) await notifyOwnerFittingPaymentReported();
+ const changed = await FittingModel.findOneAndUpdate({number,tokenHash:hash(token),status:'pending',expiresAt:{$gt:now}},{$set:{status:'review'},$inc:{revision:1},$push:{audit:{action:'payment_reported',at:now,by:'customer'}}},{new:true}).select('_id').lean().exec();
+ if (changed) await notifyOwnerFittingPaymentReported(changed._id);
  return readFitting(number,token,now);
 }
 export async function cancelPublicFitting(number:string,token:string,now=new Date()){
@@ -71,8 +71,21 @@ export async function adminFittings(from:string,to:string){
  try{if(parseDateOnly(to).getTime()-parseDateOnly(from).getTime()>93*86400000||to<from)throw Error();}catch{throw new FittingError('VALIDATION_ERROR',400);}
  await expireFittings();
  const docs=await FittingModel.find({date:{$gte:from,$lte:to}}).sort({createdAt:-1,_id:-1}).limit(501).lean().exec();
- const credits=await ReservationV2Model.find({fittingCreditId:{$in:docs.map((d:any)=>d._id.toString())}}).select('fittingCreditId reservationNumber').lean().exec();
- return {truncated:docs.length>500,items:docs.slice(0,500).map((d:any)=>({...publicFitting(d),id:d._id.toString(),revision:d.revision,customer:d.customer,audit:d.audit,credit:credits.find(c=>c.fittingCreditId===d._id.toString())?{reservationId:credits.find(c=>c.fittingCreditId===d._id.toString())!._id.toString(),reservationNumber:credits.find(c=>c.fittingCreditId===d._id.toString())!.reservationNumber}:null}))};
+ return {truncated:docs.length>500,items:await adminFittingRecords(docs.slice(0,500))};
+}
+export async function readAdminFitting(id:string){
+ if(id.length!==24||!/^[a-f\d]{24}$/i.test(id))throw new FittingError('FITTING_NOT_FOUND',404);
+ await expireFittings();
+ const doc=await FittingModel.findById(id).lean().exec();
+ if(!doc)throw new FittingError('FITTING_NOT_FOUND',404);
+ return (await adminFittingRecords([doc]))[0];
+}
+async function adminFittingRecords(docs:any[]){
+ const credits=await ReservationV2Model.find({fittingCreditId:{$in:docs.map(d=>d._id.toString())}}).select('fittingCreditId reservationNumber').lean().exec();
+ return docs.map(d=>{
+  const credit=credits.find(c=>c.fittingCreditId===d._id.toString());
+  return {...publicFitting(d),id:d._id.toString(),revision:d.revision,customer:d.customer,audit:d.audit,credit:credit?{reservationId:credit._id.toString(),reservationNumber:credit.reservationNumber}:null};
+ });
 }
 export async function fittingDiscountOptions(reservationId:string,now=new Date()){
  await releaseUnusedFittingDiscounts(now);
