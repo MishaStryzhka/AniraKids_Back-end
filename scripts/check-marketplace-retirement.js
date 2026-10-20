@@ -72,7 +72,10 @@ async function main() {
   assert.equal(archived.toObject().bankAccount.IBAN, 'historical');
   assert.equal(profile.firstName, 'Customer');
   assert.equal(new User({ email: 'new@example.cz', provider: 'seznam' }).typeUser, undefined);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(__dirname, '../vercel.json'))).crons, []);
-  console.log('PASS: retired routes return 410 before database access; current route boundaries preserved; historical fields retained and excluded; no owner onboarding or cron');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(__dirname, '../vercel.json'))).crons, [
+    {path:'/api/v2/partner-billing/cron',schedule:'0 22 * * *'},
+    {path:'/api/v2/partner-billing/cron',schedule:'0 23 * * *'},
+  ], 'Only protected partner billing jobs may be scheduled; retired jobs stay disabled');
+  console.log('PASS: retired routes return 410 before database access; current route boundaries preserved; historical fields retained and excluded; no owner onboarding or retired marketplace cron');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

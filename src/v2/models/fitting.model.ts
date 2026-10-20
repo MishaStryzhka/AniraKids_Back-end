@@ -20,4 +20,10 @@ schema.index({activeEmail:1},{unique:true,partialFilterExpression:{activeEmail:{
 schema.index({date:1,time:1});
 schema.index({status:1,expiresAt:1});
 schema.index({customerId:1,createdAt:-1,_id:-1});
+for(const op of ['save','updateOne','findOneAndUpdate','updateMany'] as const){
+ (schema as any).post(op, async function(this:any){
+  const session=typeof this.$session==='function'?this.$session():this.getOptions?.().session;
+  await require('../services/partner-reward-ledger.service').observePartnerRewards(session);
+ });
+}
 export const FittingModel=models.Fitting ?? model('Fitting',schema);

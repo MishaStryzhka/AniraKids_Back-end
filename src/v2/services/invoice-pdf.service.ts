@@ -34,7 +34,7 @@ export async function invoicePdf(invoice:any):Promise<Buffer>{
  const regular=readFileSync(path.join(__dirname,'../../../assets/fonts/IBMPlexSans-Regular.ttf'));
  const bold=readFileSync(path.join(__dirname,'../../../assets/fonts/IBMPlexSans-Bold.ttf'));
  return new Promise((resolve,reject)=>{
-  const doc=new PDFDocument({size:'A4',margin:0,bufferPages:true,info:{Title:`${invoice.sourceType==='correction'?'Opravný doklad':'Faktura'} ${invoice.number}`,Author:'GlamGarb Rentals s.r.o.'}}),chunks:Buffer[]=[];
+  const doc=new PDFDocument({size:'A4',margin:0,bufferPages:true,info:{Title:`${invoice.sourceType==='correction'?'Opravný doklad':'Faktura'} ${invoice.number}`,Author:invoice.snapshot.company.name}}),chunks:Buffer[]=[];
   doc.on('data',(c:Buffer)=>chunks.push(c));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);
   doc.registerFont('regular',regular);doc.registerFont('bold',bold);
   const s=invoice.snapshot,L=26.9291,R=568.3465,C=332.6303,LE=291.3803,W=R-L,grey='#5e5e5e';
@@ -70,7 +70,7 @@ export async function invoicePdf(invoice:any):Promise<Buffer>{
   const identityY=Math.max(179.0375,companyBottom+14,buyerBottom+14);
   pair('IČO',s.company.ico,L,LE,identityY);
   if(s.buyer.ico)pair('IČO',s.buyer.ico,C,R,identityY);
-  text('Neplátce DPH',L,identityY+14.625,LE-L);
+  text(s.company.vatPayer ? `DIČ: ${s.company.dic}` : 'Neplátce DPH',L,identityY+14.625,LE-L);
   const metaY=identityY+44.25;
   pair('Bankovní účet',s.bank.accountNumber,L,LE,metaY);
   pair('Variabilní symbol',String(invoice.number).replace(/\D/g,''),L,LE,metaY+14.625);
@@ -78,6 +78,7 @@ export async function invoicePdf(invoice:any):Promise<Buffer>{
   pair('Datum vystavení',date(invoice.issuedAt),C,R,metaY);
   pair('Datum splatnosti',s.dueDate?date(s.dueDate):s.balance>0?'Při převzetí služby':invoice.sourceType==='correction'?'—':'Uhrazeno',C,R,metaY+14.625);
 
+  if(s.company.vatPayer&&s.period)pair('Datum uskutečnění plnění',date(invoice.issuedAt),C,R,metaY+29.25);
   let y=Math.max(299.975,metaY+76.6875);
   const tableHeader=()=>{text('CENA',460.063,y,R-460.063,9,grey,'regular','right');rule(L,y+14.25,W);y+=20.4375;};
   const newPage=()=>{doc.addPage();header();y=92.7875;tableHeader();};
@@ -99,6 +100,7 @@ export async function invoicePdf(invoice:any):Promise<Buffer>{
    pair('Uhrazeno k vystavení',money(s.paid),297.6378,R,detailY);detailY+=15;
    pair('Zbývá k vystavení',money(s.balance),297.6378,R,detailY);detailY+=15;
   }
+  if(s.company.vatPayer){pair('Základ daně',money(s.net),297.6378,R,detailY);detailY+=15;pair(`DPH ${s.vatRate} %`,money(s.vat),297.6378,R,detailY);detailY+=15;}
   if(s.overpayment){pair('Přeplatek',money(s.overpayment),297.6378,R,detailY);detailY+=15;}
   const payload=invoiceQrPayload(invoice);
   if(payload){
@@ -126,7 +128,7 @@ export async function invoicePdf(invoice:any):Promise<Buffer>{
   for(let i=0;i<pages.count;i++){
    doc.switchToPage(i);
    const registration=clean(s.company.register).replace(/^Městský soud v Praze/,'Městským soudem v Praze').replace(/,\s*oddíl/,' oddíl');
-   text(`Společnost je zapsána v obchodním rejstříku vedeném ${registration.endsWith('.')?registration:registration+'.'}`,L,814.0726,W,8.25,grey);
+   if(registration)text(invoice.sourceType==='partner'?clean(s.company.register):`Společnost je zapsána v obchodním rejstříku vedeném ${registration.endsWith('.')?registration:registration+'.'}`,L,814.0726,W,8.25,grey);
    if(pages.count>1)text(`${i+1} / ${pages.count}`,R-45,795,45,8.25,grey,'regular','right');
   }
   doc.end();

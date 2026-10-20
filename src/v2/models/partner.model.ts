@@ -16,6 +16,8 @@ const partner = new Schema(
     name: { type: String, required: true },
     enabled: { type: Boolean, default: true },
     revision: { type: Number, default: 0 },
+    billing: {type: Schema.Types.Mixed},
+    billingRevision: {type:Number,default:0},
     settlements: [
       {
         _id: false,
