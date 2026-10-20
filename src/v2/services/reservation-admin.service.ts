@@ -312,7 +312,7 @@ export class ReservationAdminService {
     const [items, total] = await Promise.all([
       ReservationV2Model.find(filter)
         .select(
-          '_id reservationNumber status paymentStatus paymentReport paymentEntries rentalMode startDate endDate expiresAt customerSnapshot items subtotal deposit totalDue createdAt updatedAt'
+          '_id reservationNumber status paymentStatus paymentReport paymentEntries partner rentalMode startDate endDate expiresAt customerSnapshot items subtotal deposit totalDue createdAt updatedAt'
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -337,7 +337,7 @@ export class ReservationAdminService {
   async getReservationDetail(reservationId: Types.ObjectId) {
     const reservation = await ReservationV2Model.findById(reservationId)
       .select(
-        '_id reservationNumber customerId customerSnapshot items rentalMode startDate endDate status expiresAt subtotal deposit totalDue fulfillmentMethod paymentStatus notes cancelledAt cancellationReason createdAt updatedAt partnerAudit paymentEntries'
+        '_id reservationNumber customerId customerSnapshot items rentalMode startDate endDate status expiresAt subtotal deposit totalDue fulfillmentMethod paymentStatus notes cancelledAt cancellationReason createdAt updatedAt partner partnerAudit paymentEntries'
       )
       .lean()
       .exec();

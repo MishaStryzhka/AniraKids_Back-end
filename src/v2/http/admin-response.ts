@@ -240,6 +240,7 @@ export const toAdminReservationListItemDto = (
     reservationNumber: source.reservationNumber,
     status: source.status,
     paymentStatus: source.paymentStatus,
+    source: source.partner ? toPlainObject(source.partner).source : 'anirak',
     ...(source.paymentReport ? {paymentReport:paymentSummary(source as any).paymentReport} : {}),
     rentalMode: source.rentalMode,
     startDate: formatDateOnly(source.startDate),
@@ -319,6 +320,7 @@ export const toAdminReservationDetailDto = (
       now
     ),
     paymentStatus: source.paymentStatus,
+    source: source.partner ? toPlainObject(source.partner).source : 'anirak',
     subtotal: source.subtotal,
     deposit: source.deposit,
     totalDue: source.totalDue,

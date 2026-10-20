@@ -46,6 +46,7 @@ export const paymentSummary = (r: Reservation & { _id?: Types.ObjectId }) => {
   const lastPayment = [...entries].reverse().find(e => e.type.endsWith('_received'));
   return {
     reservationId: r._id?.toHexString() ?? '', revision: r.paymentRevision ?? 0,
+    paymentStatus: r.paymentStatus,
     currency: 'CZK' as const, advanceRequired, fittingCredit, rentalTotal: r.subtotal, depositRequired: r.deposit,
     rentalReceived, rentalRefunded, rentalNet, depositReceived, depositRefunded,
     depositHeld: depositReceived - depositRefunded, cancellationFee,
