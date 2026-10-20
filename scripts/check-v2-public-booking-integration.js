@@ -548,6 +548,9 @@ async function main() {
   assert.equal((await claim(ownerToken,created.body.guestAccessToken,{customerId:stranger.toHexString()})).status,400);
   const countBeforeClaim = await Reservation.countDocuments();
   const claims = await Promise.all([claim(ownerToken,created.body.guestAccessToken),claim(ownerToken,created.body.guestAccessToken)]);
+  const claimAudit=await Reservation.findOne({reservationNumber:created.body.reservation.reservationNumber}).lean();
+  assert.equal(claimAudit.partnerAudit.filter(e=>e.action==='account_claimed').length,1);
+  assert.equal(claimAudit.partnerAudit.find(e=>e.action==='account_claimed').by,'customer:'+owner);
   assert.deepEqual(claims.map(x=>x.status),[200,200]);
   assert.equal(await Reservation.countDocuments(),countBeforeClaim);
   assert.equal((await request('/account/reservations',ownerAuth)).body.items[0].reservation.reservationNumber,created.body.reservation.reservationNumber);

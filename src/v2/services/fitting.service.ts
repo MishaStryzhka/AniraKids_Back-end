@@ -117,7 +117,7 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
     ...(reservation.status==='pending'?{expiresAt:{$gt:now}}:{})},
     {$set:{fittingCreditId:id,fittingDiscount:{amount:200,number:doc.number,appliedAt:now,appliedBy:actor},subtotal,totalDue:subtotal+reservation.deposit,
      ...(reservation.advanceRequired===undefined?{}:{advanceRequired:Math.min(reservation.advanceRequired,subtotal)}),paymentStatus,
-     ...(doc.partner?{partner:doc.partner}:{})},$inc:{paymentRevision:1}}, {runValidators:true}).exec();
+     ...(doc.partner?{partner:doc.partner}:{})},$inc:{paymentRevision:1},$push:{partnerAudit:{action:'fitting_discount_applied',at:now,by:actor,amount:200,reference:doc.number}}}, {runValidators:true}).exec();
    if(!changed.modifiedCount){const current=await ReservationV2Model.findById(reservation._id).lean().exec();if(current?.fittingCreditId===id)return {ok:true};throw new FittingError('PAYMENT_CONFLICT');}
   }catch(e){if((e as any).code===11000)throw new FittingError('FITTING_ALREADY_CREDITED');throw e;}
   return {ok:true};

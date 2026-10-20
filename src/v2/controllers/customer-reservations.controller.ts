@@ -40,11 +40,12 @@ export const claimCustomerReservation: HttpHandler = async (request, response, n
     }
     // Same-owner replay succeeds; a concurrent or later different owner cannot take over.
     // Keep the existing capability valid so saved links and original guest retries still work.
-    const record = await ReservationV2Model.findOneAndUpdate({
+    let record = await ReservationV2Model.findOneAndUpdate({
       reservationNumber: number,
       guestAccessTokenHash: hashGuestAccessToken(body.guestAccessToken),
-      $or: [{ customerId: null }, { customerId: identity.userId }],
-    }, { $set: { customerId: identity.userId } }, { new: true, runValidators: true }).exec();
+      customerId: null,
+    }, { $set: { customerId: identity.userId }, $push: {partnerAudit:{action:'account_claimed',at:new Date(),by:'customer:'+identity.userId.toString()}} }, { new: true, runValidators: true }).exec();
+    if (!record) record = await ReservationV2Model.findOne({reservationNumber:number,guestAccessTokenHash:hashGuestAccessToken(body.guestAccessToken),customerId:identity.userId}).exec();
     if (!record) return response.status(404).json({ error: { code: 'RESERVATION_NOT_FOUND', message: 'Reservation unavailable' } });
     return response.status(200).json(toPublicReservationResponse(record.toObject()));
   } catch (error) { return next(error); }

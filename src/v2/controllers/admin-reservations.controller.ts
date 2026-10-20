@@ -18,7 +18,13 @@ import type {
 } from '../services/reservation-admin.types';
 import type {
   HttpHandler,
+  HttpRequest,
 } from '../types/http';
+
+const auditActor = (request: HttpRequest): string => {
+  if (!request.authenticatedUserId) throw new Error('Authenticated administrator is required');
+  return (request.adminOwner ? 'owner:' : 'admin:') + request.authenticatedUserId.toHexString();
+};
 
 const objectIdFromParam = (
   value: string | undefined
@@ -92,7 +98,8 @@ export const updateAdminReservationNotes: HttpHandler = async (
   try {
     const reservation = await reservationAdminService.updateNotes(
       objectIdFromParam(request.params?.reservationId),
-      request.body as ReservationAdminNotesInput
+      request.body as ReservationAdminNotesInput,
+      auditActor(request)
     );
 
     return response.status(200).json({
@@ -110,7 +117,8 @@ export const confirmAdminReservation: HttpHandler = async (
 ) => {
   try {
     const reservation = await reservationAdminService.confirm(
-      objectIdFromParam(request.params?.reservationId)
+      objectIdFromParam(request.params?.reservationId),
+      {actor: auditActor(request)}
     );
 
     return response.status(200).json({
@@ -128,7 +136,7 @@ export const prepareAdminReservation: HttpHandler = async (
 ) => {
   try {
     const reservation = await reservationAdminService.prepare(
-      objectIdFromParam(request.params?.reservationId)
+      objectIdFromParam(request.params?.reservationId), auditActor(request)
     );
 
     return response.status(200).json({
@@ -146,7 +154,7 @@ export const rentAdminReservation: HttpHandler = async (
 ) => {
   try {
     const reservation = await reservationAdminService.rent(
-      objectIdFromParam(request.params?.reservationId)
+      objectIdFromParam(request.params?.reservationId), auditActor(request)
     );
 
     return response.status(200).json({
@@ -164,7 +172,7 @@ export const returnAdminReservation: HttpHandler = async (
 ) => {
   try {
     const reservation = await reservationAdminService.returnReservation(
-      objectIdFromParam(request.params?.reservationId)
+      objectIdFromParam(request.params?.reservationId), auditActor(request)
     );
 
     return response.status(200).json({
@@ -183,7 +191,8 @@ export const cancelAdminReservation: HttpHandler = async (
   try {
     const reservation = await reservationAdminService.cancel(
       objectIdFromParam(request.params?.reservationId),
-      request.body as ReservationAdminCancelInput
+      request.body as ReservationAdminCancelInput,
+      {actor: auditActor(request)}
     );
 
     return response.status(200).json({

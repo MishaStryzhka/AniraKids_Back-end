@@ -337,7 +337,7 @@ export class ReservationAdminService {
   async getReservationDetail(reservationId: Types.ObjectId) {
     const reservation = await ReservationV2Model.findById(reservationId)
       .select(
-        '_id reservationNumber customerId customerSnapshot items rentalMode startDate endDate status expiresAt subtotal deposit totalDue fulfillmentMethod paymentStatus notes cancelledAt cancellationReason createdAt updatedAt'
+        '_id reservationNumber customerId customerSnapshot items rentalMode startDate endDate status expiresAt subtotal deposit totalDue fulfillmentMethod paymentStatus notes cancelledAt cancellationReason createdAt updatedAt partnerAudit paymentEntries'
       )
       .lean()
       .exec();
@@ -377,7 +377,8 @@ export class ReservationAdminService {
 
   async updateNotes(
     reservationId: Types.ObjectId,
-    input: ReservationAdminNotesInput
+    input: ReservationAdminNotesInput,
+    actor = 'system'
   ) {
     const normalized = input.notes.trim();
     const update =
@@ -388,8 +389,9 @@ export class ReservationAdminService {
     const reservation = await ReservationV2Model.findOneAndUpdate(
       {
         _id: reservationId,
+        notes: normalized ? {$ne: normalized} : {$exists: true},
       },
-      update,
+      {...update, $push: {partnerAudit: {action: 'notes_updated', at: new Date(), by: actor}}},
       {
         new: true,
         runValidators: true,
@@ -397,10 +399,7 @@ export class ReservationAdminService {
     ).exec();
 
     if (!reservation) {
-      throw new ReservationAdminError(
-        'RESERVATION_NOT_FOUND',
-        'Reservation not found'
-      );
+      return getReservationOrThrow(reservationId);
     }
 
     return reservation;
@@ -432,7 +431,7 @@ export class ReservationAdminService {
         $set: {
           status: targetStatus,
         },
-        ...(actor?{$push:{partnerAudit:{action:operation,at:new Date(),by:actor}}}:{}),
+        $push:{partnerAudit:{action:operation,at:new Date(),by:actor || 'system'}},
       },
       {
         new: true,
@@ -483,7 +482,7 @@ export class ReservationAdminService {
   async cancel(
     reservationId: Types.ObjectId,
     input: ReservationAdminCancelInput,
-    options?: { now?: Date }
+    options?: { now?: Date; actor?: string }
   ) {
     const now = resolveNow(options?.now);
     const reason = input.reason.trim();
@@ -502,6 +501,7 @@ export class ReservationAdminService {
           cancellationReason: reason,
           expiresAt: null,
         },
+        $push: {partnerAudit: {action:'cancel', at:now, by:options?.actor || 'system'}},
       },
       {
         new: true,
@@ -524,7 +524,7 @@ export class ReservationAdminService {
 
   async confirm(
     reservationId: Types.ObjectId,
-    options?: { now?: Date }
+    options?: { now?: Date; actor?: string }
   ): Promise<HydratedDocument<Reservation>> {
     const now = resolveNow(options?.now);
     const session = await ReservationV2Model.db.startSession();
@@ -606,6 +606,7 @@ export class ReservationAdminService {
 
           reservation.status = 'confirmed';
           reservation.expiresAt = null;
+          reservation.partnerAudit = [...(reservation.partnerAudit || []), {action:'confirm', at:now, by:options?.actor || 'system'}];
 
           await reservation.save({ session });
           confirmedReservation = reservation;

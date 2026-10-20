@@ -1,3 +1,4 @@
+import {reservationHistory} from '../services/reservation-audit';
 import { effectiveFitSizes } from '../utils/variant-sizes';
 import type { Types } from 'mongoose';
 
@@ -298,6 +299,7 @@ export const toAdminReservationDetailDto = (
     ...(source.customerId === undefined
       ? {}
       : { customerId: toId(source.customerId) }),
+    history: reservationHistory(source as any),
     customerSnapshot: toAdminCustomerSnapshot(source.customerSnapshot),
     items: items.map(item =>
       toAdminReservationItemSnapshot(item, input.inventoryById)
