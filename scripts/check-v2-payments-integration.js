@@ -254,6 +254,7 @@ async function main() {
   const lateRefund = await recordPayment(old._id, parsePaymentInput({operationId:randomUUID(),expectedRevision:1,
     type:'rental_refunded',amount:200,method:'bank_transfer',note:'Refund late advance; dates unavailable'}),actor);
   assert.equal(lateRefund.rentalNet,0); assert.equal(lateRefund.cancellationFee,0);
+  assert.equal(lateRefund.paymentStatus,'refunded','refund response carries authoritative payment status');
   evidence.push('Expired paid hold cannot displace a newer hold; cancellation and full late-payment refund preserve inventory');
   const jwt=require('jsonwebtoken'), User=require('../models/user');
   process.env.SECRET_KEY='owned-payment-fixture-key';process.env.V2_ADMIN_API_ENABLED='true';process.env.V2_ADMIN_USER_IDS=actor;
@@ -322,11 +323,14 @@ async function main() {
   const reportAdminUrl = `${root}/admin/reservations/${reportBooking.id}/payments`;
   const beforeApproval = await (await fetch(reportAdminUrl,{headers:{Authorization:`Bearer ${token}`}})).json();
   assert.equal(beforeApproval.payments.paymentReport.status,'pending');
+  assert.equal(beforeApproval.payments.paymentStatus,'unpaid');
   assert.equal(beforeApproval.payments.fullPaymentInstructions.amount,600);
   const approval = {operationId:randomUUID(),expectedRevision:1,type:'rental_received',amount:600,method:'bank_transfer'};
   const approve = () => fetch(reportAdminUrl,{method:'POST',
     headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(approval)});
-  assert.equal((await approve()).status,200);
+  const approvalResponse = await approve();
+  assert.equal(approvalResponse.status,200);
+  assert.equal((await approvalResponse.json()).payments.paymentStatus,'paid','receipt immediately updates the admin badge');
   assert.equal((await approve()).status,200);
   const paidReport = await Reservation.findById(reportBooking._id).lean();
   assert.equal(paidReport.paymentEntries.length,1);
@@ -336,6 +340,17 @@ async function main() {
   assert.equal(publicPaymentSummary(paidReport).lastPayment.method,'bank_transfer');
   assert.equal(publicPaymentSummary(paidReport).fullPaymentInstructions,null);
   assert.equal(JSON.stringify(publicPaymentSummary(paidReport)).includes('recordedBy'),false);
+  for (const source of [undefined,'anirak','partner']) {
+    await Reservation.updateOne({_id:reportBooking._id},source === undefined
+      ? {$unset:{partner:1}} : {$set:{partner:{partnerId:'blaze',source,referralCode:'private-referral'}}});
+    const headers = {Authorization:`Bearer ${token}`};
+    const detail = await (await fetch(`${root}/admin/reservations/${reportBooking.id}`,{headers})).json();
+    const list = await (await fetch(`${root}/admin/reservations?q=${reportBooking.reservationNumber}`,{headers})).json();
+    const row = list.items.find(item=>item.id===reportBooking.id);
+    assert.equal(detail.source,source ?? 'anirak');assert.equal(row.source,source ?? 'anirak');
+    assert.equal(detail.paymentStatus,'paid');assert.equal(row.paymentStatus,'paid');
+    assert.equal(JSON.stringify([detail,row]).includes('private-referral'),false);
+  }
   assert.deepEqual(paymentPushEvents,['full'],'reads, rejected repeats and staff receipts do not send customer-report alerts');
   const cashBooking = await makeBooking('AK-2030-CASHQR',55);
   await Reservation.updateOne({_id:cashBooking._id},{$set:{

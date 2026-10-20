@@ -385,6 +385,18 @@ const checkDtoPrivacyAndDerivedState = () => {
   const listDto = toAdminReservationListItemDto(fixture, now);
   assertEqual(listDto.pendingExpired, true, 'list pendingExpired');
   assertEqual(listDto.itemCount, 1, 'list item count');
+  for (const [partner, expected] of [
+    [undefined, 'anirak'],
+    [{partnerId:'blaze',source:'anirak',referralCode:'private-referral'}, 'anirak'],
+    [{partnerId:'blaze',source:'partner',referralCode:'private-referral'}, 'partner'],
+  ]) {
+    const attributed = {...fixture, partner};
+    const listItem = toAdminReservationListItemDto(attributed, now);
+    const detail = toAdminReservationDetailDto({reservation:attributed,inventoryById:new Map()}, now);
+    assertEqual(listItem.source, expected, 'list client source');
+    assertEqual(detail.source, expected, 'detail client source');
+    assert(!JSON.stringify([listItem,detail]).includes('private-referral'), 'source badge does not expose referral data');
+  }
 
   const inventoryId = fixture.items[0].inventoryItemId.toHexString();
   const detailDto = toAdminReservationDetailDto(
