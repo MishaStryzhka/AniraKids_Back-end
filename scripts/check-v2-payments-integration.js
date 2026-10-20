@@ -268,6 +268,115 @@ async function main() {
   const httpPost=await fetch(route,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(late)});assert.equal(httpPost.status,200);assert.equal((await httpPost.json()).payments.rentalNet,200);assert.equal((await Reservation.findById(r._id)).status,'cancelled');
   assert.deepEqual(await (await fetch(`${root}/booking-policy`)).json(),BOOKING_POLICY);
   evidence.push('HTTP admin authentication and validation; audit identity; late transfer recorded without reservation revival; public policy exact');
+  const customerId = new mongoose.Types.ObjectId(), strangerId = new mongoose.Types.ObjectId();
+  const customerToken = jwt.sign({id:customerId.toHexString()},process.env.SECRET_KEY);
+  const strangerToken = jwt.sign({id:strangerId.toHexString()},process.env.SECRET_KEY);
+  await User.collection.insertMany([
+    {_id:customerId,tokens:[{token:customerToken}]},
+    {_id:strangerId,tokens:[{token:strangerToken}]},
+  ]);
+  const guestToken = randomBytes(32).toString('base64url');
+  const {hashGuestAccessToken} = require('../build/v2/utils/reservation');
+  const reportBooking = await makeBooking('AK-2030-REPORT',50);
+  await Reservation.updateOne({_id:reportBooking._id},{$set:{
+    customerId,guestAccessTokenHash:hashGuestAccessToken(guestToken),subtotal:600,deposit:0,totalDue:600,
+    fittingDiscount:{amount:200,number:'ZK-PAID',appliedAt:new Date(),appliedBy:actor},
+    'items.0.rentalPriceSnapshot':800,'items.0.depositSnapshot':0,
+  }});
+  const reportUrl = `${root}/reservations/${reportBooking.reservationNumber}/payment-report`;
+  const sendReport = (body, authorization=`Bearer ${customerToken}`) => fetch(reportUrl,{
+    method:'POST',headers:{'Content-Type':'application/json',Authorization:authorization},body:JSON.stringify(body),
+  });
+  const notice = {operationId:randomUUID(),kind:'full',amount:600};
+  assert.equal((await sendReport(notice,'')).status,404);
+  assert.equal((await sendReport(notice,`Bearer ${strangerToken}`)).status,404);
+  assert.equal((await sendReport({...notice,paymentStatus:'paid'})).status,400);
+  assert.equal((await sendReport({...notice,amount:200})).status,409);
+  const reported = await Promise.all([sendReport(notice),sendReport(notice)]);
+  assert.deepEqual(reported.map(response=>response.status),[200,200]);
+  const reportedDto = (await reported[0].json()).reservation;
+  assert.equal(reportedDto.payment.paymentReport.status,'pending');
+  assert.equal(reportedDto.payment.paymentReport.pendingRental,600);
+  assert.equal(reportedDto.payment.rentalBalance,600);
+  assert.equal(reportedDto.paymentStatus,'unpaid');
+  assert.equal(reportedDto.status,'pending');
+  assert.equal(new Date(reportedDto.expiresAt).getTime(),reportBooking.expiresAt.getTime());
+  const storedReport = await Reservation.findById(reportBooking._id).lean();
+  assert.equal(storedReport.paymentEntries.length,0);
+  assert.equal(storedReport.partnerAudit.filter(e=>e.action==='payment_reported').length,1);
+  assert.equal(storedReport.partnerAudit.find(e=>e.action==='payment_reported').by,'customer:'+customerId);
+  assert.equal((await sendReport({...notice,amount:599})).status,409);
+  assert.equal((await sendReport({...notice,operationId:randomUUID()})).status,409);
+  const customerWrite = await fetch(`${root}/admin/reservations/${reportBooking.id}/payments`,{
+    method:'POST',headers:{Authorization:`Bearer ${customerToken}`,'Content-Type':'application/json'},
+    body:JSON.stringify({operationId:randomUUID(),expectedRevision:1,type:'rental_received',amount:600,method:'bank_transfer'}),
+  });
+  assert.equal(customerWrite.status,403);
+  const reportAdminUrl = `${root}/admin/reservations/${reportBooking.id}/payments`;
+  const beforeApproval = await (await fetch(reportAdminUrl,{headers:{Authorization:`Bearer ${token}`}})).json();
+  assert.equal(beforeApproval.payments.paymentReport.status,'pending');
+  assert.equal(beforeApproval.payments.fullPaymentInstructions.amount,600);
+  const approval = {operationId:randomUUID(),expectedRevision:1,type:'rental_received',amount:600,method:'bank_transfer'};
+  const approve = () => fetch(reportAdminUrl,{method:'POST',
+    headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(approval)});
+  assert.equal((await approve()).status,200);
+  assert.equal((await approve()).status,200);
+  const paidReport = await Reservation.findById(reportBooking._id).lean();
+  assert.equal(paidReport.paymentEntries.length,1);
+  assert.equal(paidReport.paymentStatus,'paid');
+  assert.equal(paymentSummary(paidReport).paymentReport.status,'confirmed');
+  assert.equal(publicPaymentSummary(paidReport).rentalBalance,0);
+  assert.equal(publicPaymentSummary(paidReport).lastPayment.method,'bank_transfer');
+  assert.equal(publicPaymentSummary(paidReport).fullPaymentInstructions,null);
+  assert.equal(JSON.stringify(publicPaymentSummary(paidReport)).includes('recordedBy'),false);
+  const cashBooking = await makeBooking('AK-2030-CASHQR',55);
+  await Reservation.updateOne({_id:cashBooking._id},{$set:{
+    guestAccessTokenHash:hashGuestAccessToken(guestToken),subtotal:600,deposit:0,totalDue:600,
+    fittingDiscount:{amount:200,number:'ZK-CASH',appliedAt:new Date(),appliedBy:actor},
+  }});
+  const cashUrl = `${root}/reservations/${cashBooking.reservationNumber}/payment-report`;
+  const cashNotice = {operationId:randomUUID(),kind:'cash',amount:600};
+  const cashResponse = await fetch(cashUrl,{method:'POST',
+    headers:{Authorization:`Reservation ${guestToken}`,'Content-Type':'application/json'},body:JSON.stringify(cashNotice)});
+  assert.equal(cashResponse.status,200);
+  const cashDto = (await cashResponse.json()).reservation;
+  assert.equal(cashDto.paymentStatus,'unpaid');
+  assert.equal(cashDto.payment.paymentReport.kind,'cash');
+  assert.equal(cashDto.payment.fullPaymentInstructions.amount,600,'cash intent preserves QR');
+  assert.equal(cashDto.payment.rentalBalance,600);
+  const cashRead = await (await fetch(`${root}/admin/reservations/${cashBooking.id}/payments`,
+    {headers:{Authorization:`Bearer ${token}`}})).json();
+  assert.equal(cashRead.payments.fullPaymentInstructions.amount,600,'ANIRAK staff still have QR after cash choice');
+  await recordPayment(cashBooking._id,parsePaymentInput({operationId:randomUUID(),expectedRevision:1,
+    type:'rental_received',amount:600,method:'cash'}),actor);
+  const cashPaid = publicPaymentSummary(await Reservation.findById(cashBooking._id).lean());
+  assert.equal(cashPaid.paymentReport.status,'confirmed');
+  assert.equal(cashPaid.rentalBalance,0);
+  assert.equal(cashPaid.lastPayment.method,'cash');
+  const {reportReservationPayment} = require('../build/v2/services/reservation-payment-report.service');
+  const split = await makeBooking('AK-2030-SPLIT1',60);
+  const splitAccess = {guestAccessTokenHash:hashGuestAccessToken(guestToken)};
+  await Reservation.updateOne({_id:split._id},{$set:splitAccess});
+  await reportReservationPayment(split.reservationNumber,splitAccess,{operationId:randomUUID(),kind:'full',amount:2700},'guest');
+  await recordPayment(split._id,parsePaymentInput({operationId:randomUUID(),expectedRevision:1,
+    type:'rental_received',amount:700,method:'bank_transfer'}),actor);
+  assert.equal(paymentSummary(await Reservation.findById(split._id)).paymentReport.pendingDeposit,2000);
+  assert.equal(paymentSummary(await Reservation.findById(split._id)).paymentReport.status,'pending');
+  await recordPayment(split._id,parsePaymentInput({operationId:randomUUID(),expectedRevision:2,
+    type:'deposit_received',amount:2000,method:'bank_transfer'}),actor);
+  assert.equal(paymentSummary(await Reservation.findById(split._id)).paymentReport.status,'confirmed');
+  const switchToQr = await makeBooking('AK-2030-CHNGQR',65);
+  await Reservation.updateOne({_id:switchToQr._id},{$set:{...splitAccess,subtotal:600,deposit:0,totalDue:600,
+    fittingDiscount:{amount:200,number:'ZK-CHANGE',appliedAt:new Date(),appliedBy:actor}}});
+  await reportReservationPayment(switchToQr.reservationNumber,splitAccess,{operationId:randomUUID(),kind:'cash',amount:600},'guest');
+  await reportReservationPayment(switchToQr.reservationNumber,splitAccess,{operationId:randomUUID(),kind:'full',amount:600},'guest');
+  assert.equal(paymentSummary(await Reservation.findById(switchToQr._id)).paymentReport.kind,'full');
+  assert.equal(paymentSummary(await Reservation.findById(switchToQr._id)).rentalBalance,600);
+  const expiredReport = await makeBooking('AK-2030-EXPRPT',70,new Date(Date.now()-1000));
+  await Reservation.updateOne({_id:expiredReport._id},{$set:splitAccess});
+  await assert.rejects(reportReservationPayment(expiredReport.reservationNumber,splitAccess,
+    {operationId:randomUUID(),kind:'advance',amount:200},'guest'),e=>e.code==='PAYMENT_REPORT_CHANGED');
+  evidence.push('Customer and guest report authentication; no payment/hold mutation; concurrent idempotency; admin bank approval; cash intent keeps staff QR; actual cash receipt; split rental/deposit confirmation; cash-to-QR switch; expired hold rejected');
   console.log(JSON.stringify({status:'PASS',database:'owned disposable loopback replica set',tests:evidence},null,2));
 }
 

@@ -182,6 +182,16 @@ export interface Reservation {
   advanceRequired?: number;
   paymentRevision?: number;
   paymentEntries?: PaymentEntry[];
+  paymentReport?: {
+    operationId: string;
+    kind: 'advance' | 'full' | 'cash';
+    amount: number;
+    rentalAmount: number;
+    depositAmount: number;
+    rentalReceivedBefore: number;
+    depositReceivedBefore: number;
+    reportedAt: Date;
+  };
   reservationNumber: string;
   customerId?: Types.ObjectId;
   guestAccessTokenHash?: string;

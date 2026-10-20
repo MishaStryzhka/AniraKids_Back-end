@@ -117,6 +117,16 @@ export const ReservationV2Schema = new Schema<Reservation>(
     invoiceAutomation: {type: new Schema({status:String,requestedAt:Date,requestedBy:String,errorCode:String},{_id:false})},
     paymentRevision: { type: Number, min: 0, validate: Number.isSafeInteger },
     paymentEntries: { type: [paymentEntrySchema], default: undefined },
+    paymentReport: {type: new Schema({
+      operationId: {type:String,required:true},
+      kind: {type:String,enum:['advance','full','cash'],required:true},
+      amount: {type:Number,min:1,required:true,validate:Number.isSafeInteger},
+      rentalAmount: {type:Number,min:0,required:true,validate:Number.isSafeInteger},
+      depositAmount: {type:Number,min:0,required:true,validate:Number.isSafeInteger},
+      rentalReceivedBefore: {type:Number,min:0,required:true,validate:Number.isSafeInteger},
+      depositReceivedBefore: {type:Number,min:0,required:true,validate:Number.isSafeInteger},
+      reportedAt: {type:Date,required:true},
+    }, {_id:false})},
     reservationNumber: {
       type: String,
       required: true,

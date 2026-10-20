@@ -18,7 +18,9 @@ export const adminRecordPayment: HttpHandler = async (request, response, next) =
   try {
     if (!request.authenticatedUserId) throw new PaymentError('ADMIN_UNAUTHORIZED', 401);
     const input = parsePaymentInput(request.body);
-    const payments = await recordPayment(new Types.ObjectId(request.params!.reservationId), input, request.authenticatedUserId.toHexString());
+    const id = new Types.ObjectId(request.params!.reservationId);
+    await recordPayment(id, input, request.authenticatedUserId.toHexString());
+    const payments = await readPayments(id);
     const invoiceAutomation=['advance_received','rental_received'].includes(input.type)?await processAutomaticInvoice('reservation',request.params!.reservationId!):undefined;
     return response.status(200).json({ payments, ...(invoiceAutomation?{invoiceAutomation}:{}) });
   } catch (error) {
