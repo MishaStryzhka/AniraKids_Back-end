@@ -74,6 +74,9 @@ on:
       - src/v2/schemas/admin-catalogue.schema.ts
       - scripts/check-v2-public-*.js
       - scripts/check-partner-integration.js
+      - scripts/check-partner-invoices.js
+      - src/v2/models/partner-invoice.model.ts
+      - src/v2/controllers/partner-billing.controller.ts
       - src/v2/controllers/partner.controller.ts
       - src/v2/models/partner.model.ts
       - src/v2/services/partner-*.ts

@@ -304,6 +304,12 @@ const existingReservationV2Model = models[RESERVATION_V2_MODEL_NAME] as
   | Model<Reservation>
   | undefined;
 
+for(const op of ['save','updateOne','findOneAndUpdate','updateMany'] as const){
+ (ReservationV2Schema as any).post(op, async function(this:any){
+  const session=typeof this.$session==='function'?this.$session():this.getOptions?.().session;
+  await require('../services/partner-reward-ledger.service').observePartnerRewards(session);
+ });
+}
 export const ReservationV2Model =
   existingReservationV2Model ??
   model<Reservation>(

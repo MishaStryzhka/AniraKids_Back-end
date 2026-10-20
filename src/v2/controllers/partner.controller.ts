@@ -1,3 +1,4 @@
+import {partnerInvoiceList,savePartnerBilling,closePartnerMonth,partnerInvoicePdf,sendPartnerInvoice} from '../services/partner-invoice.service';
 import { ReservationAdminError } from '../services/reservation-admin.types';
 import { mapAdminApiError } from '../http/admin-error-mapper';
 import { AdminAccessModel } from '../models/admin-access.model';
@@ -266,6 +267,15 @@ export function partnerHandler(action: string): HttpHandler {
         }
         return res.status(200).json({ ok: true });
       }
+      if (action === 'billing') {requireManager(access);return res.status(200).json(await partnerInvoiceList());}
+      if (action === 'billing-settings') {requireManager(access);return res.status(200).json(await savePartnerBilling(body,actor));}
+      if (action === 'billing-close') {requireManager(access);return res.status(200).json({invoice:await closePartnerMonth(String(body.period||''),actor)});}
+      if (action === 'billing-pdf') {
+        requireManager(access);const {doc,pdf}=await partnerInvoicePdf(String(req.query?.id||''));
+        res.setHeader?.('Content-Type','application/pdf');res.setHeader?.('Content-Disposition',`attachment; filename="${doc.number}.pdf"`);
+        return (res as any).send(pdf);
+      }
+      if (action === 'billing-send') {requireManager(access);return res.status(200).json(await sendPartnerInvoice(String(body.id||''),body.retry===true,body.expectedAttemptedAt));}
       if (action === 'balance') {
         requireManager(access);
         return res.status(200).json(await partnerBalance(access.partnerId));
