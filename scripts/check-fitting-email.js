@@ -38,3 +38,16 @@ for(const content of [moved.text,moved.html]){
 assert.ok(!moved.html.includes('<script>'));
 assert.throws(()=>fittingEmail(doc,'rescheduled'));
 console.log('PASS: reschedule email includes both appointments and address without requesting payment');
+
+const {invoiceEmail}=require('../helpers/invoiceEmail');
+const {textEmail}=require('../helpers/emailLayout');
+const invoice={number:'2026-0001',sourceNumber:'AK-2026-TEST',sourceType:'reservation',automatic:true,snapshot:{buyer:{name:'Eva <script>x</script>',email:'test@example.test'},paid:200,balance:600,period:'25. 10. 2026'}};
+for(const status of ['confirmed','prepared','rented','returned']){
+ const mail=invoiceEmail(invoice,null,{status});assert.match(mail.subject,/Pronájem potvrzen · Faktura 2026-0001/);assert.match(mail.text,/Platbu 200/);assert.match(mail.text,/Váš termín pronájmu je potvrzený/);assert.match(mail.html,/data-anirak-template="reservation"/);assert.ok(!mail.html.includes('<script>'));assert.match(mail.text,/600/);
+}
+for(const status of ['pending','cancelled','expired',undefined])assert.ok(!invoiceEmail(invoice,null,{status}).text.includes('termín pronájmu je potvrzený'));
+assert.ok(!invoiceEmail({...invoice,sourceType:'correction'},null,{status:'confirmed'}).subject.includes('Pronájem potvrzen'));
+assert.ok(!invoiceEmail({...invoice,snapshot:{...invoice.snapshot,paid:0}},null,{status:'confirmed'}).subject.includes('Pronájem potvrzen'));
+const recovery=textEmail({title:'Obnovení hesla',text:'Odkaz: https://anirakids.cz/refreshPassword?resetToken=abc&other=1\n\n<script>bad</script>'});
+assert.match(recovery,/href="https:\/\/anirakids.cz\/refreshPassword\?resetToken=abc&amp;other=1"/);assert.ok(!recovery.includes('<script>'));
+console.log('PASS: shared email layout, paid rental confirmation, safe status guard, correction and action URLs');

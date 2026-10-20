@@ -1,4 +1,5 @@
 import {randomUUID} from 'crypto';
+import {ReservationV2Model} from '../models/reservation-v2.model';
 import {FittingModel} from '../models/fitting.model';
 import {InvoiceModel} from '../models/invoice.model';
 import {invoicePdf} from './invoice-document.service';
@@ -18,7 +19,10 @@ export async function sendInvoice(id:string,options:InvoiceSendOptions={}){
   filter={_id:id,'email.attemptedAt':expected,'email.status':email.status};
  }else if(email?.status&&!['pending'].includes(email.status))return {status:email.status};
  const fitting=invoice.sourceType==='fitting'?await FittingModel.findById(invoice.sourceId).select('date time address status paymentStatus').lean():null;
- const message=invoiceEmail(invoice,fitting);
+ const reservation=invoice.sourceType==='reservation'?await ReservationV2Model.findById(invoice.sourceId).select('status').lean():null;
+ // Keep payment and confirmation in one email when payment arrives before approval.
+ if(invoice.automatic && reservation?.status==='pending')return {status:'pending'};
+ const message=invoiceEmail(invoice,fitting,reservation);
  let pdf:Buffer;try{pdf=await invoicePdf(invoice);}catch{throw new PaymentError('INVOICE_PDF_FAILED',503);}
  // The claim survives provider timeouts. Never retry an ambiguous send automatically.
  const attemptId=randomUUID(),attemptedAt=new Date(Math.max(Date.now(),new Date(email?.attemptedAt||0).getTime()+1));

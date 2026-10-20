@@ -1,3 +1,4 @@
+import {processAutomaticInvoice} from '../services/invoice-automation.service';
 import {partnerInvoiceList,savePartnerBilling,closePartnerMonth,partnerInvoicePdf,sendPartnerInvoice} from '../services/partner-invoice.service';
 import { ReservationAdminError } from '../services/reservation-admin.types';
 import { mapAdminApiError } from '../http/admin-error-mapper';
@@ -417,6 +418,7 @@ export function partnerHandler(action: string): HttpHandler {
           case 'confirm':
             requireManager(access);
             await reservationAdminService.confirm(r._id, {actor});
+            if(r.invoiceAutomation)await processAutomaticInvoice('reservation',String(r._id));
             break;
           case 'prepare':
             await reservationAdminService.prepare(r._id, actor);
@@ -442,6 +444,7 @@ export function partnerHandler(action: string): HttpHandler {
             )
               throw new PartnerError('FORBIDDEN', 403);
             await recordPayment(r._id, input, actor);
+            if(['advance_received','rental_received'].includes(input.type))await processAutomaticInvoice('reservation',String(r._id));
             break;
           }
           case 'assign': {

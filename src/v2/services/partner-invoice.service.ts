@@ -10,6 +10,7 @@ import {invoicePeriod} from './invoice.service';
 import {invoicePdf} from './invoice-pdf.service';
 import {PaymentError} from './payment.types';
 const sendEmail=require('../../../helpers/sendEmail');
+const {textEmail}=require('../../../helpers/emailLayout');
 export const pragueDay=(d:Date)=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Prague'}).format(d);
 const periodPattern=/^20\d\d-(0[1-9]|1[0-2])$/;
 export function monthDates(period:string){
@@ -100,7 +101,7 @@ export async function sendPartnerInvoice(id:string, retry=false, expectedAttempt
  if(!claim.modifiedCount)return {status:doc.email?.status};
  try{
   const text=`Faktura ${doc.number} za odměnu Blaze Photostudio za ${doc.period}.\nCelkem: ${doc.snapshot.total} Kč. Splatnost: ${doc.snapshot.dueDate}.\nRozpis pronájmů a zkoušek je součástí přiložené faktury.`;
-  await sendEmail({to:doc.snapshot.buyer.email,subject:`Blaze Photostudio — faktura ${doc.number}`,text,attachments:[{filename:doc.number+'.pdf',content:pdf.toString('base64'),type:'application/pdf',disposition:'attachment'}]});
+  await sendEmail({to:doc.snapshot.buyer.email,subject:`Blaze Photostudio — faktura ${doc.number}`,text,html:textEmail({title:`Faktura ${doc.number}`,text}),attachments:[{filename:doc.number+'.pdf',content:pdf.toString('base64'),type:'application/pdf',disposition:'attachment'}]});
   await PartnerInvoiceModel.updateOne({_id:id,'email.attemptId':attemptId},{$set:{'email.status':'sent','email.sentAt':new Date()}});return {status:'sent'};
  }catch{await PartnerInvoiceModel.updateOne({_id:id,'email.attemptId':attemptId},{$set:{'email.status':'failed'}});throw new PaymentError('BILLING_EMAIL_UNCERTAIN',502);}
 }

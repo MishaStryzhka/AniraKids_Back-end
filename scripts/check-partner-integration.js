@@ -258,6 +258,11 @@ module.exports = async function ({ request, models }) {
       200
     );
     for(const role of [0,1,2])assert.equal((await call('/partner/reservations?month='+month,role)).body.items.find(item=>item.id===String(r._id)).paymentStatus,'paid');
+    const {InvoiceModel}=require('../build/v2/models/invoice.model');
+    const partnerInvoice=await InvoiceModel.findOne({sourceKey:'reservation:'+r._id}).lean();
+    assert.equal(partnerInvoice.email.status,'pending');
+    const mailFixture=require('./fitting-email-fixture');
+    assert.equal(mailFixture.messages.filter(m=>m.subject.includes(partnerInvoice.number)).length,0);
     for (const action of ['confirm', 'prepare', 'rent', 'return']) {
       const admin = ['prepare','return'].includes(action);
       const path = admin ? '/admin/reservations/'+r._id+'/'+action : '/partner/reservations/'+r._id;
@@ -265,8 +270,10 @@ module.exports = async function ({ request, models }) {
       assert.equal((await call(path, admin ? 0 : 1, payload)).status,200,action);
       assert.equal((await call(path, admin ? 0 : 1, payload)).status,200,'replay '+action);
     }
+    const combined=mailFixture.messages.filter(m=>m.subject.includes(partnerInvoice.number));
+    assert.equal(combined.length,1);assert.match(combined[0].subject,/Pronájem potvrzen · Faktura/);
     const audited = await models.ReservationV2Model.findById(r._id).lean();
-    assert.deepEqual(audited.partnerAudit.map(e=>e.action), ['created','rental_received','confirm','prepare','rent','return']);
+    assert.deepEqual(audited.partnerAudit.map(e=>e.action), ['created','rental_received','invoice_issued','confirm','prepare','rent','return']);
     for (const entry of audited.partnerAudit) {
       assert.ok(entry.at instanceof Date && Number.isFinite(entry.at.getTime()));
       assert.equal(entry.by, (['prepare','return'].includes(entry.action)?'owner:'+ids[0]:'partner:'+ids[entry.action==='created'?2:1]));

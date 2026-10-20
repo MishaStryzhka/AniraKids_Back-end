@@ -1,9 +1,11 @@
 const sgMail = require('@sendgrid/mail');
 const nodemailer = require('nodemailer');
+const {socialIcons}=require('./emailLayout');
 
 // Keep the current provider until SMTP credentials have been provisioned.
 // Never automatically retry through another provider: acceptance can be ambiguous.
 const sendEmail = async ({ to, text, html, subject, attachments }) => {
+  if(html?.includes('data-anirak-template="reservation"'))attachments=[...(attachments||[]),...socialIcons.filter(icon=>!(attachments||[]).some(a=>a.content_id===icon.content_id))];
   const provider = process.env.EMAIL_PROVIDER || 'sendgrid';
   const message = {
     to,
