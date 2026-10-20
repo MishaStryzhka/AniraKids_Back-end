@@ -16,17 +16,29 @@ export function calculatePartnerBalance(
   const credited = new Map(
     reservations.filter(r => r.fittingCreditId).map(r => [r.fittingCreditId, r])
   );
+  const fittingReward = (f: any) => {
+    const r = credited.get(String(f._id));
+    const studio = Boolean(r && f.partner?.partnerId === 'blaze' &&
+      r.partner?.partnerId === f.partner.partnerId && r.rentalMode === 'studio' &&
+      ['confirmed', 'prepared', 'rented', 'returned'].includes(r.status));
+    return { amount: f.status === 'completed' && f.paymentStatus === 'paid' && !studio ? 200 : 0,
+      reason: studio ? 'studio_rental' : 'fitting' };
+  };
   for (const r of reservations) {
     const fitting = fittings.find(f => String(f._id) === r.fittingCreditId);
     const source = r.partner?.source || fitting?.partner?.source || 'anirak';
     const summary = paymentSummary(r);
-    const share =
-      source === 'partner' ? Math.round(((r.subtotal + (r.fittingDiscount?.amount || 0)) * 100) / 2) / 100 : 0;
+    const fixedReward = source !== 'partner';
+    const fittingDeduction = fixedReward && fitting &&
+      fitting.partner?.partnerId === r.partner?.partnerId ? fittingReward(fitting).amount : 0;
+    const rewardAmount = fixedReward ? 200 :
+      Math.round(((r.subtotal + (r.fittingDiscount?.amount || 0)) * 100) / 2) / 100;
+    const share = Math.max(0, rewardAmount - fittingDeduction);
     const net = Math.max(0, Math.min(r.subtotal + (r.fittingDiscount?.amount || 0), summary.rentalNet + (r.fittingDiscount?.amount || 0)));
     const accrued =
       r.status === 'returned'
         ? Math.round(
-            Math.min(share, net * (source === 'partner' ? 0.5 : 0)) * 100
+            Math.min(share, net * (fixedReward ? 1 : 0.5)) * 100
           ) / 100
         : 0;
     const cash = (r.paymentEntries || [])
@@ -57,35 +69,24 @@ export function calculatePartnerBalance(
       rentalPrice: r.subtotal + (r.fittingDiscount?.amount || 0),
       rewardBasis: net,
       rewardRate: source === 'partner' ? 50 : 0,
+      rewardType: fixedReward ? 'fixed' : 'percentage',
+      rewardAmount,
+      fittingDeduction,
+      fittingNumber: fittingDeduction > 0 ? fitting.number : null,
       expected: share,
       collected: cash,
       status: r.status,
     });
   }
   for (const f of fittings) {
-    const r = credited.get(String(f._id));
-    // Only a linked, confirmed rental in this fitting's Blaze studio waives the fee.
-    // Legacy studioBooked flags and referral source are not evidence of a rental.
-    const studio = Boolean(
-      r &&
-        f.partner?.partnerId === 'blaze' &&
-        r.partner?.partnerId === f.partner.partnerId &&
-        r.rentalMode === 'studio' &&
-        ['confirmed', 'prepared', 'rented', 'returned'].includes(r.status)
-    );
-    const amount =
-      f.status === 'completed' &&
-      f.paymentStatus === 'paid' &&
-      !studio
-        ? 200
-        : 0;
+    const { amount, reason } = fittingReward(f);
     earned += amount;
     lines.push({
       kind: 'fitting',
       number: f.number,
       amount,
       status: f.status,
-      reason: studio ? 'studio_rental' : 'fitting',
+      reason,
     });
   }
   const transferred = settlements.reduce(
