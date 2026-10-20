@@ -423,7 +423,7 @@ module.exports = async function ({ request, models }) {
       [{subtotal: 600, fittingDiscount: {amount: 200}, paymentEntries: [{type:'rental_received',amount:600}]}, 800, 800, 50, 400],
       [{paymentEntries: [{type:'rental_received',amount:800},{type:'rental_refunded',amount:300}]}, 800, 500, 50, 250],
       [{status:'confirmed'}, 800, 800, 50, 0],
-      [{partner:{partnerId:'blaze',source:'anirak'}}, 800, 800, 0, 0],
+      [{partner:{partnerId:'blaze',source:'anirak'}}, 800, 800, 0, 200],
     ]) {
       const input = {...rental,...patch};
       input.paymentEntries = input.paymentEntries.map(e => ({...e,recordedAt:new Date()}));
@@ -474,8 +474,25 @@ module.exports = async function ({ request, models }) {
         [{ ...rental, rentalMode: 'studio', partner: { partnerId: 'blaze', source: 'anirak' } }],
         [base]
       ).earned,
-      0
+      200
     );
+    const own = {...rental, partner:{partnerId:'blaze',source:'anirak'}};
+    for (const [fittings, deduction, amount] of [
+      [[],0,200], [[base],200,0], [[{...base,paymentStatus:'unpaid'}],0,200],
+      [[{...base,status:'confirmed'}],0,200], [[{...base,partner:{partnerId:'other'}}],0,200],
+    ]) {
+      const result=calculatePartnerBalance([own],fittings);
+      const line=result.lines[0];
+      assert.equal(line.rewardAmount,200);
+      assert.equal(line.fittingDeduction,deduction);
+      assert.equal(line.fittingNumber,deduction ? base.number : null);
+      assert.equal(line.amount,amount);
+    }
+    for(const status of ['pending','confirmed','prepared','rented','cancelled','expired']) {
+      assert.equal(calculatePartnerBalance([{...own,status}],[]).lines[0].amount,0,'fixed reward accrues only on return');
+    }
+    assert.equal(calculatePartnerBalance([{...own,paymentEntries:[]}],[]).earned,0,'unpaid rental earns no reward');
+    assert.equal(calculatePartnerBalance([own],[base]).earned,200,'linked fitting reward counted only once');
     for (const source of ['anirak', 'partner']) {
       for (const mode of ['external', 'studio']) {
         for (const status of ['pending', 'confirmed', 'prepared', 'rented', 'returned', 'cancelled', 'expired']) {
