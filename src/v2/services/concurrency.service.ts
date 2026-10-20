@@ -183,9 +183,9 @@ export const createReservationAtomically = async (
           session
         );
 
-        const { now: _now, fittingDiscountSelection, ...reservationData } = input;
+        const { now: _now, fittingDiscountSelection, auditActor, ...reservationData } = input;
         const priced = fittingDiscountSelection ? await applyCustomerFittingDiscount(reservationData, fittingDiscountSelection, now, session) : reservationData;
-        const actor = input.partner?.createdBy || (input.customerId ? 'customer:' + input.customerId.toString() : 'guest');
+        const actor = auditActor || input.partner?.createdBy || (input.customerId ? 'customer:' + input.customerId.toString() : 'guest');
         const discount = (priced as Reservation).fittingDiscount;
         const reservationDocument = new ReservationV2Model({...priced, partnerAudit: [
           {action:'created', at:now, by:actor},
