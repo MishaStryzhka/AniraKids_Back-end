@@ -418,6 +418,18 @@ module.exports = async function ({ request, models }) {
         { type: 'rental_received', amount: 800, recordedAt: new Date() },
       ],
     };
+    for (const [patch, price, basis, rate, amount] of [
+      [{}, 800, 800, 50, 400],
+      [{subtotal: 600, fittingDiscount: {amount: 200}, paymentEntries: [{type:'rental_received',amount:600}]}, 800, 800, 50, 400],
+      [{paymentEntries: [{type:'rental_received',amount:800},{type:'rental_refunded',amount:300}]}, 800, 500, 50, 250],
+      [{status:'confirmed'}, 800, 800, 50, 0],
+      [{partner:{partnerId:'blaze',source:'anirak'}}, 800, 800, 0, 0],
+    ]) {
+      const input = {...rental,...patch};
+      input.paymentEntries = input.paymentEntries.map(e => ({...e,recordedAt:new Date()}));
+      const line = calculatePartnerBalance([input], []).lines[0];
+      assert.deepEqual([line.rentalPrice,line.rewardBasis,line.rewardRate,line.amount], [price,basis,rate,amount], 'rental reward breakdown matches actual accrual');
+    }
     assert.equal(
       calculatePartnerBalance(
         [rental],
