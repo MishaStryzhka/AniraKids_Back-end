@@ -141,6 +141,9 @@ function reservationView(r: any, manager: boolean) {
       : {
           rentalBalance: paymentSummary(r).rentalBalance,
           depositRequired: r.deposit,
+          fittingCredit: paymentSummary(r).fittingCredit,
+          paymentReport: paymentSummary(r).paymentReport,
+          lastPayment: paymentSummary(r).lastPayment,
         },
     instructions: publicPaymentSummary(r),
   };

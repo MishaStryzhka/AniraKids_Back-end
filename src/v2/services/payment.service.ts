@@ -40,6 +40,10 @@ export const paymentSummary = (r: Reservation & { _id?: Types.ObjectId }) => {
   // subtotal. It covers the advance too; never subtract it from rentalBalance
   // again or create a second receipt for money recorded on the fitting.
   const fittingCredit = r.fittingDiscount?.amount ?? 0;
+  const report = r.paymentReport;
+  const pendingRental = report ? Math.max(0, report.rentalAmount - (rentalReceived - report.rentalReceivedBefore)) : 0;
+  const pendingDeposit = report ? Math.max(0, report.depositAmount - (depositReceived - report.depositReceivedBefore)) : 0;
+  const lastPayment = [...entries].reverse().find(e => e.type.endsWith('_received'));
   return {
     reservationId: r._id?.toHexString() ?? '', revision: r.paymentRevision ?? 0,
     currency: 'CZK' as const, advanceRequired, fittingCredit, rentalTotal: r.subtotal, depositRequired: r.deposit,
@@ -49,6 +53,13 @@ export const paymentSummary = (r: Reservation & { _id?: Types.ObjectId }) => {
     advanceBalance: r.status === 'cancelled' ? 0 : Math.max(0, advanceRequired - rentalNet - fittingCredit),
     refundableRental: rentalNet - cancellationFee,
     legacyUnreconciled: entries.length === 0 && r.paymentStatus !== 'unpaid' && !r.fittingDiscount,
+    paymentReport: report ? {
+      kind: report.kind, amount: report.amount, reportedAt: new Date(report.reportedAt).toISOString(),
+      status: pendingRental + pendingDeposit > 0 ? 'pending' as const : 'confirmed' as const,
+      pendingRental, pendingDeposit,
+    } : null,
+    lastPayment: lastPayment ? {amount:lastPayment.amount, method:lastPayment.method,
+      recordedAt:new Date(lastPayment.recordedAt).toISOString()} : null,
     entries: entries.map(e => ({ operationId: e.operationId, type: e.type, amount: e.amount,
       ...(e.method ? { method: e.method } : {}), ...(e.reference ? { reference: e.reference } : {}),
       ...(e.note ? { note: e.note } : {}), recordedAt: new Date(e.recordedAt).toISOString(), recordedBy: e.recordedBy })),
@@ -71,6 +82,7 @@ export const publicPaymentSummary = (r: Reservation) => {
   const fullPaymentInstructions = instructions(s.rentalBalance + Math.max(0, s.depositRequired - s.depositHeld), payable);
   return { advanceRequired: s.advanceRequired, advanceBalance: s.advanceBalance,
     rentalBalance: s.rentalBalance, depositRequired: s.depositRequired, depositHeld: s.depositHeld,
+    paymentReport: s.paymentReport, lastPayment: s.lastPayment,
     paymentInstructions, fullPaymentInstructions };
 };
 
@@ -103,7 +115,7 @@ const sameOperation = (entry: PaymentEntry, input: PaymentInput): boolean =>
 export const readPayments = async (id: Types.ObjectId) => {
   const r = await ReservationV2Model.findById(id).lean().exec();
   if (!r) throw new PaymentError('RESERVATION_NOT_FOUND', 404);
-  return paymentSummary(r);
+  return {...paymentSummary(r), fullPaymentInstructions:publicPaymentSummary(r)?.fullPaymentInstructions ?? null};
 };
 
 export const recordPayment = async (id: Types.ObjectId, input: PaymentInput, actor: string, fittingCreditId?: string, fittingPartner?:import('./partner-referral.service').PartnerAttribution) => {

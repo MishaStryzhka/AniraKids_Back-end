@@ -312,7 +312,7 @@ export class ReservationAdminService {
     const [items, total] = await Promise.all([
       ReservationV2Model.find(filter)
         .select(
-          '_id reservationNumber status paymentStatus rentalMode startDate endDate expiresAt customerSnapshot items subtotal deposit totalDue createdAt updatedAt'
+          '_id reservationNumber status paymentStatus paymentReport paymentEntries rentalMode startDate endDate expiresAt customerSnapshot items subtotal deposit totalDue createdAt updatedAt'
         )
         .sort({ createdAt: -1 })
         .skip(skip)

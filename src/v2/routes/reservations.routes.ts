@@ -3,7 +3,7 @@ import { listCustomerReservations, claimCustomerReservation } from '../controlle
 import {
   createReservation,
 } from '../controllers/reservation.controller';
-import { getReservationStatus } from '../controllers/reservation-status.controller';
+import { getReservationStatus, reportReservationTransfer } from '../controllers/reservation-status.controller';
 import {
   activePendingEmailGuard,
   optionalLegacyAuth,
@@ -32,6 +32,8 @@ export const registerReservationRoutes = (
   router.post('/fitting-discounts/options', reservationApiEnabled, rejectMalformedOptionalAuthorization, dependencies.ensureMongoConnection, optionalLegacyAuth, customerFittingDiscounts);
   router.post('/account/reservations/:reservationNumber/claim', reservationApiEnabled, dependencies.ensureMongoConnection, claimCustomerReservation);
   router.get('/account/reservations', reservationApiEnabled, dependencies.ensureMongoConnection, listCustomerReservations);
+  router.post('/reservations/:reservationNumber/payment-report',
+    reservationApiEnabled, dependencies.ensureMongoConnection, reportReservationTransfer);
   router.get(
     '/reservations/:reservationNumber',
     reservationApiEnabled,

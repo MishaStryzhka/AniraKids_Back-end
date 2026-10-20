@@ -1,4 +1,5 @@
 import {reservationHistory} from '../services/reservation-audit';
+import {paymentSummary} from '../services/payment.service';
 import { effectiveFitSizes } from '../utils/variant-sizes';
 import type { Types } from 'mongoose';
 
@@ -239,6 +240,7 @@ export const toAdminReservationListItemDto = (
     reservationNumber: source.reservationNumber,
     status: source.status,
     paymentStatus: source.paymentStatus,
+    ...(source.paymentReport ? {paymentReport:paymentSummary(source as any).paymentReport} : {}),
     rentalMode: source.rentalMode,
     startDate: formatDateOnly(source.startDate),
     endDate: formatDateOnly(source.endDate),
