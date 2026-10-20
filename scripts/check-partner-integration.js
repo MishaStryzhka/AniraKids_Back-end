@@ -183,6 +183,8 @@ module.exports = async function ({ request, models }) {
     );
     const r = await models.ReservationV2Model.findById(created.body.id).lean();
     assert.equal(r.partner.staffId, String(ids[2]));
+    assert.deepEqual(r.partnerAudit.map(e=>e.action), ['created']);
+    assert.equal(r.partnerAudit[0].by, 'partner:'+ids[2]);
     assert.equal(
       (
         await call('/partner/reservations/' + r._id, 2, {
@@ -254,12 +256,31 @@ module.exports = async function ({ request, models }) {
       ).status,
       200
     );
-    for (const action of ['confirm', 'prepare', 'rent', 'return'])
-      assert.equal(
-        (await call('/partner/reservations/' + r._id, 1, { action })).status,
-        200,
-        action
-      );
+    for (const action of ['confirm', 'prepare', 'rent', 'return']) {
+      const admin = ['prepare','return'].includes(action);
+      const path = admin ? '/admin/reservations/'+r._id+'/'+action : '/partner/reservations/'+r._id;
+      const payload = admin ? {} : {action};
+      assert.equal((await call(path, admin ? 0 : 1, payload)).status,200,action);
+      assert.equal((await call(path, admin ? 0 : 1, payload)).status,200,'replay '+action);
+    }
+    const audited = await models.ReservationV2Model.findById(r._id).lean();
+    assert.deepEqual(audited.partnerAudit.map(e=>e.action), ['created','rental_received','confirm','prepare','rent','return']);
+    for (const entry of audited.partnerAudit) {
+      assert.ok(entry.at instanceof Date && Number.isFinite(entry.at.getTime()));
+      assert.equal(entry.by, (['prepare','return'].includes(entry.action)?'owner:'+ids[0]:'partner:'+ids[entry.action==='created'?2:1]));
+    }
+    assert.equal(audited.partnerAudit[1].operationId, cash.operationId);
+    assert.equal(audited.partnerAudit[1].amount,1080);
+    assert.equal(audited.partnerAudit[1].method,'cash');
+    const notes = () => request('/admin/reservations/'+r._id+'/notes', {method:'PATCH',headers:{Authorization:'Bearer '+tokens[0],'Content-Type':'application/json'},body:JSON.stringify({notes:'Audit fixture note'})});
+    assert.equal((await notes()).status,200);
+    assert.equal((await notes()).status,200);
+    const detail=await call('/admin/reservations/'+r._id,0);
+    assert.equal(detail.status,200);
+    assert.equal(detail.body.history.filter(e=>e.action==='notes_updated').length,1);
+    assert.equal(detail.body.history.at(-1).by,'owner:'+ids[0]);
+    assert.equal((await call('/admin/reservations/'+r._id,2)).status,403);
+    assert.ok(!JSON.stringify((await call('/partner/reservations?month='+month,2)).body).includes('partnerAudit'));
     const balance = (await call('/partner/balance', 1)).body;
     assert.equal(balance.earned, 540);
     assert.equal(balance.collected, 1080);

@@ -109,7 +109,7 @@ const paymentEntrySchema = new Schema({
 export const ReservationV2Schema = new Schema<Reservation>(
   {
     partner: {type: partnerAttributionSchema},
-    partnerAudit: [{_id:false,action:String,at:Date,by:String}],
+    partnerAudit: [{_id:false,action:String,at:Date,by:String,operationId:String,amount:Number,method:String,reference:String}],
     fittingCreditId: { type: String },
     fittingDiscount: {type: new Schema({amount:{type:Number,enum:[200],required:true},number:{type:String,required:true},appliedAt:{type:Date,required:true},appliedBy:{type:String,required:true}},{_id:false})},
     advanceRequired: { type: Number, min: 0, max: 200, validate: Number.isSafeInteger },

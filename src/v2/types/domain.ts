@@ -176,7 +176,7 @@ export interface Reservation {
   invoiceIssuedId?: string;
   invoiceAutomation?: {status: string; requestedAt: Date; requestedBy: string; errorCode?: string};
   partner?: import('../services/partner-referral.service').PartnerAttribution;
-  partnerAudit?: Array<{action:string;at:Date;by:string}>;
+  partnerAudit?: Array<{action:string;at:Date;by:string;operationId?:string;amount?:number;method?:string;reference?:string}>;
   fittingCreditId?: string;
   fittingDiscount?: {amount:number;number:string;appliedAt:Date;appliedBy:string};
   advanceRequired?: number;

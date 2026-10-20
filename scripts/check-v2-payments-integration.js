@@ -166,7 +166,8 @@ async function main() {
   assert.equal((await Reservation.findById(r._id)).paymentStatus,'paid');
   assert.equal(publicPaymentSummary(await Reservation.findById(r._id)).fullPaymentInstructions,null);
   await assert.rejects(post('cancellation_fee',200,{note:'Reviewed cancellation rights'}),e=>e.code==='PAYMENT_NOT_ALLOWED');
-  await reservationAdminService.cancel(r._id,{reason:'Customer cancellation outside free window'});
+  await reservationAdminService.cancel(r._id,{reason:'Customer cancellation outside free window'},{actor});
+  await reservationAdminService.cancel(r._id,{reason:'Customer cancellation outside free window'},{actor});
   const fee=await post('cancellation_fee',200,{note:'Reviewed applicable terms and statutory rights'});assert.equal(fee.refundableRental,500);
   await assert.rejects(post('cancellation_fee',1,{note:'Attempt extra fee'}),e=>e.code==='PAYMENT_LIMIT_EXCEEDED');
   await assert.rejects(post('rental_refunded',501,{note:'Attempt excess refund'}),e=>e.code==='PAYMENT_LIMIT_EXCEEDED');
@@ -177,6 +178,17 @@ async function main() {
   assert.equal((await Reservation.findById(r._id)).paymentStatus,'refunded');
   await assert.rejects(post('deposit_refunded',1,{note:'Excess refund attempt'}),e=>e.code==='PAYMENT_LIMIT_EXCEEDED');
   const final=await Reservation.findById(r._id);assert.equal(final.paymentEntries.length,rev);assert.equal(publicPaymentSummary(final).paymentInstructions,null);
+  assert.equal(final.partnerAudit.filter(e=>e.action==='cancel').length,1);
+  assert.equal(final.partnerAudit.find(e=>e.action==='cancel').by,actor);
+  for(const entry of final.paymentEntries){
+    const matching=final.partnerAudit.filter(e=>e.operationId===entry.operationId);
+    assert.equal(matching.length,1);assert.equal(matching[0].by,actor);
+    assert.equal(matching[0].action,entry.type);assert.equal(matching[0].amount,entry.amount);
+    assert.equal(+matching[0].at,+entry.recordedAt);
+  }
+  const {reservationHistory}=require('../build/v2/services/reservation-audit');
+  assert.equal(reservationHistory(final).length,final.partnerAudit.length);
+  assert.equal(reservationHistory({paymentEntries:final.paymentEntries}).length,final.paymentEntries.length);
   assert.equal(paymentSummary({...final.toObject(),paymentEntries:[],paymentStatus:'paid'}).legacyUnreconciled,true);
   assert.equal(publicPaymentSummary({...final.toObject(),advanceRequired:undefined}),null);
   const expired={...final.toObject(),status:'pending',expiresAt:new Date(Date.now()-1)};assert.equal(publicPaymentSummary(expired).paymentInstructions,null);

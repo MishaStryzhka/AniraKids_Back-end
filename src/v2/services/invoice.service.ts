@@ -50,7 +50,7 @@ export async function issueInvoice(input:any,actor:string){
   const counter:any=await InvoiceCounter.findOneAndUpdate({_id:year},{$inc:{value:1}},{upsert:true,new:true,session});
   const {fingerprint,...data}=preview;
   const docs=await InvoiceModel.create([{...data,number:`${year}-${String(counter.value).padStart(4,'0')}`,issuedAt:now,issuedBy:actor}],{session});result=docs[0].toObject();
-  if(input.type==='reservation')await ReservationV2Model.updateOne({_id:preview.sourceId},{$set:{invoiceIssuedId:String(result._id)}},{session});
+  if(input.type==='reservation')await ReservationV2Model.updateOne({_id:preview.sourceId},{$set:{invoiceIssuedId:String(result._id)},$push:{partnerAudit:{action:'invoice_issued',at:result.issuedAt,by:result.issuedBy,reference:result.number}}},{session});
  });return result;}finally{await session.endSession();}
 }
 export async function issueAutomaticInvoice(type:'fitting'|'reservation',id:string){
@@ -71,7 +71,7 @@ export async function issueAutomaticInvoice(type:'fitting'|'reservation',id:stri
   const {fingerprint,...data}=preview;
   const docs=await InvoiceModel.create([{...data,number:`${year}-${String(counter.value).padStart(4,'0')}`,issuedAt:now,issuedBy:source.invoiceAutomation.requestedBy,automatic:true,email:{status:'pending'}}],{session});
   result=docs[0].toObject();
-  if(type==='reservation')await ReservationV2Model.updateOne({_id:id},{$set:{invoiceIssuedId:String(result._id)}},{session});
+  if(type==='reservation')await ReservationV2Model.updateOne({_id:id},{$set:{invoiceIssuedId:String(result._id)},$push:{partnerAudit:{action:'invoice_issued',at:result.issuedAt,by:result.issuedBy,reference:result.number}}},{session});
  });return result;}finally{await session.endSession();}
 }
 export async function correctInvoice(id:string,reason:string,actor:string){
@@ -86,6 +86,7 @@ export async function correctInvoice(id:string,reason:string,actor:string){
   const now=new Date(),year=day(now).slice(0,4),counter:any=await InvoiceCounter.findOneAndUpdate({_id:year},{$inc:{value:1}},{upsert:true,new:true,session});
   const snapshot={...original.snapshot,originalNumber:original.number,reason:reason.trim(),lines:original.snapshot.lines.map((l:any)=>({...l,amount:-l.amount})),total:-original.snapshot.total,paid:0,balance:0,overpayment:0,deposit:0,payments:[]};
   const docs=await InvoiceModel.create([{number:`${year}-${String(counter.value).padStart(4,'0')}`,sourceKey,sourceType:'correction',sourceId:id,sourceNumber:original.sourceNumber,issuedAt:now,issuedBy:actor,snapshot}],{session});result=docs[0].toObject();
+  if(original.sourceType==='reservation')await ReservationV2Model.updateOne({_id:original.sourceId},{$push:{partnerAudit:{action:'invoice_corrected',at:now,by:actor,reference:result.number}}},{session});
  });return result;}finally{await session.endSession();}
 }
 export function invoicePeriod(value:unknown){if(typeof value!=='string'||!/^20\d{2}(-(0[1-9]|1[0-2]))?$/.test(value))throw new PaymentError('VALIDATION_ERROR',400);const start=new Date(value.length===4?`${value}-01-01T00:00:00Z`:`${value}-01T00:00:00Z`),end=new Date(start);if(value.length===4)end.setUTCFullYear(end.getUTCFullYear()+1);else end.setUTCMonth(end.getUTCMonth()+1); // Prague midnight is UTC-1 in winter and UTC-2 in summer.

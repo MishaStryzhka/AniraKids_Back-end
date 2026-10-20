@@ -402,7 +402,7 @@ export function partnerHandler(action: string): HttpHandler {
         switch (body.action) {
           case 'confirm':
             requireManager(access);
-            await reservationAdminService.confirm(r._id);
+            await reservationAdminService.confirm(r._id, {actor});
             break;
           case 'prepare':
             await reservationAdminService.prepare(r._id, actor);
