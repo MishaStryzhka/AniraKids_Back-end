@@ -1,3 +1,4 @@
+import {processAutomaticInvoice} from '../services/invoice-automation.service';
 import { calendarBlocks } from '../services/calendar-blocks';
 import { Types } from 'mongoose';
 
@@ -121,7 +122,9 @@ export const confirmAdminReservation: HttpHandler = async (
       {actor: auditActor(request)}
     );
 
+    const invoiceAutomation=(reservation as any).invoiceAutomation?await processAutomaticInvoice('reservation',String(reservation._id)):undefined;
     return response.status(200).json({
+      ...(invoiceAutomation?{invoiceAutomation}:{}),
       reservation: toAdminReservationOperationDto(reservation),
     });
   } catch (error) {

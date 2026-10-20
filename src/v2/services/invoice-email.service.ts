@@ -20,6 +20,8 @@ export async function sendInvoice(id:string,options:InvoiceSendOptions={}){
  }else if(email?.status&&!['pending'].includes(email.status))return {status:email.status};
  const fitting=invoice.sourceType==='fitting'?await FittingModel.findById(invoice.sourceId).select('date time address status paymentStatus').lean():null;
  const reservation=invoice.sourceType==='reservation'?await ReservationV2Model.findById(invoice.sourceId).select('status').lean():null;
+ // Keep payment and confirmation in one email when payment arrives before approval.
+ if(invoice.automatic && reservation?.status==='pending')return {status:'pending'};
  const message=invoiceEmail(invoice,fitting,reservation);
  let pdf:Buffer;try{pdf=await invoicePdf(invoice);}catch{throw new PaymentError('INVOICE_PDF_FAILED',503);}
  // The claim survives provider timeouts. Never retry an ambiguous send automatically.

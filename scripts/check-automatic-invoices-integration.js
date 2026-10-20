@@ -25,6 +25,7 @@ async function main(){
  const {FittingModel:F}=require('../build/v2/models/fitting.model');
  const {ReservationV2Model:R}=require('../build/v2/models/reservation-v2.model');
  const {fittingHandler}=require('../build/v2/controllers/fitting.controller');
+ const {confirmAdminReservation}=require('../build/v2/controllers/admin-reservations.controller');
  const {adminRecordPayment}=require('../build/v2/controllers/admin-payments.controller');
  const {invoiceHandler}=require('../build/v2/controllers/invoice.controller');
  const {processAutomaticInvoice,requestAutomaticInvoice,pendingAutomaticInvoices}=require('../build/v2/services/invoice-automation.service');
@@ -52,6 +53,14 @@ async function main(){
  await call(adminRecordPayment,{...input,operationId:randomUUID(),expectedRevision:1,type:'rental_received',amount:600},{reservationId:String(r._id)});
  await call(adminRecordPayment,{...input,operationId:randomUUID(),expectedRevision:2,type:'deposit_received',amount:1000},{reservationId:String(r._id)});
  const unchanged=await I.findById(ri._id).lean();assert.deepEqual(unchanged.snapshot,ri.snapshot);assert.equal(mail.messages.filter(m=>m.subject.includes(ri.number)).length,1);
+ const waiting=await rental({status:'pending'}),beforeWaiting=mail.messages.length;
+ await call(adminRecordPayment,{...input,operationId:randomUUID()},{reservationId:String(waiting._id)});
+ const waitingInvoice=await I.findOne({sourceKey:'reservation:'+waiting._id}).lean();
+ assert.equal(waitingInvoice.email.status,'pending');assert.equal(mail.messages.length,beforeWaiting,'no separate invoice before rental confirmation');
+ await R.updateOne({_id:waiting._id},{$set:{status:'confirmed'}});
+ await call(confirmAdminReservation,{}, {reservationId:String(waiting._id)});
+ await call(confirmAdminReservation,{}, {reservationId:String(waiting._id)});
+ assert.equal(mail.messages.length,beforeWaiting+1);assert.match(mail.messages.at(-1).subject,/Pronájem potvrzen · Faktura/);
  const depositOnly=await rental();await call(adminRecordPayment,{...input,operationId:randomUUID(),type:'deposit_received',amount:1000},{reservationId:String(depositOnly._id)});assert.equal(await I.countDocuments({sourceKey:'reservation:'+depositOnly._id}),0);
  const cancelled=await rental({status:'cancelled'});await call(adminRecordPayment,{...input,operationId:randomUUID(),type:'rental_received',amount:200,note:'Late transfer'},{reservationId:String(cancelled._id)});assert.equal(await I.countDocuments({sourceKey:'reservation:'+cancelled._id}),0);
  const failed=await rental();mail.failNext=true;const failedPay=await call(adminRecordPayment,{...input,operationId:randomUUID()},{reservationId:String(failed._id)});assert.equal(failedPay.code,200);assert.equal(failedPay.body.invoiceAutomation.emailStatus,'failed');assert.equal((await R.findById(failed._id)).paymentEntries.length,1);
@@ -81,7 +90,7 @@ async function main(){
  const failedFittingInvoice=await I.findOne({sourceKey:'fitting:'+failedFitting._id}).lean();
  await sendInvoice(String(failedFittingInvoice._id),{retry:true,expectedAttemptedAt:failedFittingInvoice.email.attemptedAt.toISOString()});
  assert.equal(mail.messages.length,beforeCombinedFailure+2);assert.equal(mail.messages.at(-1).attachments.length,1);
- assert.equal(await I.countDocuments(),7);assert.equal((await C.findOne()).value,7);
+ assert.equal(await I.countDocuments(),8);assert.equal((await C.findOne()).value,8);
  writeFileSync('/tmp/automatic-fitting-invoice.pdf',Buffer.from(fm[0].attachments[0].content,'base64'));
  console.log('PASS automatic invoices: fitting confirmation, partial/full rental payments, discount/deposit separation, concurrent retries, immutable snapshots, provider failure, explicit retry CAS, interrupted-job recovery, historical opt-in and owner guard');
  }finally{clearTimeout(timer);await mongoose.disconnect();child.kill('SIGTERM');await new Promise(resolve=>child.exitCode!==null?resolve():child.once('exit',resolve));rmSync(directory,{recursive:true,force:true});}
