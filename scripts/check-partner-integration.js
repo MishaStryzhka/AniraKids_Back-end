@@ -182,6 +182,7 @@ module.exports = async function ({ request, models }) {
       1
     );
     const r = await models.ReservationV2Model.findById(created.body.id).lean();
+    for(const role of [0,1,2])assert.equal((await call('/partner/reservations?month='+month,role)).body.items.find(item=>item.id===String(r._id)).paymentStatus,'unpaid');
     assert.equal(r.partner.staffId, String(ids[2]));
     assert.deepEqual(r.partnerAudit.map(e=>e.action), ['created']);
     assert.equal(r.partnerAudit[0].by, 'partner:'+ids[2]);
@@ -256,6 +257,7 @@ module.exports = async function ({ request, models }) {
       ).status,
       200
     );
+    for(const role of [0,1,2])assert.equal((await call('/partner/reservations?month='+month,role)).body.items.find(item=>item.id===String(r._id)).paymentStatus,'paid');
     for (const action of ['confirm', 'prepare', 'rent', 'return']) {
       const admin = ['prepare','return'].includes(action);
       const path = admin ? '/admin/reservations/'+r._id+'/'+action : '/partner/reservations/'+r._id;

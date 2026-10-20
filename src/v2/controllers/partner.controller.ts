@@ -120,6 +120,7 @@ function reservationView(r: any, manager: boolean) {
     id: String(r._id),
     number: r.reservationNumber,
     status: r.status,
+    paymentStatus: r.paymentStatus,
     startDate: r.startDate,
     endDate: r.endDate,
     rentalMode: r.rentalMode,
