@@ -22,6 +22,7 @@ function controller(file) {
       HttpError: (status, message) => Object.assign(new Error(message), { status }),
       sendEmail: async message => { if (failDelivery) throw new Error('fixture'); messages.push(message); },
     };
+    if (name === '../../helpers/emailLayout') return require('../helpers/emailLayout');
     if (name === '../../helpers/publicUser') return require('../helpers/publicUser');
     if (name === 'node:crypto') return require('node:crypto');
     throw new Error('Unexpected dependency ' + name);

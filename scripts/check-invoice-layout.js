@@ -10,7 +10,7 @@ async function main(){
  const {invoiceEmail}=require('../helpers/invoiceEmail');
  const sample={...base,automatic:true,sourceType:'fitting',snapshot:{...base.snapshot,buyer:{...base.snapshot.buyer,name:'Žofie <script>'},paid:200,balance:0}};
  const appointment={date:'2026-10-25',time:'17:30',address:'Testovací adresa',status:'confirmed',paymentStatus:'paid'};
- const email=invoiceEmail(sample,appointment);assert.match(email.subject,/Zkouška potvrzena a faktura/);assert.match(email.text,/17:30/);assert.ok(!email.html.includes('<script>'));assert.ok(!email.html.includes('<img'));
+ const email=invoiceEmail(sample,appointment);assert.match(email.subject,/Zkouška potvrzena · Faktura/);assert.match(email.text,/17:30/);assert.ok(!email.html.includes('<script>'));assert.equal((email.html.match(/<img/g)||[]).length,2);assert.match(email.html,/cid:anirak-instagram/);assert.match(email.html,/cid:anirak-whatsapp/);
  assert.ok(!invoiceEmail(sample,{...appointment,status:'cancelled'}).subject.includes('potvrzena'));
  const payload=invoiceQrPayload(base);
  assert.equal(payload,'SPD*1.0*ACC:CZ0708000000006644781399*AM:600.00*CC:CZK*X-VS:20260042*MSG:R-LAYOUT-TEST');
