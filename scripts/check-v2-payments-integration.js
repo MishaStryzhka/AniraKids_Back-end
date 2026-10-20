@@ -11,8 +11,9 @@ const mongoose = require('mongoose');
 const express = require('express');
 // Observe notifications without contacting any push provider.
 const paymentPushEvents = [];
+const paymentPushTargets = [];
 require('../build/v2/services/admin-push.service').notifyOwnerReservationPaymentReported =
-  async kind => { paymentPushEvents.push(kind); };
+  async (kind,reservationId) => { paymentPushEvents.push(kind); paymentPushTargets.push(reservationId.toHexString()); };
 const { createV2Router } = require('../build/v2/routes');
 const models = require('../build/v2/models');
 const {
@@ -395,6 +396,9 @@ async function main() {
   await Reservation.updateOne({_id:advanceReport._id},{$set:splitAccess});
   await reportReservationPayment(advanceReport.reservationNumber,splitAccess,{operationId:randomUUID(),kind:'advance',amount:200},'guest');
   assert.deepEqual(paymentPushEvents,['full','cash','full','cash','full','advance']);
+  assert.deepEqual(paymentPushTargets,[reportBooking,cashBooking,split,switchToQr,switchToQr,advanceReport].map(r=>r.id),
+    'every account/guest advance, transfer and cash alert targets the saved reservation');
+  evidence.push('Payment push carries the exact saved reservation ID for account/guest advance, transfer and cash reports');
   evidence.push('Owner push after saved account/guest transfer, advance and cash reports; concurrent/replayed/re-selected cash reports do not duplicate; cash-to-QR switch notifies; rejected and expired reports stay silent');
   evidence.push('Customer and guest report authentication; no payment/hold mutation; concurrent idempotency; admin bank approval; cash intent keeps staff QR; actual cash receipt; split rental/deposit confirmation; cash-to-QR switch; expired hold rejected');
   console.log(JSON.stringify({status:'PASS',database:'owned disposable loopback replica set',tests:evidence},null,2));

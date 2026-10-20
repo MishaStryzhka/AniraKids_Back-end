@@ -62,7 +62,7 @@ export async function reportReservationPayment(
     // arrangement (even with a new operation ID) must not notify the owner again.
     const repeatedCash = input.kind === 'cash' && summary.paymentReport?.status === 'pending' &&
       summary.paymentReport.kind === 'cash' && summary.paymentReport.amount === input.amount;
-    if (!repeatedCash) await notifyOwnerReservationPaymentReported(input.kind);
+    if (!repeatedCash) await notifyOwnerReservationPaymentReported(input.kind, updated._id);
     return updated;
   }
   const current = await ReservationV2Model.findOne(filter).lean().exec();

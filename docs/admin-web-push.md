@@ -1,6 +1,6 @@
 # ANIRAK — owner Web Push
 
-An owner can opt in separately on each device in **Admin → Nastavení → Upozornění**. The supported events are **Nová rezervace zkoušky** (`fitting_created`) after a new fitting is saved, and **Klient oznámil odeslání platby za zkoušku** (`fitting_payment_reported`) when a valid fitting changes from `pending` to `review`. The backend sends only an encrypted event type; no customer name, contact details, reservation identifier or bank information is included.
+An owner can opt in separately on each device in **Admin → Nastavení → Upozornění**. The supported events are **Nová rezervace zkoušky** (`fitting_created`) after a new fitting is saved, and **Klient oznámil odeslání platby za zkoušku** (`fitting_payment_reported`) when a valid fitting changes from `pending` to `review`. The backend encrypts the event type and, for rental payment/cash reports, the opaque admin reservation ID. No customer name, contact details, bank information or guest access token is included. Notification text remains generic.
 
 Rental reservations also support **Klient oznámil odeslání platby za pronájem** (`reservation_payment_reported`) for a reported advance or remaining transfer, and **Klient zvolil platbu hotově při převzetí** (`reservation_cash_selected`) for a saved cash arrangement.
 
@@ -34,7 +34,7 @@ On iPhone/iPad, install the ANIRAK website **to the Home Screen** and open it fr
 - Payment alerts send only on real `pending → review` transitions; repeats cannot generate another push.
 - Rental payment/cash alerts send only after the winning report write. Concurrent/idempotent retries, rejected reports and repeated selection of the same pending cash amount do not send another alert. Switching cash to a reported transfer sends the transfer alert.
 - Failed delivery never changes fitting/payment status or creates retries that double-notify.
-- The worker selects fixed Czech text by event type and links to `/admin/zkousky` for fittings or `/admin/rezervace` for rental payment/cash reports. Click destinations are allowlisted; payload URLs cannot redirect elsewhere. Separate alerts do not replace each other.
+- The worker selects fixed Czech text by event type and links to `/admin/zkousky` for fittings or `/admin/rezervace/:reservationId` for rental payment/cash reports. IDs must be exactly 24 hexadecimal characters. Older reports without a valid ID open `/admin/rezervace`. Click destinations are allowlisted; payload URLs cannot redirect elsewhere. Existing admin authentication and permissions still protect the detail. Separate alerts do not replace each other.
 - Device subscriptions live in MongoDB collection `v2_admin_push_subscriptions`.
 - Browser notification permission remains under the user's browser/OS settings.
 

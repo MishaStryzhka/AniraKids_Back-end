@@ -43,7 +43,8 @@ global.fetch=async(url,options)=>{
   if(options.body){
     assert.equal(options.headers['Content-Encoding'],'aes128gcm');
     payload=JSON.parse(ece.decrypt(options.body,{version:'aes128gcm',privateKey:receiver,authSecret:keys.auth}).toString());
-    assert.deepEqual(Object.keys(payload),['type'],'no customer or payment data');
+    assert.deepEqual(Object.keys(payload),payload.type.startsWith('reservation_')?['type','reservationId']:['type'],
+      'only event type and opaque rental ID; no customer/payment data or access tokens');
   }
   sent.push({url,payload});return {status,ok:status<300};
 };
@@ -74,15 +75,17 @@ async function handle(body,owner=true){
   assert.deepEqual(sent.map(item=>item.url),[endpoint('payment'),endpoint('both'),endpoint('legacy')]);
   assert.deepEqual(sent.map(item=>item.payload),[{type:'fitting_payment_reported'},{type:'fitting_payment_reported'},null]);
   for(const kind of ['advance','full','cash']){
-    sent.length=0;await service.notifyOwnerReservationPaymentReported(kind);
+    const reservationId=new Types.ObjectId();
+    sent.length=0;await service.notifyOwnerReservationPaymentReported(kind,reservationId);
     const cash=kind==='cash';
     assert.deepEqual(sent.map(item=>item.url),[endpoint(cash?'rental-cash':'rental-transfer'),endpoint('rental-both')]);
     assert.ok(sent.every(item=>item.payload.type===(cash?'reservation_cash_selected':'reservation_payment_reported')));
+    assert.ok(sent.every(item=>item.payload.reservationId===reservationId.toHexString()),'each alert carries its own reservation ID');
   }
   status=410;await service.notifyOwnerFittingCreated();
   assert.deepEqual(deleted,[{endpointHash:'created'},{endpointHash:'both'}]);
-  status=503;await service.notifyOwnerFittingCreated();await service.notifyOwnerReservationPaymentReported('full');
-  global.fetch=async()=>{throw new Error('offline');};await service.notifyOwnerFittingCreated();await service.notifyOwnerReservationPaymentReported('cash');
-  Model.find=()=>{throw new Error('database unavailable');};await service.notifyOwnerFittingCreated();await service.notifyOwnerReservationPaymentReported('full');
+  status=503;await service.notifyOwnerFittingCreated();await service.notifyOwnerReservationPaymentReported('full',new Types.ObjectId());
+  global.fetch=async()=>{throw new Error('offline');};await service.notifyOwnerFittingCreated();await service.notifyOwnerReservationPaymentReported('cash',new Types.ObjectId());
+  Model.find=()=>{throw new Error('database unavailable');};await service.notifyOwnerFittingCreated();await service.notifyOwnerReservationPaymentReported('full',new Types.ObjectId());
   console.log('PASS: encrypted fitting, rental-transfer and cash event types; independent subscriptions; legacy payment fallback; owner/input validation; expired endpoint cleanup and isolated delivery failures');
 })().catch(error=>{console.error(error);process.exitCode=1;});
