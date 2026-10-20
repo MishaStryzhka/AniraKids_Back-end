@@ -8,9 +8,10 @@ const {ReservationV2Model:Reservation}=require('../build/v2/models/reservation-v
 const {paymentSummary,parsePaymentInput}=require('../build/v2/services/payment.service');
 module.exports=async({test,registry,insertOwned})=>{
  const push=require('../build/v2/services/admin-push.service'),events=[];
+ const targets=[];
  const originalCreated=push.notifyOwnerFittingCreated,originalPayment=push.notifyOwnerFittingPaymentReported;
- push.notifyOwnerFittingCreated=async()=>{events.push('created');};
- push.notifyOwnerFittingPaymentReported=async()=>{events.push('payment');};
+ push.notifyOwnerFittingCreated=async id=>{events.push('created');targets.push({type:'created',id:String(id)});};
+ push.notifyOwnerFittingPaymentReported=async id=>{events.push('payment');targets.push({type:'payment',id:String(id)});};
  registry.set(FittingModel,[]);registry.set(FittingSettingsModel,['fittings']);
  const settings={...defaultFittingSettings(),enabled:true,address:'Testovací adresa 1',weekly:defaultFittingSettings().weekly.map(d=>({...d,enabled:true,start:'09:00',end:'18:00'}))};
  const now=new Date('2030-01-01T00:00:00Z'),ops=[];
@@ -39,15 +40,18 @@ module.exports=async({test,registry,insertOwned})=>{
    assert.deepEqual(await api.createFitting({...winner},now),receipt);
    await reject(api.createFitting({...winner,name:'Changed'},now),'IDEMPOTENCY_CONFLICT');
    assert.deepEqual(events.slice(before),['created'],'new booking only: no push for conflict or replay');
+   assert.deepEqual(targets.at(-1),{type:'created',id:String((await doc(receipt.number))._id)});
    await reject(api.readFitting(receipt.number,'a'.repeat(64),now),'FITTING_NOT_FOUND');
    assert.equal((await api.availableFittingSlots(a.date,now)).slots.includes(a.time),false);
   });
   await test('Fitting payment report holds slot without treating payment as received',async()=>{
    const before=events.length;
    const v=input('2030-01-07','10:00'),r=await api.createFitting(v,now);
-   const reported=await api.reportFittingPayment(r.number,v.token,now);
+   const [reported]=await Promise.all([api.reportFittingPayment(r.number,v.token,now),api.reportFittingPayment(r.number,v.token,now)]);
    await api.reportFittingPayment(r.number,v.token,now);
    assert.deepEqual(events.slice(before),['created','payment'],'creation precedes payment and duplicate report is silent');
+   const fittingId=String((await doc(r.number))._id);
+   assert.deepEqual(targets.slice(-2),[{type:'created',id:fittingId},{type:'payment',id:fittingId}]);
    assert.equal(reported.status,'review');assert.equal(reported.paymentStatus,'unpaid');assert.equal(reported.paymentInstructions,null);
    await api.expireFittings(new Date(now.getTime()+3600000));assert.equal((await doc(r.number)).status,'review');
    await act(r.number,'confirm');assert.equal((await doc(r.number)).paymentStatus,'paid');
@@ -129,7 +133,8 @@ module.exports=async({test,registry,insertOwned})=>{
    await reject(act(r.number,'refund'),'FITTING_CONFLICT');
    const other=credited.reservationNumber===a.number?b:a;
    await reject(act(r.number,'credit',{reservationNumber:other.number}),'FITTING_ALREADY_CREDITED');
-   const result=await api.adminFittings('2030-01-01','2030-01-31');assert.equal(result.items.find(i=>i.number===r.number).credit.reservationNumber,credited.reservationNumber);
+   const result=await api.adminFittings('2030-01-01','2030-01-31');const listed=result.items.find(i=>i.number===r.number);assert.equal(listed.credit.reservationNumber,credited.reservationNumber);
+   assert.deepEqual(await api.readAdminFitting(listed.id),listed,'exact detail preserves payment, credit and actions data');
    assert.equal(result.items.find(i=>i.number===r.number).tokenHash,undefined);
   });
   await test('Discount candidates match customer, exclude used fittings, support paid rentals and reject closed or mismatched reservations',async()=>{
@@ -167,6 +172,7 @@ module.exports=async({test,registry,insertOwned})=>{
    const User=require('../models/user'),jwt=require('jsonwebtoken');
    if(!registry.has(User))registry.set(User,[]);
    const owner=await insertOwned(User,{}),other=await insertOwned(User,{});
+   process.env.V2_ADMIN_USER_IDS=String(owner);
    const ownerToken=jwt.sign({id:String(owner)},process.env.SECRET_KEY),otherToken=jwt.sign({id:String(other)},process.env.SECRET_KEY);
    await User.collection.updateOne({_id:owner},{$set:{tokens:[{token:ownerToken}]}});
    await User.collection.updateOne({_id:other},{$set:{tokens:[{token:otherToken}]}});
@@ -176,6 +182,15 @@ module.exports=async({test,registry,insertOwned})=>{
     const slots=await fetch(base+'/fittings/slots?date='+date);assert.equal(slots.status,200);assert.ok((await slots.json()).slots.includes('11:00'));
     const created=await fetch(base+'/fittings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v)});assert.equal(created.status,200);const receipt=await created.json();
     assert.equal((await fetch(base+'/fittings/'+receipt.number)).status,404);
+    const detailPath='/admin/fittings/'+String((await doc(receipt.number))._id);
+    assert.equal((await request(detailPath)).status,401);
+    assert.equal((await request(detailPath,otherToken)).status,403);
+    const detailResponse=await request(detailPath,ownerToken);assert.equal(detailResponse.status,200);
+    assert.equal(detailResponse.headers.get('cache-control'),'no-store');
+    const detail=await detailResponse.json();assert.equal(detail.number,receipt.number);assert.equal(detail.customer.email,v.email);
+    for(const key of ['tokenHash','requestHash','creditOperationId','operationId'])assert.equal(detail[key],undefined);
+    assert.equal(detail.status,'pending');assert.equal(detail.paymentStatus,'unpaid');
+    for(const invalid of ['not-an-id','000000000000000000000000','abcdefghijkl'])assert.equal((await request('/admin/fittings/'+invalid,ownerToken)).status,404);
     const auth={Authorization:'Bearer '+v.token};
     assert.equal((await fetch(base+'/fittings/'+receipt.number,{headers:auth})).status,200);
     const report=await fetch(base+'/fittings/'+receipt.number+'/payment-sent',{method:'POST',headers:auth});assert.equal(report.status,200);assert.equal((await report.json()).paymentStatus,'unpaid');
@@ -199,7 +214,13 @@ module.exports=async({test,registry,insertOwned})=>{
     assert.equal((await request('/fittings',otherToken,signed)).status,409);
     assert.equal((await request('/fittings',undefined,signed)).status,409);
     assert.equal((await request('/fittings','invalid-session',input(date,'13:00'))).status,401);
-    assert.equal((await request('/account/fittings/'+signedReceipt.number+'/payment-sent',ownerToken,{})).status,200);
+    const beforeReport=targets.length,signedId=String((await doc(signedReceipt.number))._id);
+    assert.equal((await request('/account/fittings/'+signedReceipt.number+'/payment-sent',otherToken,{})).status,404);
+    const reports=await Promise.all([request('/account/fittings/'+signedReceipt.number+'/payment-sent',ownerToken,{}),request('/account/fittings/'+signedReceipt.number+'/payment-sent',ownerToken,{})]);
+    assert.ok(reports.every(r=>r.status===200));
+    assert.deepEqual(targets.slice(beforeReport),[{type:'payment',id:signedId}],'one exact fitting ID for concurrent account reports');
+    const reportedDetail=await (await request('/admin/fittings/'+signedId,ownerToken)).json();
+    assert.equal(reportedDetail.status,'review');assert.equal(reportedDetail.paymentStatus,'unpaid');
     assert.equal((await doc(signedReceipt.number)).status,'review');assert.equal((await doc(signedReceipt.number)).paymentStatus,'unpaid');
     assert.equal((await request('/account/fittings/'+signedReceipt.number+'/cancel',ownerToken,{})).status,200);
     assert.equal((await doc(signedReceipt.number)).status,'cancelled');
