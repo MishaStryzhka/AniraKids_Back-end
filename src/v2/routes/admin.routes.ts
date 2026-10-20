@@ -1,3 +1,4 @@
+import {adminBookingCreate} from '../controllers/admin-booking-create.controller';
 import {invoiceHandler} from '../controllers/invoice.controller';
 import {adminAccess,administrators} from '../controllers/admin-access.controller';
 import {fittingHandler} from '../controllers/fitting.controller';
@@ -116,6 +117,9 @@ export const registerAdminRoutes = (
   router.post('/admin/push/unsubscribe', ...guards, requireAdminPermission('fittings'), adminPushHandler('unsubscribe'));
   router.post('/admin/push/preferences', ...guards, requireAdminPermission('fittings'), adminPushHandler('preferences'));
   router.get('/admin/reservations/:reservationId/fitting-discount', ...guards, requireAdminPermission('reservations'), requireAdminPermission('fittings'), fittingHandler('discount-options'));
+  router.get('/admin/booking-catalogue', ...guards, requireAdminPermission('reservations'), adminBookingCreate('catalogue'));
+  router.post('/admin/reservations', ...guards, requireAdminPermission('reservations'), adminBookingCreate('reservation'));
+  router.post('/admin/fittings', ...guards, requireAdminPermission('fittings'), adminBookingCreate('fitting'));
   router.get('/admin/fittings', ...guards, requireAdminPermission('fittings'), fittingHandler('list'));
   router.post('/admin/fittings/:fittingId/actions', ...guards, requireAdminPermission('fittings'), fittingHandler('act'));
   router.get('/admin/settings', ...guards, requireAdminPermission('settings'), readSiteSettings);

@@ -32,6 +32,7 @@ export class ReservationServiceError extends Error {
 }
 
 export interface CreateReservationCommand {
+  auditActor?: string;
   fittingDiscount?: import('./fitting-discount.service').FittingDiscountSelection;
   partner?: import('./partner-referral.service').PartnerAttribution;
   items?: Array<{ productId: Types.ObjectId; variantId: Types.ObjectId }>;

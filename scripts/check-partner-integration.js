@@ -513,6 +513,33 @@ module.exports = async function ({ request, models }) {
     );
     assert.equal((await call('/partner/access', 2)).status, 403);
     assert.equal(await resolveReferral(personal.body.token), undefined);
+    // Admin-created bookings are ANIRAK clients, never bookings owned by the operator.
+    const {AdminAccessModel}=require('../build/v2/models/admin-access.model');
+    await AdminAccessModel.create({_id:ids[3],permissions:['fittings'],revision:0});
+    const adminDate=new Date(Date.now()+180*86400000).toISOString().slice(0,10);
+    const adminBody={...body,startDate:adminDate,endDate:adminDate};
+    const adminKey=randomUUID();
+    assert.equal((await call('/admin/booking-catalogue',3)).status,403);
+    const catalogue=await call('/admin/booking-catalogue',0);
+    assert.equal(catalogue.status,200);assert.ok(catalogue.body.items.some(x=>x.id===String(p._id)&&x.variants.some(y=>y.id===String(v._id))));
+    assert.equal((await call('/admin/reservations',3,adminBody,adminKey)).status,403);
+    const adminCreated=await call('/admin/reservations',0,adminBody,adminKey);
+    assert.equal(adminCreated.status,201,JSON.stringify(adminCreated.body));
+    assert.equal((await call('/admin/reservations',0,adminBody,adminKey)).body.id,adminCreated.body.id);
+    assert.equal((await call('/admin/reservations',0,{...adminBody,auditActor:'spoofed'},randomUUID())).status,400);
+    const adminRecord=await models.ReservationV2Model.findById(adminCreated.body.id).lean();
+    assert.equal(adminRecord.customerId,undefined);assert.equal(adminRecord.partner.source,'anirak');
+    assert.equal(adminRecord.partnerAudit[0].by,'owner:'+ids[0]);assert.equal(adminRecord.partnerAudit.filter(e=>e.action==='created').length,1);
+    const {saveFittingSettings}=require('../build/v2/services/fitting-settings.service');
+    await saveFittingSettings({enabled:true,address:'Admin fixture 12, Praha',weekly:Array.from({length:7},(_,day)=>({day,enabled:true,start:'09:00',end:'17:00'})),blockedDates:[]});
+    const fittingBody={operationId:randomUUID(),token:'e'.repeat(64),date:new Date(Date.now()+7*86400000).toISOString().slice(0,10),time:'12:00',name:'Admin client',email:'admin-client@example.test',phone:'+420123456789'};
+    const adminFitting=await call('/admin/fittings',3,fittingBody);
+    assert.equal(adminFitting.status,201,JSON.stringify(adminFitting.body));
+    assert.equal((await call('/admin/fittings',3,fittingBody)).body.number,adminFitting.body.number);
+    assert.equal((await call('/admin/fittings',0,fittingBody)).status,409,'another admin cannot replay a saved client submission');
+    const fittingRecord=await FittingModel.findOne({number:adminFitting.body.number}).lean();
+    assert.equal(fittingRecord.customerId,undefined);assert.equal(fittingRecord.partner.source,'anirak');assert.equal(fittingRecord.audit[0].by,'admin:'+ids[3]);
+    await AdminAccessModel.deleteOne({_id:ids[3]});
     console.log(
       'PARTNER_INTEGRATION=PASS scopes referrals expiry revocation discount cash idempotency balance settlements'
     );

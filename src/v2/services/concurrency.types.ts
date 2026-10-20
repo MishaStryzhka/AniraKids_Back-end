@@ -23,6 +23,7 @@ export type AtomicReservationInput = Omit<
   Reservation,
   'createdAt' | 'updatedAt'
 > & {
+  auditActor?: string;
   fittingDiscountSelection?: import('./fitting-discount.service').FittingDiscountSelection;
   now?: Date;
 };

@@ -300,6 +300,7 @@ export class ReservationService {
         try {
           const reservationDocument = await createReservationAtomically({
             partner: command.partner,
+            auditActor: command.auditActor,
             fittingDiscountSelection: command.fittingDiscount,
             reservationNumber,
             customerId: command.customerId,
@@ -451,6 +452,7 @@ export class ReservationService {
         try {
           const document = await createReservationAtomically({
             partner: command.partner,
+            auditActor: command.auditActor,
             fittingDiscountSelection: command.fittingDiscount,
             reservationNumber: generateReservationNumber(now),
             customerId: command.customerId, guestAccessTokenHash: guestToken?.hash,
