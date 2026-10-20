@@ -84,6 +84,7 @@ export function calculatePartnerBalance(
     lines.push({
       kind: 'fitting',
       number: f.number,
+      source: f.partner?.source || 'anirak',
       amount,
       status: f.status,
       reason,
