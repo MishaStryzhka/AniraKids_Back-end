@@ -1,3 +1,4 @@
+const {withEmailLayout}=require('../../helpers/emailLayout');
 const crypto = require('node:crypto');
 const { HttpError, sendEmail } = require('../../helpers');
 const { User } = require('../../models');
@@ -20,10 +21,10 @@ module.exports = async (req, res) => {
   await User.updateOne({ _id: user._id }, { $set: changes });
   const origin = (process.env.FRONTEND_URL || 'https://anirakids.cz').replace(/\/+$/, '');
   try {
-    await sendEmail({
+    await sendEmail(withEmailLayout({
       to: email, subject: 'ANIRAK – potvrzení změny e-mailu',
       text: `Pro potvrzení nové e-mailové adresy otevřete tento odkaz do 30 minut:\n\n${origin}/confirmEmail?changeToken=${token}\n\nDo potvrzení zůstává vaše původní adresa beze změny. Pokud jste změnu nevyžádali, tento e-mail ignorujte.\n\nANIRAK · GlamGarb Rentals s.r.o.`,
-    });
+    }));
   } catch {
     await User.updateOne({ _id: user._id, pendingEmailTokenHash: hash }, { $unset: {
       pendingEmail: '', pendingEmailTokenHash: '', pendingEmailExpiresAt: '', pendingEmailOldAddress: '',

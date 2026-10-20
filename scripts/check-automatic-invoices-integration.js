@@ -48,6 +48,7 @@ async function main(){
  const payments=await Promise.all([pay(),pay()]);assert.ok(payments.every(x=>x.code===200));
  let ri=await I.findOne({sourceKey:'reservation:'+r._id}).lean();assert.equal(ri.snapshot.total,800);assert.equal(ri.snapshot.paid,200);assert.equal(ri.snapshot.balance,600);assert.equal(ri.snapshot.lines[1].amount,-200);assert.equal(ri.snapshot.deposit,0);assert.equal((await R.findById(r._id)).paymentEntries.length,1);
  assert.equal(mail.messages.filter(m=>m.subject.includes(ri.number)).length,1);
+ const rentalMail=mail.messages.find(m=>m.subject.includes(ri.number));assert.match(rentalMail.subject,/Pronájem potvrzen · Faktura/);assert.match(rentalMail.text,/Váš termín pronájmu je potvrzený/);assert.match(rentalMail.html,/data-anirak-template="reservation"/);
  await call(adminRecordPayment,{...input,operationId:randomUUID(),expectedRevision:1,type:'rental_received',amount:600},{reservationId:String(r._id)});
  await call(adminRecordPayment,{...input,operationId:randomUUID(),expectedRevision:2,type:'deposit_received',amount:1000},{reservationId:String(r._id)});
  const unchanged=await I.findById(ri._id).lean();assert.deepEqual(unchanged.snapshot,ri.snapshot);assert.equal(mail.messages.filter(m=>m.subject.includes(ri.number)).length,1);

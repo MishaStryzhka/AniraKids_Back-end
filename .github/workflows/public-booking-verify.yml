@@ -52,6 +52,9 @@ on:
       - helpers/publicUser.js
       - scripts/check-seznam-auth.js
       - helpers/sendEmail.js
+      - helpers/emailLayout.js
+      - helpers/invoiceEmail.js
+      - src/v2/services/invoice-email.service.ts
       - helpers/fittingEmail*.js
       - src/v2/services/fitting*.ts
       - src/v2/models/fitting.model.ts

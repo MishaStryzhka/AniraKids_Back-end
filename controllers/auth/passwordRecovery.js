@@ -1,3 +1,4 @@
+const {withEmailLayout}=require('../../helpers/emailLayout');
 const bcrypt = require('bcrypt');
 const Joi = require('joi');
 const { HttpError, sendEmail } = require('../../helpers');
@@ -12,7 +13,7 @@ exports.request = async (req, res) => {
     const issued = await action.issue(user, 'passwordReset');
     if (issued) {
       const origin = (process.env.FRONTEND_URL || 'https://anirakids.cz').replace(/\/+$/, '');
-      try { await sendEmail({ to: user.email, subject: 'ANIRAK – obnovení hesla', text: `Pro nastavení nového hesla otevřete tento odkaz do 30 minut:\n\n${origin}/refreshPassword?resetToken=${issued.token}\n\nPokud jste změnu nevyžádali, tento e-mail ignorujte. Vaše heslo se nezmění.\nANIRAK · GlamGarb Rentals s.r.o.` }); }
+      try { await sendEmail(withEmailLayout({ to: user.email, subject: 'ANIRAK – obnovení hesla', text: `Pro nastavení nového hesla otevřete tento odkaz do 30 minut:\n\n${origin}/refreshPassword?resetToken=${issued.token}\n\nPokud jste změnu nevyžádali, tento e-mail ignorujte. Vaše heslo se nezmění.\nANIRAK · GlamGarb Rentals s.r.o.` })); }
       catch { await action.revoke(user, 'passwordReset', issued.hash); throw HttpError(503, 'Email delivery failed'); }
     }
   }
