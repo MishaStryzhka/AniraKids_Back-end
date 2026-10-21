@@ -19,7 +19,7 @@ export function invoiceQrPayload(invoice:any):string|null{
  const message=clean(invoice.sourceNumber||invoice.number).replace(/\*/g,' ').slice(0,60);
  return `SPD*1.0*ACC:${s.bank.iban}*AM:${s.balance.toFixed(2)}*CC:CZK${/^\d{1,10}$/.test(vs)?`*X-VS:${vs}`:''}*MSG:${message}`;
 }
-function paymentMethod(invoice:any){
+export function paymentMethod(invoice:any){
  const s=invoice.snapshot;
  const methods=[...new Set((s.payments??[]).filter((p:any)=>['advance_received','rental_received'].includes(p.type)).map((p:any)=>p.method).filter(Boolean))];
  const method=s.paymentMethod||(invoice.sourceType==='fitting'&&(s.payments??[]).some((p:any)=>p.action==='confirm')?'bank_transfer':methods.length===1?methods[0]:null);

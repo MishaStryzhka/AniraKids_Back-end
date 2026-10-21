@@ -3,7 +3,7 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'
 const money = value => new Intl.NumberFormat('cs-CZ', {style:'currency',currency:'CZK'}).format(value);
 
 // One confirmation message includes the PDF; the shared layout supplies branding.
-function invoiceEmail(invoice, fitting, reservation) {
+function invoiceEmail(invoice, fitting, reservation, paymentMethod) {
  const s=invoice.snapshot, correction=invoice.sourceType==='correction';
  const confirmed=invoice.automatic && invoice.sourceType==='fitting' && fitting?.status==='confirmed' && fitting?.paymentStatus==='paid';
  const rentalConfirmed=invoice.sourceType==='reservation' && ['confirmed','prepared','rented','returned'].includes(reservation?.status) && s.paid>0;
@@ -18,6 +18,7 @@ function invoiceEmail(invoice, fitting, reservation) {
  }else if(s.period)details.push(['Termín služby',s.period]);
  if(!correction){
   details.push(['Uhrazeno při vystavení',money(s.paid)]);
+  if(s.paid>0 && paymentMethod)details.push(['Způsob úhrady',paymentMethod]);
   if(s.balance>0)details.push(['Zbývalo uhradit',money(s.balance)]);
  }
  const note=correction?'Doklad sám nepotvrzuje vrácení peněz.':confirmed?'Po absolvování zkoušky můžete jednou uplatnit slevu 200 Kč na pronájem.':s.balance>0?'Další úhrady jsou evidovány u rezervace. Vratná kauce je samostatně.':'';

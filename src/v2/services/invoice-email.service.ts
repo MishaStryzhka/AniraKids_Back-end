@@ -3,6 +3,7 @@ import {ReservationV2Model} from '../models/reservation-v2.model';
 import {FittingModel} from '../models/fitting.model';
 import {InvoiceModel} from '../models/invoice.model';
 import {invoicePdf} from './invoice-document.service';
+import {paymentMethod} from './invoice-pdf.service';
 import {PaymentError} from './payment.types';
 const sendEmail=require('../../../helpers/sendEmail');
 const {invoiceEmail}=require('../../../helpers/invoiceEmail');
@@ -22,7 +23,7 @@ export async function sendInvoice(id:string,options:InvoiceSendOptions={}){
  const reservation=invoice.sourceType==='reservation'?await ReservationV2Model.findById(invoice.sourceId).select('status').lean():null;
  // Keep payment and confirmation in one email when payment arrives before approval.
  if(invoice.automatic && reservation?.status==='pending')return {status:'pending'};
- const message=invoiceEmail(invoice,fitting,reservation);
+ const message=invoiceEmail(invoice,fitting,reservation,paymentMethod(invoice));
  let pdf:Buffer;try{pdf=await invoicePdf(invoice);}catch{throw new PaymentError('INVOICE_PDF_FAILED',503);}
  // The claim survives provider timeouts. Never retry an ambiguous send automatically.
  const attemptId=randomUUID(),attemptedAt=new Date(Math.max(Date.now(),new Date(email?.attemptedAt||0).getTime()+1));
