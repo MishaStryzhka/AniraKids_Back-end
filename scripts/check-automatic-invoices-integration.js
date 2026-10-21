@@ -42,6 +42,23 @@ async function main(){
  const fi=await I.findOne({sourceKey:'fitting:'+f._id}).lean();assert.equal(fi.snapshot.total,200);assert.equal(fi.snapshot.paid,200);assert.equal(fi.snapshot.serviceDatePlanned,true);assert.equal(fi.snapshot.buyer.address,'');assert.equal(fi.snapshot.buyer.email,'invoice@example.test');assert.equal(fi.email.status,'sent');
  const fm=mail.messages.filter(m=>m.subject.includes(fi.number));assert.equal(mail.messages.length,1,'one combined confirmation and PDF, no standalone confirmation');assert.match(fm[0].text,/10:00/);assert.match(fm[0].text,/Test/);assert.match(fm[0].subject,/Zkouška potvrzena/);assert.equal(fm[0].attachments.length,1);assert.ok(!fm[0].html.includes('Zobrazit rezervaci a zaplatit'));assert.equal(fm.length,1);assert.equal(Buffer.from(fm[0].attachments[0].content,'base64').subarray(0,4).toString(),'%PDF');assert.match(fm[0].text,/200/);
  await Promise.all([confirm(),confirm()]);assert.equal(await I.countDocuments(),1);assert.equal(mail.messages.length,1);
+ // Cash uses the same invoice/email path as fitting payments. Duplicate clicks
+ // must produce one ledger entry, one immutable invoice and one PDF email.
+ const cashRental=await rental();
+ const cashInput={operationId:randomUUID(),expectedRevision:0,type:'rental_received',amount:800,method:'cash'};
+ const cashPay=()=>call(adminRecordPayment,cashInput,{reservationId:String(cashRental._id)});
+ const cashResults=await Promise.all([cashPay(),cashPay()]);assert.ok(cashResults.every(x=>x.code===200));
+ const cashInvoice=await I.findOne({sourceKey:'reservation:'+cashRental._id}).lean();
+ assert.equal(cashInvoice.snapshot.balance,0);assert.equal(cashInvoice.snapshot.paid,800);
+ assert.equal((await R.findById(cashRental._id)).paymentEntries.length,1);
+ const cashMessages=mail.messages.filter(m=>m.subject.includes(cashInvoice.number));assert.equal(cashMessages.length,1);
+ assert.match(cashMessages[0].text,/Způsob úhrady: Hotově/);
+ assert.equal(cashMessages[0].attachments.length,1);assert.ok(!cashMessages[0].text.includes('Zbývalo uhradit'));
+ const cashPartial=await rental();
+ await call(adminRecordPayment,{...cashInput,operationId:randomUUID(),amount:200},{reservationId:String(cashPartial._id)});
+ const partialInvoice=await I.findOne({sourceKey:'reservation:'+cashPartial._id}).lean();assert.equal(partialInvoice.snapshot.balance,600);
+ const partialMessage=mail.messages.find(m=>m.subject.includes(partialInvoice.number));assert.match(partialMessage.text,/Způsob úhrady: Hotově/);assert.match(partialMessage.text,/Zbývalo uhradit/);
+ console.log('PASS cash invoice email: full and partial payments, PDF attachment, duplicate submission');
  const r=await rental();
  const duplicateAdvance=await call(adminRecordPayment,{operationId:randomUUID(),expectedRevision:0,type:'advance_received',amount:200,method:'bank_transfer'},{reservationId:String(r._id)});assert.equal(duplicateAdvance.code,409);
  const input={operationId:randomUUID(),expectedRevision:0,type:'rental_received',amount:200,method:'bank_transfer'};
@@ -90,7 +107,7 @@ async function main(){
  const failedFittingInvoice=await I.findOne({sourceKey:'fitting:'+failedFitting._id}).lean();
  await sendInvoice(String(failedFittingInvoice._id),{retry:true,expectedAttemptedAt:failedFittingInvoice.email.attemptedAt.toISOString()});
  assert.equal(mail.messages.length,beforeCombinedFailure+2);assert.equal(mail.messages.at(-1).attachments.length,1);
- assert.equal(await I.countDocuments(),8);assert.equal((await C.findOne()).value,8);
+ assert.equal(await I.countDocuments(),10);assert.equal((await C.findOne()).value,10);
  writeFileSync('/tmp/automatic-fitting-invoice.pdf',Buffer.from(fm[0].attachments[0].content,'base64'));
  console.log('PASS automatic invoices: fitting confirmation, partial/full rental payments, discount/deposit separation, concurrent retries, immutable snapshots, provider failure, explicit retry CAS, interrupted-job recovery, historical opt-in and owner guard');
  }finally{clearTimeout(timer);await mongoose.disconnect();child.kill('SIGTERM');await new Promise(resolve=>child.exitCode!==null?resolve():child.once('exit',resolve));rmSync(directory,{recursive:true,force:true});}
