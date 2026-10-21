@@ -34,7 +34,7 @@ module.exports=async({test,registry,insertOwned})=>{
   await test('Fittings atomically reject two customers for one slot and protect private status',async()=>{
    const before=events.length;
    const a=input(),b=input();const results=await Promise.allSettled([api.createFitting(a,now),api.createFitting(b,now)]);
-   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+   assert.equal(results.filter(r=>r.status==='fulfilled').length,1,JSON.stringify(results.map(x=>x.status==='rejected'?{code:x.reason.code,message:x.reason.message}:x)));
    const winner=results[0].status==='fulfilled'?a:b,receipt=results.find(r=>r.status==='fulfilled').value;
    assert.equal(receipt.price,200);assert.ok(receipt.paymentInstructions.qrPayload.includes('*AM:200.00*'));assert.equal(receipt.customer,undefined);
    assert.deepEqual(await api.createFitting({...winner},now),receipt);
@@ -118,11 +118,11 @@ module.exports=async({test,registry,insertOwned})=>{
    const fitting=await doc(r.number);
    const makeReservation=async suffix=>{
     const number='AK-2030-'+suffix;
-    const id=await insertOwned(Reservation,{reservationNumber:number,status:'confirmed',paymentStatus:'unpaid',advanceRequired:200,paymentRevision:0,paymentEntries:[],subtotal:800,deposit:2000,customerSnapshot:{firstName:'Test',lastName:'Customer',email:v.email,phone:v.phone}});return {number,id};
+    const id=await insertOwned(Reservation,{rentalMode:'studio',partner:{partnerId:'blaze',source:'anirak'},reservationNumber:number,status:'confirmed',paymentStatus:'unpaid',advanceRequired:200,paymentRevision:0,paymentEntries:[],subtotal:800,deposit:2000,customerSnapshot:{firstName:'Test',lastName:'Customer',email:v.email,phone:v.phone}});return {number,id};
    };
    const a=await makeReservation('ABC001'),b=await makeReservation('ABC002');
    const results=await Promise.allSettled([act(r.number,'credit',{reservationNumber:a.number}),act(r.number,'credit',{reservationNumber:b.number})]);
-   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+   assert.equal(results.filter(r=>r.status==='fulfilled').length,1,JSON.stringify(results.map(x=>x.status==='rejected'?{code:x.reason.code,message:x.reason.message}:x)));
    const credited=await Reservation.findOne({fittingCreditId:String(fitting._id)}).lean();assert.ok(credited);
    assert.equal(paymentSummary(credited).rentalBalance,600);assert.equal(paymentSummary(credited).advanceBalance,0);assert.equal(paymentSummary(credited).fittingCredit,200);assert.equal(paymentSummary(credited).depositRequired,2000);
    await act(r.number,'credit',{reservationNumber:credited.reservationNumber});
@@ -141,7 +141,7 @@ module.exports=async({test,registry,insertOwned})=>{
    const email=randomUUID()+'@example.test';
    const makeFit=async(time,contact=email)=>{const r=await api.createFitting(input('2030-01-20',time,contact),now);await act(r.number,'confirm');await act(r.number,'complete',{},new Date('2030-01-21'));return await doc(r.number);};
    const first=await makeFit('09:00'),second=await makeFit('10:00');await makeFit('11:00');const stranger=await makeFit('12:00',randomUUID()+'@example.test');
-   const make=async(suffix,patch={})=>await insertOwned(Reservation,{reservationNumber:'AK-2030-'+suffix,status:'confirmed',paymentStatus:'unpaid',subtotal:800,deposit:2000,totalDue:2800,advanceRequired:200,paymentRevision:0,paymentEntries:[],customerSnapshot:{firstName:'Test',lastName:'Customer',email,phone:'+420123456789'},...patch});
+   const make=async(suffix,patch={})=>await insertOwned(Reservation,{rentalMode:'studio',partner:{partnerId:'blaze',source:'anirak'},reservationNumber:'AK-2030-'+suffix,status:'confirmed',paymentStatus:'unpaid',subtotal:800,deposit:2000,totalDue:2800,advanceRequired:200,paymentRevision:0,paymentEntries:[],customerSnapshot:{firstName:'Test',lastName:'Customer',email,phone:'+420123456789'},...patch});
    const id=await make('DDD001'),number='AK-2030-DDD001';
    const options=await api.fittingDiscountOptions(String(id),now);assert.equal(options.items.length,3);assert.ok(!options.items.some(x=>x.id===String(stranger._id)));assert.deepEqual(Object.keys(options.items[0]).sort(),['date','id','number','revision','time']);
    await reject(act(stranger.number,'credit',{reservationNumber:number}),'CREDIT_RESERVATION_MISMATCH');

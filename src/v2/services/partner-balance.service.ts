@@ -14,10 +14,15 @@ export function calculatePartnerBalance(
     collected = 0,
     expected = 0;
   const credited = new Map(
-    reservations.filter(r => r.fittingCreditId).map(r => [r.fittingCreditId, r])
+    reservations.filter(r => r.fittingCreditId).map(r => [String(r.fittingCreditId), r])
   );
   const fittingReward = (f: any) => {
-    const r = credited.get(String(f._id));
+    const r = reservations.find(r => String(r._id) === f.rewardReservationId) || credited.get(String(f._id));
+    if (f.rewardPolicyVersion === 2) {
+      const performer = f.performedBy || (f.partner?.source === 'partner' ? 'partner' : 'anirak');
+      return {amount: f.status === 'completed' && f.paymentStatus === 'paid' && performer === 'partner' ? 200 : 0, reason: performer === 'partner' ? 'fitting' : 'anirak_fitting'};
+    }
+    if(r?.rewardPolicyVersion===2)return {amount:f.status==='completed'&&f.paymentStatus==='paid'?200:0,reason:'fitting'};
     const studio = Boolean(r && f.partner?.partnerId === 'blaze' &&
       r.partner?.partnerId === f.partner.partnerId && r.rentalMode === 'studio' &&
       ['confirmed', 'prepared', 'rented', 'returned'].includes(r.status));
@@ -25,20 +30,22 @@ export function calculatePartnerBalance(
       reason: studio ? 'studio_rental' : 'fitting' };
   };
   for (const r of reservations) {
-    const fitting = fittings.find(f => String(f._id) === r.fittingCreditId);
+    const fitting = fittings.find(f => String(f._id) === r.fittingCreditId || f.rewardReservationId && f.rewardReservationId === String(r._id));
     const source = r.partner?.source || fitting?.partner?.source || 'anirak';
     const summary = paymentSummary(r);
-    const fixedReward = source !== 'partner';
-    const fittingDeduction = fixedReward && fitting &&
+    const currentPolicy = r.rewardPolicyVersion === 2;
+    const rate = currentPolicy ? (r.rentalMode === 'external' ? 20 : source === 'partner' ? 50 : 0) : source === 'partner' ? 50 : 0;
+    const fixedReward = !currentPolicy && source !== 'partner';
+    const fittingDeduction = (currentPolicy || fixedReward) && fitting &&
       fitting.partner?.partnerId === r.partner?.partnerId ? fittingReward(fitting).amount : 0;
     const rewardAmount = fixedReward ? 200 :
-      Math.round(((r.subtotal + (r.fittingDiscount?.amount || 0)) * 100) / 2) / 100;
-    const share = Math.max(0, rewardAmount - fittingDeduction);
+      Math.round((r.subtotal + (r.fittingDiscount?.amount || 0)) * rate) / 100;
+    const share = currentPolicy ? rewardAmount - fittingDeduction : Math.max(0, rewardAmount - fittingDeduction);
     const net = Math.max(0, Math.min(r.subtotal + (r.fittingDiscount?.amount || 0), summary.rentalNet + (r.fittingDiscount?.amount || 0)));
     const accrued =
       r.status === 'returned'
         ? Math.round(
-            Math.min(share, net * (fixedReward ? 1 : 0.5)) * 100
+            (currentPolicy ? Math.round(net * rate) / 100 - fittingDeduction : Math.min(share, net * (fixedReward ? 1 : 0.5))) * 100
           ) / 100
         : 0;
     const cash = (r.paymentEntries || [])
@@ -68,7 +75,9 @@ export function calculatePartnerBalance(
       amount: accrued,
       rentalPrice: r.subtotal + (r.fittingDiscount?.amount || 0),
       rewardBasis: net,
-      rewardRate: source === 'partner' ? 50 : 0,
+      rewardRate: rate,
+      rentalMode: r.rentalMode,
+      policyVersion: currentPolicy ? 2 : 1,
       rewardType: fixedReward ? 'fixed' : 'percentage',
       rewardAmount,
       fittingDeduction,
@@ -88,6 +97,8 @@ export function calculatePartnerBalance(
       amount,
       status: f.status,
       reason,
+      performedBy: f.performedBy || (f.partner?.source === 'partner' ? 'partner' : 'anirak'),
+      policyVersion: f.rewardPolicyVersion === 2 ? 2 : 1,
     });
   }
   const transferred = settlements.reduce(
