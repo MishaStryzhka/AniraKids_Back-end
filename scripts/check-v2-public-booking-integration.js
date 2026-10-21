@@ -735,6 +735,7 @@ async function main() {
   assert.equal((await request('/catalogue/products')).body.total, 0);
   evidence.push('inactive inventory and product unpublished after selection');
   await require('./check-partner-integration')({request,models});
+  await require('./check-partner-reward-policy')();
   await require('./check-partner-invoices')({request,models});
   console.log(
     JSON.stringify(

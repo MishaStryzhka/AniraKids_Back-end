@@ -10,7 +10,7 @@ export function fittingHandler(action:string):HttpHandler{return async(req,res,n
   const number=req.params?.number||'',authorization=req.headers.authorization;
   const token=typeof authorization==='string'&&authorization.startsWith('Bearer ')?authorization.slice(7):'';
   let result:unknown;
-  if(action==='act'&&(req.body as any)?.action==='credit'&&!req.adminOwner&&!req.adminPermissions?.includes('reservations'))return res.status(403).json({error:{code:'ADMIN_FORBIDDEN',message:'Reservation access required'}});
+  if(action==='act'&&['credit','link-reward'].includes((req.body as any)?.action)&&!req.adminOwner&&!req.adminPermissions?.includes('reservations'))return res.status(403).json({error:{code:'ADMIN_FORBIDDEN',message:'Reservation access required'}});
   switch(action){
    case 'settings':result=await getFittingSettings();break;
    case 'save-settings':{const settings=parseFittingSettings(req.body);if(!settings)throw new FittingError('VALIDATION_ERROR',400);result=await saveFittingSettings(settings);break;}

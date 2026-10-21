@@ -1,3 +1,4 @@
+import mongoose = require('mongoose');
 import {releaseUnusedFittingDiscounts} from './fitting-discount.service';
 import {notifyFittingDiscount} from './fitting-discount-email.service';
 import {InvoiceModel} from '../models/invoice.model';
@@ -84,7 +85,7 @@ async function adminFittingRecords(docs:any[]){
  const credits=await ReservationV2Model.find({fittingCreditId:{$in:docs.map(d=>d._id.toString())}}).select('fittingCreditId reservationNumber').lean().exec();
  return docs.map(d=>{
   const credit=credits.find(c=>c.fittingCreditId===d._id.toString());
-  return {...publicFitting(d),id:d._id.toString(),revision:d.revision,customer:d.customer,audit:d.audit,credit:credit?{reservationId:credit._id.toString(),reservationNumber:credit.reservationNumber}:null};
+  return {...publicFitting(d),performedBy:d.performedBy,source:d.partner?.source,rewardPolicyVersion:d.rewardPolicyVersion,rewardReservationNumber:d.rewardReservationNumber,id:d._id.toString(),revision:d.revision,customer:d.customer,audit:d.audit,credit:credit?{reservationId:credit._id.toString(),reservationNumber:credit.reservationNumber}:null};
  });
 }
 export async function fittingDiscountOptions(reservationId:string,now=new Date()){
@@ -93,8 +94,8 @@ export async function fittingDiscountOptions(reservationId:string,now=new Date()
  const r=await ReservationV2Model.findById(reservationId).lean().exec();if(!r)throw new FittingError('RESERVATION_NOT_FOUND',404);
  const applied=r.fittingCreditId?await FittingModel.findById(r.fittingCreditId).select('number').lean().exec():null;
  const summary=paymentSummary(r);
- const eligible=!r.fittingCreditId&&!summary.legacyUnreconciled&&r.subtotal>=200&&['pending','confirmed','prepared'].includes(r.status)&&!(r.status==='pending'&&(!r.expiresAt||r.expiresAt<=now));
- const candidates=eligible?await FittingModel.find({status:'completed',paymentStatus:'paid','customer.email':r.customerSnapshot.email.toLowerCase().trim()}).select('_id number date time revision').sort({date:-1,time:-1}).lean().exec():[];
+ const eligible=r.rentalMode==='studio'&&r.partner?.partnerId==='blaze'&&!r.fittingCreditId&&!summary.legacyUnreconciled&&r.subtotal>=200&&['pending','confirmed','prepared'].includes(r.status)&&!(r.status==='pending'&&(!r.expiresAt||r.expiresAt<=now));
+ const candidates=eligible?await FittingModel.find({status:'completed',paymentStatus:'paid','customer.email':r.customerSnapshot.email.toLowerCase().trim(),$or:[{rewardReservationId:{$exists:false}},{rewardReservationId:reservationId}]}).select('_id number date time revision').sort({date:-1,time:-1}).lean().exec():[];
  const used=await ReservationV2Model.find({fittingCreditId:{$in:candidates.map(f=>String(f._id))}}).select('fittingCreditId').lean().exec();
  const usedIds=new Set(used.map(x=>x.fittingCreditId));
  return {eligible,applied:r.fittingCreditId?{number:r.fittingDiscount?.number||applied?.number||'',amount:200,kind:r.fittingDiscount?'discount':'legacy_credit'}:null,
@@ -105,6 +106,22 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
  const doc=await FittingModel.findById(id).lean().exec() as any;if(!doc)throw new FittingError('FITTING_NOT_FOUND',404);
  if(body.action==='confirm'&&doc.paymentStatus==='paid'&&['confirmed','completed'].includes(doc.status))return {ok:true};
  if(body.action==='complete'&&doc.status==='completed'){await notifyFittingDiscount(doc);return {ok:true};}
+ if(body.action==='link-reward'){
+  if(doc.status!=='completed'||doc.paymentStatus!=='paid')throw new FittingError('FITTING_NOT_CREDITABLE');
+  await FittingModel.collection.createIndex({rewardReservationId:1},{unique:true,partialFilterExpression:{rewardReservationId:{$type:'string'}}});
+  const session=await mongoose.startSession();
+  try{await session.withTransaction(async()=>{
+   const r=await ReservationV2Model.findOne({reservationNumber:String(body.reservationNumber||'').trim().toUpperCase()}).session(session).lean();
+   if(!r)throw new FittingError('RESERVATION_NOT_FOUND',404);
+   if(r.rewardPolicyVersion!==2||!['confirmed','prepared','rented','returned'].includes(r.status)||r.partner?.partnerId!=='blaze'||doc.partner?.partnerId!=='blaze'||r.customerSnapshot.email.toLowerCase().trim()!==doc.customer.email.toLowerCase().trim()||(r.fittingCreditId&&r.fittingCreditId!==id))throw new FittingError('CREDIT_RESERVATION_MISMATCH');
+   if(doc.rewardReservationId===String(r._id))return;
+   if(doc.rewardReservationId||await ReservationV2Model.exists({fittingCreditId:id,_id:{$ne:r._id}}).session(session))throw new FittingError('FITTING_ALREADY_CREDITED');
+   const changed=await FittingModel.updateOne({_id:doc._id,revision:body.revision,rewardReservationId:{$exists:false}},{$set:{rewardReservationId:String(r._id),rewardReservationNumber:r.reservationNumber},$inc:{revision:1},$push:{audit:{action:'link-reward:'+r.reservationNumber,by:actor,at:now}}},{session});
+   if(!changed.modifiedCount)throw new FittingError('FITTING_CONFLICT');
+   await ReservationV2Model.updateOne({_id:r._id},{$push:{partnerAudit:{action:'fitting_reward_linked',at:now,by:actor,reference:doc.number}}},{session});
+  });}catch(e){if((e as any).code===11000)throw new FittingError('FITTING_ALREADY_CREDITED');throw e;}finally{await session.endSession();}
+  return {ok:true};
+ }
  if(body.action==='credit'){
   await releaseUnusedFittingDiscounts(now);
   if(doc.status!=='completed'||doc.paymentStatus!=='paid')throw new FittingError('FITTING_NOT_CREDITABLE');
@@ -114,6 +131,8 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
   // even when two admins choose different reservations at the same time.
   await ReservationV2Model.collection.createIndex({fittingCreditId:1},{unique:true,partialFilterExpression:{fittingCreditId:{$type:'string'}}});
   if(reservation.fittingCreditId===id)return {ok:true};
+  if(reservation.rentalMode!=='studio'||reservation.partner?.partnerId!=='blaze')throw new FittingError('FITTING_DISCOUNT_STUDIO_ONLY');
+  if(doc.rewardReservationId&&doc.rewardReservationId!==String(reservation._id))throw new FittingError('FITTING_ALREADY_CREDITED');
   if(reservation.fittingCreditId||!['pending','confirmed','prepared'].includes(reservation.status)||(reservation.status==='pending'&&(!reservation.expiresAt||new Date(reservation.expiresAt)<=now))||reservation.customerSnapshot.email.toLowerCase()!==doc.customer.email)throw new FittingError('CREDIT_RESERVATION_MISMATCH');
   const summary=paymentSummary(reservation);
   if(summary.legacyUnreconciled)throw new FittingError('PAYMENT_LEGACY_RECONCILIATION_REQUIRED');
@@ -123,16 +142,20 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
   const paymentStatus=summary.rentalNet>=subtotal&&summary.depositHeld>=reservation.deposit?'paid':'unpaid';
   // Unique fittingCreditId prevents reuse across reservations; payment CAS protects
   // against simultaneous payments, discounts and reservation lifecycle changes.
-  try{
+  const session=await mongoose.startSession();
+  try{await session.withTransaction(async()=>{
+   if(await FittingModel.exists({rewardReservationId:String(reservation._id),_id:{$ne:doc._id}}).session(session))throw new FittingError('FITTING_ALREADY_CREDITED');
+   const locked=await FittingModel.updateOne({_id:doc._id,revision:doc.revision},{$inc:{revision:1}},{session});
+   if(!locked.modifiedCount)throw new FittingError('FITTING_CONFLICT');
    const changed=await ReservationV2Model.updateOne({_id:reservation._id,status:reservation.status,paymentStatus:reservation.paymentStatus,
     fittingCreditId:{$exists:false},invoiceIssuedId:{$exists:false},subtotal:reservation.subtotal,
     ...(reservation.paymentRevision===undefined?{paymentRevision:{$exists:false}}:{paymentRevision:reservation.paymentRevision}),
     ...(reservation.status==='pending'?{expiresAt:{$gt:now}}:{})},
     {$set:{fittingCreditId:id,fittingDiscount:{amount:200,number:doc.number,appliedAt:now,appliedBy:actor},subtotal,totalDue:subtotal+reservation.deposit,
      ...(reservation.advanceRequired===undefined?{}:{advanceRequired:Math.min(reservation.advanceRequired,subtotal)}),paymentStatus,
-     ...(doc.partner?{partner:doc.partner}:{})},$inc:{paymentRevision:1},$push:{partnerAudit:{action:'fitting_discount_applied',at:now,by:actor,amount:200,reference:doc.number}}}, {runValidators:true}).exec();
+     ...(doc.partner?{partner:doc.partner}:{})},$inc:{paymentRevision:1},$push:{partnerAudit:{action:'fitting_discount_applied',at:now,by:actor,amount:200,reference:doc.number}}}, {runValidators:true,session}).exec();
    if(!changed.modifiedCount){const current=await ReservationV2Model.findById(reservation._id).lean().exec();if(current?.fittingCreditId===id)return {ok:true};throw new FittingError('PAYMENT_CONFLICT');}
-  }catch(e){if((e as any).code===11000)throw new FittingError('FITTING_ALREADY_CREDITED');throw e;}
+  });}catch(e){if((e as any).code===11000)throw new FittingError('FITTING_ALREADY_CREDITED');throw e;}finally{await session.endSession();}
   return {ok:true};
  }
  if(doc.revision!==body.revision)throw new FittingError('FITTING_CONFLICT');
@@ -140,7 +163,7 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
  switch(body.action){
   case 'confirm':if(!['pending','review'].includes(doc.status)||!doc.slotKey||(doc.status==='pending'&&new Date(doc.expiresAt)<=now))throw new FittingError('FITTING_CONFLICT');set={status:'confirmed',paymentStatus:'paid',...(!doc.invoiceAutomation?{invoiceAutomation:{status:'pending',requestedAt:now,requestedBy:actor}}:{})};unset={activeEmail:1};break;
   case 'late-payment':if(!['expired','cancelled'].includes(doc.status)||doc.paymentStatus!=='unpaid')throw new FittingError('FITTING_CONFLICT');set={paymentStatus:'paid'};break;
-  case 'complete':if(doc.status!=='confirmed'||new Date(doc.startAt)>now)throw new FittingError('FITTING_CONFLICT');set={status:'completed'};unset={slotKey:1,activeEmail:1};break;
+  case 'complete':if(doc.status!=='confirmed'||new Date(doc.startAt)>now)throw new FittingError('FITTING_CONFLICT');if(body.performedBy!==undefined&&!['anirak','partner'].includes(body.performedBy))throw new FittingError('VALIDATION_ERROR',400);set={status:'completed',performedBy:body.performedBy||(doc.partner?.source==='partner'?'partner':'anirak')};unset={slotKey:1,activeEmail:1};break;
   case 'cancel':if(!['pending','review','confirmed'].includes(doc.status))throw new FittingError('FITTING_CONFLICT');set={status:'cancelled'};unset={slotKey:1,activeEmail:1};break;
   case 'refund':if(!['cancelled','expired'].includes(doc.status)||doc.paymentStatus!=='paid')throw new FittingError('FITTING_CONFLICT');set={paymentStatus:'refunded'};break;
   case 'reschedule':{

@@ -20,7 +20,7 @@ module.exports=async function({request}){
  await svc.savePartnerBilling(settings,'test');
  await assert.rejects(()=>svc.savePartnerBilling(settings,'test'),e=>e.code==='BILLING_CHANGED');
  assert.ok(await PartnerRewardState.findById('blaze'));
- const fit=await FittingModel.create({operationId:'monthly-fitting',requestHash:'x',tokenHash:'x',number:'ZK-MONTHLY',date:'2030-10-20',time:'10:00',startAt:new Date('2030-10-20T08:00Z'),address:'test',creditOperationId:'monthly-credit',status:'completed',paymentStatus:'paid',partner:{partnerId:'blaze',source:'anirak'},audit:[{action:'complete',at:new Date(),by:'test'}]});
+ const fit=await FittingModel.create({performedBy:'partner',operationId:'monthly-fitting',requestHash:'x',tokenHash:'x',number:'ZK-MONTHLY',date:'2030-10-20',time:'10:00',startAt:new Date('2030-10-20T08:00Z'),address:'test',creditOperationId:'monthly-credit',status:'completed',paymentStatus:'paid',partner:{partnerId:'blaze',source:'anirak'},audit:[{action:'complete',at:new Date(),by:'test'}]});
  assert.equal(await PartnerRewardEvent.countDocuments({number:'ZK-MONTHLY'}),1,'model hook records reward');
  await Promise.all([reconcilePartnerRewards(),reconcilePartnerRewards()]);
  assert.equal(await PartnerRewardEvent.countDocuments({number:'ZK-MONTHLY'}),1,'concurrent observations are idempotent');

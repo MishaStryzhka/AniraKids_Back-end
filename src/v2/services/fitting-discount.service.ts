@@ -17,7 +17,7 @@ export async function releaseUnusedFittingDiscounts(now=new Date(),session?:Clie
  {$unset:['fittingCreditId','fittingDiscount']}
  ],{session}).exec();
 }
-const eligible={status:'completed',paymentStatus:'paid'};
+const eligible={status:'completed',paymentStatus:'paid',rewardReservationId:{$exists:false}};
 function ownership(selection:FittingDiscountSelection,customerId?:Types.ObjectId){
  if(selection.token)return {$or:[{discountTokenHash:hash(selection.token)},{tokenHash:hash(selection.token)}]};
  if(customerId)return {customerId};
@@ -33,6 +33,7 @@ export async function customerDiscountOptions(customerId?:Types.ObjectId,selecti
  return {items:fittings.filter(f=>!used.some(r=>r.fittingCreditId===String(f._id))).map(f=>({number:f.number,date:f.date,time:f.time,amount:200}))};
 }
 export async function applyCustomerFittingDiscount(data:Reservation,selection:FittingDiscountSelection,now:Date,session:ClientSession){
+ if(data.rentalMode!=='studio'||data.partner?.partnerId!=='blaze')throw new FittingDiscountError('FITTING_DISCOUNT_STUDIO_ONLY');
  if(!validDiscountSelection(selection))throw new FittingDiscountError('VALIDATION_ERROR',400);
  // Lock the fitting as well as inventory: two different baskets cannot claim it.
  const fitting:any=await FittingModel.findOneAndUpdate({number:selection.number,...eligible,...ownership(selection,data.customerId)},{$inc:{revision:1}},{new:true,session}).lean();

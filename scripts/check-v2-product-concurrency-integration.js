@@ -111,7 +111,7 @@ async function startMongo() {
   });
   const child = spawn(process.env.PRODUCT_CONCURRENCY_MONGOD_BINARY || 'mongod', [
     '--bind_ip', '127.0.0.1', '--port', String(port), '--dbpath', directory,
-    '--nounixsocket', '--setParameter', 'diagnosticDataCollectionEnabled=false',
+    '--replSet', 'ownedProductTest', '--nounixsocket', '--setParameter', 'diagnosticDataCollectionEnabled=false',
   ], { stdio: ['ignore', 'pipe', 'pipe'] });
   const owned = { child, runId, database, port, directory,
     uri: `mongodb://127.0.0.1:${port}/${database}?directConnection=true` };
@@ -684,6 +684,12 @@ async function main() {
     mongoose.set('strictQuery', true);
     mongoose.set('autoIndex', false); mongoose.set('autoCreate', false);
     await connectOwned(owned, process.env, owned, uri => mongoose.connect(uri, { autoIndex: false, autoCreate: false, serverSelectionTimeoutMS: 5000 }));
+    await mongoose.connection.db.admin().command({replSetInitiate:{_id:'ownedProductTest',members:[{_id:0,host:`127.0.0.1:${owned.port}`}]}});
+    for(let i=0;i<100;i++){
+      if((await mongoose.connection.db.admin().command({hello:1})).isWritablePrimary)break;
+      if(i===99)throw new Error('Owned replica set primary unavailable');
+      await new Promise(resolve=>setTimeout(resolve,100));
+    }
     // Existing declared Product index, created only inside this owned test DB.
     await Product.collection.createIndex({ slug: 1 }, { unique: true, name: 'uniq_v2_product_slug' });
     installHooks(); await suite(); await independentProcessTest(owned);

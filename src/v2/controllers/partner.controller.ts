@@ -519,6 +519,7 @@ export function partnerHandler(action: string): HttpHandler {
             studioBooked: d.studioBooked,
             studioBookingReference: d.studioBookingReference,
             source: d.partner?.source,
+            performedBy:d.performedBy, rewardPolicyVersion:d.rewardPolicyVersion, rewardReservationNumber:d.rewardReservationNumber,
           })),
         });
       }
@@ -544,9 +545,9 @@ export function partnerHandler(action: string): HttpHandler {
           // Retired: external studio bookings must never waive fitting fees.
           throw new PartnerError('VALIDATION_ERROR');
         } else {
-          if (!access.owner && !access.managePartners && !['complete', 'credit'].includes(body.action))
+          if (!access.owner && !access.managePartners && !['complete', 'credit', 'link-reward'].includes(body.action))
             throw new PartnerError('FORBIDDEN', 403);
-          if (body.action === 'credit') {
+          if (['credit','link-reward'].includes(body.action)) {
             const r = await ReservationV2Model.exists({
               ...scope,
               reservationNumber: body.reservationNumber,
