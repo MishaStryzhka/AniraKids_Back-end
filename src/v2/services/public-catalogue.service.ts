@@ -1,5 +1,5 @@
 import { resolveProductSeo } from '../utils/product-seo';
-import {PartnerModel} from '../models/partner.model';
+import {cooperationActive} from './cooperation.service';
 import { colorKey, colorLabel, colorKeysExpression } from '../utils/product-colors';
 import { compareSizes, fitSizesExpression } from '../utils/variant-sizes';
 import { Types, PipelineStage } from 'mongoose';
@@ -117,6 +117,7 @@ const optionalPricing = (
 
 export class PublicCatalogueService {
   private async rentalContext(productId: string, query: {variantId: string; rentalMode: RentalMode}) {
+    if(query.rentalMode==='studio' && !(await cooperationActive()))throw new PublicCatalogueError(409,'RENTAL_MODE_UNAVAILABLE');
     const product = await ProductV2Model.findOne({
       _id: productId,
       status: 'active',
@@ -159,7 +160,9 @@ export class PublicCatalogueService {
       ...(query.category ? { category: query.category } : {}),
       ...(escaped ? { name: { $regex: escaped, $options: 'i' } } : {}),
     };
-    const mode = query.rentalMode || 'studio';
+    const active = await cooperationActive();
+    if(query.rentalMode==='studio'&&!active)throw new PublicCatalogueError(409,'RENTAL_MODE_UNAVAILABLE');
+    const mode = query.rentalMode || (active?'studio':'external');
     const productFilters: Record<string, unknown> = {
       ...(query.gender ? { gender: query.gender === 'children' ? { $in: ['girls', 'boys'] } : query.gender } : {}),
       ...(query.color ? { $or: [
@@ -216,6 +219,7 @@ export class PublicCatalogueService {
   }
 
   async detail(slug: string) {
+    const active=await cooperationActive();
     const product = await ProductV2Model.findOne({
       slug,
       status: 'active',
@@ -240,7 +244,7 @@ export class PublicCatalogueService {
           id: variant._id.toHexString(),
           size: variant.size,
           pricing: {
-            studio: optionalPricing(product, variant, 'studio'),
+            studio: active ? optionalPricing(product, variant, 'studio') : null,
             external: optionalPricing(product, variant, 'external'),
           },
         })),
@@ -282,7 +286,7 @@ export class PublicCatalogueService {
         available: result.available,
         checkedAt: now.toISOString(),
         pricing: quote,
-        ...(product.category==='dress'&&await PartnerModel.exists({_id:'blaze',enabled:true})?{additionalDressDiscount:20}:{}),
+        ...(product.category==='dress'&&await cooperationActive()?{additionalDressDiscount:20}:{}),
       },
     };
   }

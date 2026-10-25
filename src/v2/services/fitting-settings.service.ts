@@ -1,3 +1,4 @@
+import {fittingLocation} from './cooperation.service';
 import {model, models, Schema} from 'mongoose';
 import Joi = require('joi');
 import {parseDateOnly, formatDateOnly} from '../utils/date-only';
@@ -18,7 +19,7 @@ export function parseFittingSettings(body:unknown): FittingSettings | null {
 }
 export async function getFittingSettings():Promise<FittingSettings>{
  const doc=await FittingSettingsModel.findById('fittings').lean().exec() as any;
- return doc?{enabled:doc.enabled,address:doc.address,weekly:doc.weekly,blockedDates:doc.blockedDates}:defaultFittingSettings();
+ return {...(doc?{enabled:doc.enabled,address:doc.address,weekly:doc.weekly,blockedDates:doc.blockedDates}:defaultFittingSettings()), address:(await fittingLocation()).address};
 }
 export async function saveFittingSettings(settings:FittingSettings){
  await FittingSettingsModel.updateOne({_id:'fittings'},{$set:settings},{upsert:true,runValidators:true}).exec();return settings;

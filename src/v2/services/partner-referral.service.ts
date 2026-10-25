@@ -35,7 +35,7 @@ export async function issueReferral(code: string, now = Date.now()) {
   if (code !== 'blaze' && !member)
     throw new PartnerError('REFERRAL_NOT_FOUND', 404);
   const partnerId = member?.partnerId || 'blaze';
-  const partner = (await PartnerModel.findOne({ _id: partnerId, enabled: true })
+  const partner = (await PartnerModel.findOne({ _id: partnerId, enabled: true, cooperationActive: true })
     .lean()
     .exec()) as any;
   if (!partner) throw new PartnerError('REFERRAL_NOT_FOUND', 404);
@@ -76,7 +76,7 @@ export async function resolveReferral(
     return undefined;
   const partner = await PartnerModel.exists({
     _id: data.partnerId,
-    enabled: true,
+    enabled: true, cooperationActive: true,
   });
   if (!partner) return undefined;
   if (
@@ -102,7 +102,7 @@ export async function resolveBookingPartner(
 ): Promise<PartnerAttribution | undefined> {
   const referral = await resolveReferral(token);
   if (referral) return referral;
-  return (await PartnerModel.exists({ _id: 'blaze', enabled: true }))
+  return (await PartnerModel.exists({ _id: 'blaze', enabled: true, cooperationActive: true }))
     ? { partnerId: 'blaze', source: 'anirak', version: 1 }
     : undefined;
 }

@@ -37,11 +37,11 @@ export const createV2Router = (
 
   router.get('/health', getHealth);
   router.get('/partner-billing/cron',authorizeBillingCron,dependencies.ensureMongoConnection,partnerBillingCron);
-  router.get('/partner-policy',dependencies.ensureMongoConnection,async(_req,res,next)=>{try{res.setHeader?.('Cache-Control','no-store');return res.status(200).json({additionalDressDiscount:await PartnerModel.exists({_id:'blaze',enabled:true})?20:0});}catch(e){return next(e);}});
+  router.get('/partner-policy',dependencies.ensureMongoConnection,async(_req,res,next)=>{try{res.setHeader?.('Cache-Control','no-store');return res.status(200).json({additionalDressDiscount:await PartnerModel.exists({_id:'blaze',enabled:true,cooperationActive:true})?20:0});}catch(e){return next(e);}});
   router.get('/referrals/:code',dependencies.ensureMongoConnection,partnerHandler('referral'));
   for(const action of ['access','members','balance','billing','billing-pdf','reservations','fittings','catalogue'])
     router.get('/partner/'+action,adminApiEnabled,dependencies.ensureMongoConnection,partnerHandler(action));
-  for(const action of ['billing-settings','billing-close','billing-send','setup','save-member','settle','create-reservation','create-fitting'])
+  for(const action of ['cooperation','billing-settings','billing-close','billing-send','setup','save-member','settle','create-reservation','create-fitting'])
     router.post('/partner/'+action,adminApiEnabled,dependencies.ensureMongoConnection,partnerHandler(action));
   router.post('/partner/reservations/:id',adminApiEnabled,dependencies.ensureMongoConnection,partnerHandler('reservation-action'));
   router.post('/partner/fittings/:id',adminApiEnabled,dependencies.ensureMongoConnection,partnerHandler('fitting-action'));

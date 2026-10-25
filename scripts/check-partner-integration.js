@@ -56,6 +56,18 @@ module.exports = async function ({ request, models }) {
       (await call('/partner/setup', 0, { enabled: true })).status,
       200
     );
+    assert.equal((await call('/partner/cooperation',0,{active:false})).status,200);
+    const {fittingLocation}=require('../build/v2/services/cooperation.service');
+    const {resolveBookingPartner}=require('../build/v2/services/partner-referral.service');
+    assert.equal((await fittingLocation()).address,'Kytlická 862/2, Praha');
+    assert.equal(await resolveBookingPartner(),undefined);
+    assert.equal((await call('/partner/create-fitting',0,{})).status,409);
+    assert.equal((await call('/partner/cooperation',0,{active:true})).status,200);
+    assert.equal((await fittingLocation()).address,'Plzeňská 782/112, 150 00 Praha');
+    const cooperation=await PartnerModel.findById('blaze').lean();
+    assert.equal(cooperation.cooperationAudit.at(-1).by,'owner:'+String(ids[0]));
+    assert.equal(cooperation.cooperationAudit.at(-1).active,true);
+
     for (const [n, role] of [
       [1, 'administrator'],
       [2, 'photographer'],
@@ -71,6 +83,7 @@ module.exports = async function ({ request, models }) {
         ).status,
         200
       );
+    assert.equal((await call('/partner/cooperation',1,{active:false})).status,403);
     assert.equal(
       (
         await call('/partner/save-member', 1, {

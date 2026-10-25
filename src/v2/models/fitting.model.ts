@@ -4,7 +4,7 @@ const schema=new Schema({
  rewardPolicyVersion:{type:Number,enum:[1,2]},performedBy:{type:String,enum:['anirak','partner']},rewardReservationId:String,rewardReservationNumber:String,
  partner:{type:partnerAttributionSchema},studioBooked:{type:Boolean,default:false},studioBookingReference:String,
  operationId:{type:String,required:true},requestHash:{type:String,required:true,select:false},tokenHash:{type:String,required:true,select:false},
- number:{type:String,required:true},date:{type:String,required:true},time:{type:String,required:true},startAt:{type:Date,required:true},address:{type:String,required:true},
+ number:{type:String,required:true},date:{type:String,required:true},time:{type:String,required:true},startAt:{type:Date,required:true},placeName:String,address:{type:String,required:true},
  slotKey:String,activeEmail:String,expiresAt:Date,customerId:Schema.Types.ObjectId,
  status:{type:String,enum:['pending','review','confirmed','completed','cancelled','expired'],required:true},
  paymentStatus:{type:String,enum:['unpaid','paid','refunded'],required:true},

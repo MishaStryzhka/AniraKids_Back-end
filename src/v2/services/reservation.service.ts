@@ -1,3 +1,4 @@
+import {cooperationActive} from './cooperation.service';
 import type {
   HydratedDocument,
   Types,
@@ -183,6 +184,10 @@ export class ReservationService {
       if (replay) {
         return replay;
       }
+    }
+
+    if ((command.rentalMode === 'studio' || command.partner) && !(await cooperationActive())) {
+      throw new ReservationServiceError('PRODUCT_NOT_RENTABLE', 'Spolupráce se studiem zatím není aktivní.');
     }
 
     const {

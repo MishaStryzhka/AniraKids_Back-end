@@ -1,3 +1,4 @@
+import {cooperationActive} from '../services/cooperation.service';
 import {processAutomaticInvoice} from '../services/invoice-automation.service';
 import {partnerInvoiceList,savePartnerBilling,closePartnerMonth,partnerInvoicePdf,sendPartnerInvoice} from '../services/partner-invoice.service';
 import { ReservationAdminError } from '../services/reservation-admin.types';
@@ -178,9 +179,21 @@ export function partnerHandler(action: string): HttpHandler {
           ...access,
           name: partner?.name || 'Blaze Photostudio',
           enabled: partner?.enabled === true,
+          cooperationActive: partner?.enabled === true && partner?.cooperationActive === true,
           referralCode: member?.referralCode || 'blaze',
         });
       }
+      if (action === 'cooperation') {
+        requirePartnerAdmin(access);
+        if (typeof body.active !== 'boolean') throw new PartnerError('VALIDATION_ERROR');
+        await PartnerModel.updateOne({_id:'blaze'}, {
+          $set:{name:'Blaze Photostudio', cooperationActive:body.active, ...(body.active?{enabled:true}:{})},
+          $push:{cooperationAudit:{active:body.active, by:actor, at:new Date()}},
+        }, {upsert:true, runValidators:true}).exec();
+        return res.status(200).json({ok:true});
+      }
+      if (['create-reservation','create-fitting'].includes(action) && !(await cooperationActive()))
+        throw new PartnerError('COOPERATION_INACTIVE',409);
       if (action === 'setup') {
         requirePartnerAdmin(access);
         if (typeof body.enabled !== 'boolean')
