@@ -35,6 +35,7 @@ module.exports=async({test,registry,insertOwned})=>{
    const before=events.length;
    const a=input(),b=input();const results=await Promise.allSettled([api.createFitting(a,now),api.createFitting(b,now)]);
    assert.equal(results.filter(r=>r.status==='fulfilled').length,1,JSON.stringify(results.map(x=>x.status==='rejected'?{code:x.reason.code,message:x.reason.message}:x)));
+   assert.equal(results.find(r=>r.status==='rejected').reason.code,'SLOT_UNAVAILABLE');
    const winner=results[0].status==='fulfilled'?a:b,receipt=results.find(r=>r.status==='fulfilled').value;
    assert.equal(receipt.price,200);assert.ok(receipt.paymentInstructions.qrPayload.includes('*AM:200.00*'));assert.equal(receipt.customer,undefined);
    assert.deepEqual(await api.createFitting({...winner},now),receipt);
@@ -43,6 +44,22 @@ module.exports=async({test,registry,insertOwned})=>{
    assert.deepEqual(targets.at(-1),{type:'created',id:String((await doc(receipt.number))._id)});
    await reject(api.readFitting(receipt.number,'a'.repeat(64),now),'FITTING_NOT_FOUND');
    assert.equal((await api.availableFittingSlots(a.date,now)).slots.includes(a.time),false);
+  });
+  await test('Pending email conflicts persist across dates but release after expiry, confirmation or cancellation',async()=>{
+   const v=input('2030-02-01','09:00'),r=await api.createFitting(v,now);
+   for(const [date,time] of [['2030-02-02','10:00'],['2030-02-03','11:00']]){
+    await reject(api.createFitting(input(date,time,v.email),now),'PENDING_FITTING_EXISTS');
+    assert.ok((await api.availableFittingSlots(date,now)).slots.includes(time));
+   }
+   const later=new Date(now.getTime()+61*60000);
+   const next=input('2030-02-02','10:00',v.email),second=await api.createFitting(next,later);
+   assert.equal((await doc(r.number)).status,'expired');
+   await api.reportFittingPayment(second.number,next.token,later);
+   await reject(api.createFitting(input('2030-02-03','11:00',v.email),new Date(later.getTime()+61*60000)),'PENDING_FITTING_EXISTS');
+   await act(second.number,'confirm',{},later);
+   const thirdInput=input('2030-02-03','11:00',v.email),third=await api.createFitting(thirdInput,later);
+   await api.cancelPublicFitting(third.number,thirdInput.token,later);
+   assert.equal((await api.createFitting(input('2030-02-04','12:00',v.email),later)).status,'pending');
   });
   await test('Fitting payment report holds slot without treating payment as received',async()=>{
    const before=events.length;

@@ -46,7 +46,7 @@ export async function createFitting(body:unknown,now=new Date(),customerId?:Type
   await Promise.all([notifyFitting(doc.toObject(),'created',v.token),notifyOwnerFittingCreated(doc._id)]);
   return publicFitting(doc.toObject(),now);
  }catch(error){
-  if((error as any).code===11000){const winner=await FittingModel.findOne({operationId:v.operationId}).select('+tokenHash +requestHash').lean().exec() as any;if(winner&&winner.tokenHash===hash(v.token)&&winner.requestHash===requestHash){if(winner.status==='pending'&&new Date(winner.expiresAt)>now)await notifyFitting(winner,'created',v.token);return publicFitting(winner,now);}throw new FittingError('SLOT_OR_PENDING_CONFLICT');}throw error;
+  if((error as any).code===11000){const winner=await FittingModel.findOne({operationId:v.operationId}).select('+tokenHash +requestHash').lean().exec() as any;if(winner&&winner.tokenHash===hash(v.token)&&winner.requestHash===requestHash){if(winner.status==='pending'&&new Date(winner.expiresAt)>now)await notifyFitting(winner,'created',v.token);return publicFitting(winner,now);}const keys=(error as any).keyPattern||{};if(keys.activeEmail)throw new FittingError('PENDING_FITTING_EXISTS');if(keys.slotKey)throw new FittingError('SLOT_UNAVAILABLE');throw error;}throw error;
  }
 }
 export function publicFitting(doc:any,now=new Date()){
