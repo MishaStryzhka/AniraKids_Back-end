@@ -15,6 +15,8 @@ const partner = new Schema(
     _id: String,
     name: { type: String, required: true },
     enabled: { type: Boolean, default: true },
+    cooperationActive: { type: Boolean, default: false },
+    cooperationAudit: [{ _id: false, active: Boolean, by: String, at: Date }],
     revision: { type: Number, default: 0 },
     billing: {type: Schema.Types.Mixed},
     billingRevision: {type:Number,default:0},

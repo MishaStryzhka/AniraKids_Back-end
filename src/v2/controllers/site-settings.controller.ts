@@ -1,9 +1,10 @@
+import {cooperationActive} from '../services/cooperation.service';
 import type {HttpHandler} from '../types/http';
 import {getSiteSettings, parseSiteSettingsPatch, patchSiteSettings} from '../services/site-settings.service';
 export const readSiteSettings: HttpHandler = async (_request, response, next) => {
   try {
     response.setHeader?.('Cache-Control', 'no-store');
-    return response.status(200).json(await getSiteSettings());
+    return response.status(200).json({...await getSiteSettings(),cooperationActive:await cooperationActive()});
   } catch (error) {return next(error);}
 };
 export const updateSiteSettings: HttpHandler = async (request, response, next) => {

@@ -175,6 +175,7 @@ async function main() {
     condition: 'good',
     notes: 'private inventory notes',
   });
+  await require('../build/v2/models/partner.model').PartnerModel.create({_id:'blaze',name:'Test Blaze',enabled:true,cooperationActive:true});
   const app = express();
   app.use(express.json());
   let connections = 0;
@@ -611,9 +612,9 @@ async function main() {
   assert.equal(basket.status,201,JSON.stringify(basket.body));
   const br=basket.body.reservation;
   assert.equal(br.items.length,2);
-  assert.equal(br.subtotal,1850);
+  assert.equal(br.subtotal,1670,'Active cooperation applies existing 20% second-dress discount');
   assert.equal(br.deposit,2700);
-  assert.equal(br.totalDue,4550);
+  assert.equal(br.totalDue,4370);
   assert.equal(br.payment.advanceRequired,200,'One advance per reservation');
   assert.deepEqual(br.items.map(x=>x.productId),basketBody.items.map(x=>x.productId));
   const basketRow=await Reservation.findOne({reservationNumber:br.reservationNumber});
