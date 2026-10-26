@@ -61,6 +61,24 @@ module.exports=async({test,registry,insertOwned})=>{
    await api.cancelPublicFitting(third.number,thirdInput.token,later);
    assert.equal((await api.createFitting(input('2030-02-04','12:00',v.email),later)).status,'pending');
   });
+  await test('Guest and other-account contact emails cannot block signed-in fitting creation',async()=>{
+   const {Types}=require('mongoose'),owner=new Types.ObjectId(),other=new Types.ObjectId();
+   const email='scope-'+randomUUID()+'@example.test';
+   const guest=input('2030-02-10','09:00',email),g=await api.createFitting(guest,now);
+   await api.reportFittingPayment(g.number,guest.token,now);
+   const mine=input('2030-02-11','10:00',email),m=await api.createFitting(mine,now,owner);
+   assert.equal((await api.createFitting(input('2030-02-12','11:00',email),now,other)).status,'pending');
+   await reject(api.createFitting(input('2030-02-13','12:00',email),now,owner),'PENDING_ACCOUNT_FITTING_EXISTS');
+   await reject(api.createFitting(input(guest.date,guest.time,'different-'+email),now,owner),'SLOT_UNAVAILABLE');
+   assert.equal((await doc(g.number)).status,'review');
+   assert.equal((await doc(g.number)).customerId,undefined);
+   assert.equal(String((await doc(m.number)).customerId),String(owner));
+   const legacyInput=input('2030-02-14','09:00'),legacy=await api.createFitting(legacyInput,now,owner);
+   await FittingModel.updateOne({number:legacy.number},{$set:{activeEmail:require('node:crypto').createHash('sha256').update(legacyInput.email).digest('hex')}});
+   await reject(api.createFitting(input('2030-02-15','10:00',legacyInput.email),now,owner),'PENDING_ACCOUNT_FITTING_EXISTS');
+   await api.cancelPublicFitting(legacy.number,legacyInput.token,now);
+   assert.equal((await api.createFitting(input('2030-02-15','10:00',legacyInput.email),now,owner)).status,'pending');
+  });
   await test('Fitting payment report holds slot without treating payment as received',async()=>{
    const before=events.length;
    const v=input('2030-01-07','10:00'),r=await api.createFitting(v,now);
@@ -245,6 +263,33 @@ module.exports=async({test,registry,insertOwned})=>{
     const guest=input(date,'13:30'),guestReceipt=await (await request('/fittings',undefined,guest)).json();
     const claims=await Promise.all([ownerToken,otherToken].map(t=>request('/account/fittings/'+guestReceipt.number+'/claim',t,{token:guest.token})));
     assert.deepEqual(claims.map(r=>r.status).sort(),[200,404]);
+    // A contact string is not identity. Only a verified mailbox can reveal an unclaimed guest fitting.
+    const recovery=input(date,'14:00'),guestRecovery=await (await request('/fittings',undefined,recovery)).json();
+    const guestPath='/account/fittings/'+guestRecovery.number;
+    await User.collection.updateOne({_id:owner},{$set:{email:recovery.email,emailVerified:false}});
+    assert.equal((await request(guestPath,ownerToken)).status,404);
+    assert.equal((await request(guestPath+'/cancel',ownerToken,{})).status,404);
+    const beforeVerify=await (await request('/account/fittings',ownerToken)).json();
+    assert.equal(beforeVerify.guestEmailAccess,false);assert.ok(!beforeVerify.items.some(x=>x.number===guestRecovery.number));
+    await User.collection.updateOne({_id:owner},{$set:{emailVerified:true}});
+    const afterVerify=await (await request('/account/fittings',ownerToken)).json();
+    assert.equal(afterVerify.guestEmailAccess,true);assert.ok(afterVerify.items.some(x=>x.number===guestRecovery.number));
+    assert.equal((await request(guestPath,ownerToken)).status,200);
+    assert.equal((await request(guestPath,otherToken)).status,404);
+    assert.equal((await request(guestPath+'/payment-sent',ownerToken,{})).status,200);
+    assert.equal((await doc(guestRecovery.number)).status,'review');
+    // An explicitly owned record is never exposed to another account via its contact email.
+    const otherInput=input(date,'14:30',recovery.email),otherReceipt=await (await request('/fittings',otherToken,otherInput)).json();
+    assert.equal((await request('/account/fittings/'+otherReceipt.number,ownerToken)).status,404);
+    assert.equal((await request('/account/fittings/'+otherReceipt.number+'/cancel',ownerToken,{})).status,404);
+    assert.ok(!(await (await request('/account/fittings',ownerToken)).json()).items.some(x=>x.number===otherReceipt.number));
+    // Revoking/changing verified email removes this fallback access on the next request.
+    await User.collection.updateOne({_id:owner},{$set:{emailVerified:false}});
+    assert.equal((await request(guestPath,ownerToken)).status,404);
+    await User.collection.updateOne({_id:owner},{$set:{emailVerified:true}});
+    assert.equal((await request(guestPath+'/cancel',ownerToken,{})).status,200);
+    assert.equal((await doc(guestRecovery.number)).status,'cancelled');
+    assert.equal((await doc(guestRecovery.number)).customerId,undefined,'verified mailbox visibility does not silently transfer ownership');
     await User.collection.updateOne({_id:owner},{$set:{tokens:[]}});
     assert.equal((await request('/account/fittings',ownerToken)).status,401);
    }finally{await new Promise(resolve=>server.close(resolve));await User.collection.deleteMany({_id:{$in:[owner,other]}});for(const key of keys){if(old[key]===undefined)delete process.env[key];else process.env[key]=old[key];}}
