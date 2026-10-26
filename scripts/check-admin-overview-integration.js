@@ -64,6 +64,7 @@ async function read(token, page = '1') {
   await adminOverview({adminOwner:true},res,e=>{throw e;});
   assert.equal(result.pickups.total,1);assert.equal(result.returns.total,2);assert.equal(result.overdue,1);assert.equal(result.pending.total,1);assert.equal(result.unpaid,4);assert.equal(result.deposits.total,1);assert.equal(result.deposits.items[0].number,'HELD');assert.equal(result.maintenance,1);assert.equal(result.drafts,1);
   const {FittingModel}=require('../build/v2/models/fitting.model');
+  await FittingModel.init();
   const fittingBase={date:getBusinessDateOnly(),time:'09:00',customer:{name:'Guest fitting',email:'private@example.test',phone:'PRIVATE-PHONE'},tokenHash:'PRIVATE-TOKEN',product:{name:'Test fitting dress'}};
   const tomorrowString=require('../build/v2/utils/date-only').formatDateOnly(tomorrow);
   await FittingModel.collection.insertMany([
@@ -74,7 +75,7 @@ async function read(token, page = '1') {
     {...fittingBase,number:'ZK-FUTURE',date:tomorrowString,status:'confirmed'},
     {...fittingBase,number:'ZK-COMPLETED',status:'completed'},
     {...fittingBase,number:'ZK-CANCELLED',status:'cancelled'},
-  ]);
+  ].map(row=>({...row,operationId:row.number})));
   await adminOverview({adminOwner:true},res,e=>{throw e;});
   assert.equal(result.fittings.review.total,1);assert.equal(result.fittings.review.items[0].number,'ZK-REVIEW');
   assert.equal(result.fittings.review.items[0].date,tomorrowString,'future fitting payments require attention now');
@@ -83,7 +84,7 @@ async function read(token, page = '1') {
   assert.ok(!JSON.stringify(result.fittings).includes('PRIVATE'));assert.ok(!JSON.stringify(result.fittings).includes('private@example.test'));
   await adminOverview({adminPermissions:['reservations']},res,e=>{throw e;});assert.equal(result.fittings,null,'reservation-only staff cannot see fitting details');
   await adminOverview({adminPermissions:['reservations','fittings']},res,e=>{throw e;});assert.equal(result.fittings.review.total,1);
-  await FittingModel.collection.insertMany(Array.from({length:11},(_,i)=>({...fittingBase,number:'ZK-REVIEW-'+i,date:tomorrowString,status:'review'})));
+  await FittingModel.collection.insertMany(Array.from({length:11},(_,i)=>({...fittingBase,number:'ZK-REVIEW-'+i,operationId:'ZK-REVIEW-'+i,date:tomorrowString,status:'review'})));
   await adminOverview({adminOwner:true},res,e=>{throw e;});assert.equal(result.fittings.review.total,12);assert.equal(result.fittings.review.items.length,10);
   await FittingModel.collection.updateMany({status:'review'},{$set:{status:'confirmed'}});
   await adminOverview({adminOwner:true},res,e=>{throw e;});assert.equal(result.fittings.review.total,0,'confirmed payments leave attention queue');
