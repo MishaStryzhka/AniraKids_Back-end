@@ -41,12 +41,16 @@ export async function createFitting(body:unknown,now=new Date(),customerId?:Type
  let product: {id:string;name:string;slug:string}|undefined;
  if(v.productId){const p=await ProductV2Model.findOne({_id:new Types.ObjectId(v.productId),status:'active'}).lean().exec();if(!p)throw new FittingError('PRODUCT_UNAVAILABLE');product={id:v.productId,name:p.name,slug:p.slug};}
  await expireFittings(now);
+ // An unverified contact address must never reserve another account's identity.
+ // Preserve holds created by older releases (and explicitly claimed guest records).
+ if(customerId&&await FittingModel.exists({customerId,activeEmail:hash(v.email)}))throw new FittingError('PENDING_ACCOUNT_FITTING_EXISTS');
+ const activeEmail=customerId?'account:'+customerId.toHexString()+':'+hash(v.email):hash(v.email);
  try{
-  const doc=await FittingModel.create({partner,customerId,operationId:v.operationId,tokenHash:hash(v.token),requestHash,number:'ZK-'+randomUUID().replace(/-/g,'').slice(0,12).toUpperCase(),date:v.date,time:v.time,startAt:slot.startAt,...location,slotKey:v.date+'T'+v.time,activeEmail:hash(v.email),expiresAt:new Date(now.getTime()+60*60000),status:'pending',paymentStatus:'unpaid',customer:{name:v.name,email:v.email,phone:v.phone},product,creditOperationId:randomUUID(),revision:0,audit:[{action:'created',at:now,by:auditActor||partner?.createdBy||'customer'}]});
+  const doc=await FittingModel.create({partner,customerId,operationId:v.operationId,tokenHash:hash(v.token),requestHash,number:'ZK-'+randomUUID().replace(/-/g,'').slice(0,12).toUpperCase(),date:v.date,time:v.time,startAt:slot.startAt,...location,slotKey:v.date+'T'+v.time,activeEmail,expiresAt:new Date(now.getTime()+60*60000),status:'pending',paymentStatus:'unpaid',customer:{name:v.name,email:v.email,phone:v.phone},product,creditOperationId:randomUUID(),revision:0,audit:[{action:'created',at:now,by:auditActor||partner?.createdBy||'customer'}]});
   await Promise.all([notifyFitting(doc.toObject(),'created',v.token),notifyOwnerFittingCreated(doc._id)]);
   return publicFitting(doc.toObject(),now);
  }catch(error){
-  if((error as any).code===11000){const winner=await FittingModel.findOne({operationId:v.operationId}).select('+tokenHash +requestHash').lean().exec() as any;if(winner&&winner.tokenHash===hash(v.token)&&winner.requestHash===requestHash){if(winner.status==='pending'&&new Date(winner.expiresAt)>now)await notifyFitting(winner,'created',v.token);return publicFitting(winner,now);}const keys=(error as any).keyPattern||{};if(keys.activeEmail)throw new FittingError('PENDING_FITTING_EXISTS');if(keys.slotKey)throw new FittingError('SLOT_UNAVAILABLE');throw error;}throw error;
+  if((error as any).code===11000){const winner=await FittingModel.findOne({operationId:v.operationId}).select('+tokenHash +requestHash').lean().exec() as any;if(winner&&winner.tokenHash===hash(v.token)&&winner.requestHash===requestHash){if(winner.status==='pending'&&new Date(winner.expiresAt)>now)await notifyFitting(winner,'created',v.token);return publicFitting(winner,now);}const keys=(error as any).keyPattern||{};if(keys.activeEmail)throw new FittingError(customerId?'PENDING_ACCOUNT_FITTING_EXISTS':'PENDING_FITTING_EXISTS');if(keys.slotKey)throw new FittingError('SLOT_UNAVAILABLE');throw error;}throw error;
  }
 }
 export function publicFitting(doc:any,now=new Date()){

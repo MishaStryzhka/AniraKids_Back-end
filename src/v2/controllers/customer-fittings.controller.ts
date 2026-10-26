@@ -5,7 +5,9 @@ import {FittingModel} from '../models/fitting.model';
 import {expireFittings,FittingError,publicFitting} from '../services/fitting.service';
 import type {HttpHandler} from '../types/http';
 
-/** Account identity comes only from a verified session, never from contact email. */
+const User=require('../../../models/user');
+
+/** Guest access requires mailbox ownership verified on the server, never form input. */
 export function customerFittingHandler(action:'list'|'read'|'claim'|'report'|'cancel'):HttpHandler {
  return async(req,res,next)=>{
   res.setHeader?.('Cache-Control','private, no-store');
@@ -16,15 +18,18 @@ export function customerFittingHandler(action:'list'|'read'|'claim'|'report'|'ca
    if(!identity)throw new FittingError('UNAUTHORIZED',401);
    const customerId=identity.userId,now=new Date();
    await expireFittings(now);
+   const user=await User.findById(customerId).select('email emailVerified').lean().exec();
+   const verifiedEmail=user?.emailVerified===true&&typeof user.email==='string'?user.email.trim().toLowerCase():undefined;
+   const ownership=verifiedEmail?{$or:[{customerId},{customerId:null,'customer.email':verifiedEmail}]}:{customerId};
    if(action==='list'){
     const raw=req.query?.page??'1';
     if(typeof raw!=='string'||!/^\d{1,5}$/.test(raw)||Number(raw)<1)throw new FittingError('VALIDATION_ERROR',400);
     const page=Number(raw),limit=20;
     const [records,total]=await Promise.all([
-     FittingModel.find({customerId}).sort({createdAt:-1,_id:-1}).skip((page-1)*limit).limit(limit).lean().exec(),
-     FittingModel.countDocuments({customerId}).exec(),
+     FittingModel.find(ownership).sort({createdAt:-1,_id:-1}).skip((page-1)*limit).limit(limit).lean().exec(),
+     FittingModel.countDocuments(ownership).exec(),
     ]);
-    return res.status(200).json({items:records.map(record=>publicFitting(record,now)),total,page,limit});
+    return res.status(200).json({items:records.map(record=>publicFitting(record,now)),total,page,limit,guestEmailAccess:Boolean(verifiedEmail)});
    }
    const number=req.params?.number;
    if(!number||!/^ZK-[A-F0-9]{12}$/.test(number))throw new FittingError('FITTING_NOT_FOUND',404);
@@ -36,7 +41,7 @@ export function customerFittingHandler(action:'list'|'read'|'claim'|'report'|'ca
     if(!record)throw new FittingError('FITTING_NOT_FOUND',404);
     return res.status(200).json(publicFitting(record,now));
    }
-   const filter={number,customerId};
+   const filter={number,...ownership};
    if(!await FittingModel.exists(filter))throw new FittingError('FITTING_NOT_FOUND',404);
    if(action==='report') {
     const changed = await FittingModel.findOneAndUpdate({...filter,status:'pending',expiresAt:{$gt:now}},{$set:{status:'review'},$inc:{revision:1},$push:{audit:{action:'payment_reported',at:now,by:customerId.toHexString()}}},{new:true}).select('_id').lean().exec();
