@@ -227,7 +227,7 @@ export const ReservationV2Schema = new Schema<Reservation>(
       },
     },
     balikovnaPoint: { type: new Schema({
-      id: { type: String, required: true, match: /^[0-9]{1,20}$/ },
+      id: { type: String, required: true, match: /^B?[0-9]{1,20}$/ },
       name: { type: String, required: true, trim: true, maxlength: 200 },
       address: { type: String, required: true, trim: true, maxlength: 400 },
       zip: { type: String, required: true, match: /^[0-9]{5}$/ },
