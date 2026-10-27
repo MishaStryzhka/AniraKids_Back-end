@@ -326,6 +326,7 @@ export const toAdminReservationDetailDto = (
     totalDue: source.totalDue,
     ...copyDefined(source, [
       'fulfillmentMethod',
+      'balikovnaPoint',
       'notes',
       'cancelledAt',
       'cancellationReason',

@@ -627,6 +627,33 @@ async function main() {
   assert.equal(multiHistory.reservation.items.length,2);
   assert.equal((await request('/reservations/'+br.reservationNumber,ownerAuth)).body.reservation.items.length,2);
   assert.equal((await request('/reservations/'+br.reservationNumber,strangerAuth)).status,404);
+  // Delivery is a reservation snapshot; no carrier booking or price is inferred.
+  const point={id:'123',name:'Praha 10',address:'Černokostelecká 2020/20, Praha',zip:'10030'};
+  const deliveryDate=formatDateOnly(addCalendarDays(today,400));
+  const deliveryBody={...body,startDate:deliveryDate,endDate:deliveryDate,fulfillmentMethod:'balikovna',balikovnaPoint:point};
+  const deliveryKey=randomUUID();
+  const shipped=await post(deliveryBody,deliveryKey);
+  assert.equal(shipped.status,201,JSON.stringify(shipped.body));
+  assert.deepEqual(shipped.body.reservation.balikovnaPoint,point);
+  assert.equal(shipped.body.reservation.totalDue,2150);
+  const shippedRow=await Reservation.findOne({reservationNumber:shipped.body.reservation.reservationNumber}).lean();
+  assert.deepEqual(shippedRow.balikovnaPoint,point);
+  assert.deepEqual((await post(deliveryBody,deliveryKey)).body,shipped.body);
+  assert.equal((await post({...deliveryBody,balikovnaPoint:{...point,id:'456'}},deliveryKey)).status,409);
+  assert.equal((await post({...deliveryBody,rentalMode:'studio'})).status,400);
+  assert.equal((await post({...deliveryBody,balikovnaPoint:undefined})).status,400);
+  const guestDelivery=await request('/reservations/'+shipped.body.reservation.reservationNumber,{headers:{Authorization:'Reservation '+shipped.body.guestAccessToken}});
+  assert.deepEqual(guestDelivery.body.reservation.balikovnaPoint,point);
+  const adminDetail=await require('../build/v2/services/reservation-admin.service').reservationAdminService.getReservationDetail(shippedRow._id);
+  assert.deepEqual(require('../build/v2/http/admin-response').toAdminReservationDetailDto(adminDetail).balikovnaPoint,point);
+  const shippedBasket=await multiPost({...basketBody,startDate:deliveryDate,endDate:deliveryDate,fulfillmentMethod:'balikovna',balikovnaPoint:point},randomUUID());
+  assert.equal(shippedBasket.status,409,'Shipping cannot bypass occupied inventory');
+  const basketDeliveryDate=formatDateOnly(addCalendarDays(today,410));
+  const basketDelivery=await multiPost({...basketBody,startDate:basketDeliveryDate,endDate:basketDeliveryDate,fulfillmentMethod:'balikovna',balikovnaPoint:point},randomUUID());
+  assert.equal(basketDelivery.status,201,JSON.stringify(basketDelivery.body));
+  const deliveryHistory=(await request('/account/reservations',ownerAuth)).body.items.find(x=>x.reservation.reservationNumber===basketDelivery.body.reservation.reservationNumber);
+  assert.deepEqual(deliveryHistory.reservation.balikovnaPoint,point);
+  evidence.push('Balikovna single/basket storage, guest/account/admin readback, retry safety, validation, unchanged totals and inventory protection');
   // Two baskets racing for the same pieces can create only one complete order.
   await Reservation.updateOne({_id:basketRow._id},{$set:{status:'cancelled'}});
   const race=await Promise.all([multiPost(basketBody,randomUUID()),multiPost(basketBody,randomUUID())]);

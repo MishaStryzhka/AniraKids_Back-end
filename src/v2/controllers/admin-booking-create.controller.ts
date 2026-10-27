@@ -29,7 +29,7 @@ export function adminBookingCreate(action:'catalogue'|'reservation'|'fitting'):H
    const result=await reservationService.createReservation({
     productId:new Types.ObjectId(v.productId),variantId:new Types.ObjectId(v.variantId),
     ...(v.items?{items:v.items.map(i=>({productId:new Types.ObjectId(i.productId),variantId:new Types.ObjectId(i.variantId)}))}:{}),
-    rentalMode:v.rentalMode,startDate:v.startDate,endDate:v.endDate,customer:v.customer,notes:v.notes,partner,auditActor:actor,
+    fulfillmentMethod:v.fulfillmentMethod,balikovnaPoint:v.balikovnaPoint,rentalMode:v.rentalMode,startDate:v.startDate,endDate:v.endDate,customer:v.customer,notes:v.notes,partner,auditActor:actor,
    },{idempotency:{keyHash:hashIdempotencyKey(key),requestHash:hashReservationFingerprint({...v,authenticatedUserId:actor}),guestAccessToken:deriveIdempotentGuestAccessToken(key)}});
    return res.status(result.replayed?200:201).json({id:String(result.reservation._id),reservationNumber:result.reservation.reservationNumber});
   }catch(e){

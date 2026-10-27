@@ -30,6 +30,8 @@ export class IdempotencyConfigurationError extends Error {
 }
 
 export interface ReservationFingerprintInput {
+  fulfillmentMethod?: import('../types/domain').FulfillmentMethod;
+  balikovnaPoint?: import('../types/domain').BalikovnaPoint;
   fittingDiscount?: import('../services/fitting-discount.service').FittingDiscountSelection;
   referralToken?: string;
   items?: Array<{ productId: string; variantId: string }>;
@@ -94,6 +96,10 @@ export const normalizeReservationFingerprint = (
       phone: customer.phone,
     },
     notes,
+    ...(input.fulfillmentMethod === 'balikovna' ? { fulfillmentMethod: 'balikovna', balikovnaPoint: {
+      id: input.balikovnaPoint?.id, name: input.balikovnaPoint?.name.trim(),
+      address: input.balikovnaPoint?.address.trim(), zip: input.balikovnaPoint?.zip,
+    }} : {}),
     ...(input.fittingDiscount ? {fittingDiscount:{number:input.fittingDiscount.number,tokenHash:input.fittingDiscount.token?sha256Hex(input.fittingDiscount.token):null}} : {}),
     ...(input.referralToken ? {referralToken:input.referralToken} : {}),
     authenticatedUserId,
