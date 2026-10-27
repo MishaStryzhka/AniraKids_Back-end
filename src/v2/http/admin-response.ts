@@ -327,6 +327,8 @@ export const toAdminReservationDetailDto = (
     ...copyDefined(source, [
       'fulfillmentMethod',
       'balikovnaPoint',
+      'deliveryAddress',
+      'shippingPrice',
       'notes',
       'cancelledAt',
       'cancellationReason',

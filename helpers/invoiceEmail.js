@@ -12,11 +12,12 @@ function invoiceEmail(invoice, fitting, reservation, paymentMethod) {
  const intro=rentalConfirmed?`Platbu ${money(s.paid)} jsme přijali. Váš termín pronájmu je potvrzený.`:confirmed?`Platbu ${money(s.paid)} jsme přijali. Váš termín zkoušky je potvrzený.`:`V příloze posíláme ${correction?'opravný doklad':'fakturu'} ${invoice.number}.`;
  const details=[['Číslo rezervace',invoice.sourceNumber]];
  if(reservation?.fulfillmentMethod==='pickup')details.push(['Převzetí','Osobní vyzvednutí']);
+ if(reservation?.fulfillmentMethod==='balikovna_address'){const a=reservation.deliveryAddress;details.push(['Způsob převzetí','Balíkovna na adresu']);if(a)details.push(['Doručovací adresa',`${a.street}, ${a.zip} ${a.city}, CZ`]);details.push(['Doprava',`${reservation.shippingPrice||0} Kč (zahrnuto v celkové částce)`]);}
  if(reservation?.fulfillmentMethod==='balikovna'){
   const point=reservation.balikovnaPoint;
   details.push(['Převzetí','Balíkovna']);
   if(point)details.push(['Výdejní místo',`${point.name}, ${point.address} (PSČ Balíkovny: ${point.zip})`]);
-  details.push(['Doprava','Hradí zákazník; není zahrnuta v ceně pronájmu. Podrobnosti dle individuální domluvy.']);
+  details.push(['Doprava',reservation.shippingPrice === undefined ? 'Dle individuální domluvy.' : `${reservation.shippingPrice} Kč (zahrnuto v celkové částce)`]);
  }
  if(fitting){
   const day=new Intl.DateTimeFormat('cs-CZ',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(fitting.date+'T12:00:00Z'));

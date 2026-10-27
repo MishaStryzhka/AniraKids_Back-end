@@ -33,11 +33,13 @@ export interface PublicReservationDto {
   expiresAt: string | null;
   item: PublicReservationItemDto;
   items: PublicReservationItemDto[];
+  shippingPrice?: number;
   subtotal: number;
   deposit: number;
   totalDue: number;
   fulfillmentMethod?: FulfillmentMethod;
   balikovnaPoint?: import('../types/domain').BalikovnaPoint;
+  deliveryAddress?: import('../types/domain').DeliveryAddress;
   paymentStatus: PaymentStatus;
 }
 
@@ -80,6 +82,8 @@ export const toPublicReservationResponse = (
       rentalPrice: item.rentalPriceSnapshot, deposit: item.depositSnapshot,
     })),
     ...(reservation.fittingDiscount?{fittingDiscount:{number:reservation.fittingDiscount.number,amount:reservation.fittingDiscount.amount}}:{}),
+    shippingPrice: reservation.shippingPrice ?? 0,
+    ...(reservation.deliveryAddress ? {deliveryAddress: reservation.deliveryAddress} : {}),
     subtotal: reservation.subtotal,
     deposit: reservation.deposit,
     totalDue: reservation.totalDue,

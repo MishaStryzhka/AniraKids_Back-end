@@ -226,6 +226,8 @@ export const ReservationV2Schema = new Schema<Reservation>(
         message: 'totalDue must be a non-negative integer amount in Kč',
       },
     },
+    shippingPrice: {type:Number,min:0,validate:Number.isSafeInteger},
+    deliveryAddress: {type:new Schema({street:{type:String,required:true,maxlength:200},city:{type:String,required:true,maxlength:100},zip:{type:String,required:true,match:/^[0-9]{5}$/},country:{type:String,enum:['CZ'],required:true}},{_id:false}),default:undefined},
     balikovnaPoint: { type: new Schema({
       id: { type: String, required: true, match: /^B?[0-9]{1,20}$/ },
       name: { type: String, required: true, trim: true, maxlength: 200 },
@@ -234,7 +236,7 @@ export const ReservationV2Schema = new Schema<Reservation>(
     }, { _id: false }), default: undefined },
     fulfillmentMethod: {
       type: String,
-      enum: ['pickup', 'balikovna'],
+      enum: ['pickup', 'balikovna', 'balikovna_address'],
     },
     paymentStatus: {
       type: String,

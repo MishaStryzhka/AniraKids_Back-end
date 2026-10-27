@@ -5,8 +5,10 @@ import type {
 } from '../types/domain';
 
 export interface ReservationRequestBody {
+  deliveryTariff?: '2026-10';
   fulfillmentMethod?: import('../types/domain').FulfillmentMethod;
   balikovnaPoint?: import('../types/domain').BalikovnaPoint;
+  deliveryAddress?: import('../types/domain').DeliveryAddress;
   fittingDiscount?: import('../services/fitting-discount.service').FittingDiscountSelection;
   referralToken?: string;
   items?: Array<{ productId: string; variantId: string }>;
@@ -65,13 +67,15 @@ export const reservationRequestSchema = Joi.object({
     variantId: Joi.string().pattern(objectIdPattern).required(),
   }).unknown(false)).min(1).max(20),
   rentalMode: Joi.string().valid('studio', 'external').required(),
-  fulfillmentMethod: Joi.when('rentalMode', { is: 'external', then: Joi.string().valid('pickup', 'balikovna'), otherwise: Joi.forbidden() }),
+  deliveryTariff: Joi.when('rentalMode',{is:'external',then:Joi.string().valid('2026-10'),otherwise:Joi.forbidden()}),
+  fulfillmentMethod: Joi.when('rentalMode', { is: 'external', then: Joi.string().valid('pickup', 'balikovna', 'balikovna_address'), otherwise: Joi.forbidden() }),
   balikovnaPoint: Joi.when('fulfillmentMethod', { is: 'balikovna', then: Joi.object({
     id: Joi.string().pattern(/^B?[0-9]{1,20}$/).required(),
     name: Joi.string().pattern(/\S/).max(200).required(),
     address: Joi.string().pattern(/\S/).max(400).required(),
     zip: Joi.string().pattern(/^[0-9]{5}$/).required(),
   }).unknown(false).required(), otherwise: Joi.forbidden() }),
+  deliveryAddress: Joi.when('fulfillmentMethod', {is:'balikovna_address', then:Joi.object({street:Joi.string().trim().pattern(/\S/).max(200).required(),city:Joi.string().trim().pattern(/\S/).max(100).required(),zip:Joi.string().pattern(/^[0-9]{5}$/).required(),country:Joi.string().valid('CZ').required()}).unknown(false).required(),otherwise:Joi.forbidden()}),
   startDate: Joi.string().pattern(dateOnlyShapePattern).required(),
   endDate: Joi.string().pattern(dateOnlyShapePattern).required(),
   customer: customerSchema,

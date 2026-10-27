@@ -30,8 +30,10 @@ export class IdempotencyConfigurationError extends Error {
 }
 
 export interface ReservationFingerprintInput {
+  deliveryTariff?: '2026-10';
   fulfillmentMethod?: import('../types/domain').FulfillmentMethod;
   balikovnaPoint?: import('../types/domain').BalikovnaPoint;
+  deliveryAddress?: import('../types/domain').DeliveryAddress;
   fittingDiscount?: import('../services/fitting-discount.service').FittingDiscountSelection;
   referralToken?: string;
   items?: Array<{ productId: string; variantId: string }>;
@@ -96,6 +98,8 @@ export const normalizeReservationFingerprint = (
       phone: customer.phone,
     },
     notes,
+    ...(input.deliveryTariff ? {deliveryTariff:input.deliveryTariff}:{}),
+    ...(input.fulfillmentMethod === 'balikovna_address' ? {fulfillmentMethod:'balikovna_address',deliveryAddress:input.deliveryAddress} : {}),
     ...(input.fulfillmentMethod === 'balikovna' ? { fulfillmentMethod: 'balikovna', balikovnaPoint: {
       id: input.balikovnaPoint?.id, name: input.balikovnaPoint?.name.trim(),
       address: input.balikovnaPoint?.address.trim(), zip: input.balikovnaPoint?.zip,
