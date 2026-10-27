@@ -67,7 +67,7 @@ export const reservationRequestSchema = Joi.object({
   rentalMode: Joi.string().valid('studio', 'external').required(),
   fulfillmentMethod: Joi.when('rentalMode', { is: 'external', then: Joi.string().valid('pickup', 'balikovna'), otherwise: Joi.forbidden() }),
   balikovnaPoint: Joi.when('fulfillmentMethod', { is: 'balikovna', then: Joi.object({
-    id: Joi.string().pattern(/^[0-9]{1,20}$/).required(),
+    id: Joi.string().pattern(/^B?[0-9]{1,20}$/).required(),
     name: Joi.string().pattern(/\S/).max(200).required(),
     address: Joi.string().pattern(/\S/).max(400).required(),
     zip: Joi.string().pattern(/^[0-9]{5}$/).required(),

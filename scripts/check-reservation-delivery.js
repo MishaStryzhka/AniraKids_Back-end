@@ -4,7 +4,7 @@ const {validateReservationRequestBody}=require('../build/v2/schemas/reservation.
 const {hashReservationFingerprint}=require('../build/v2/utils/idempotency');
 const {toPublicReservationResponse}=require('../build/v2/http/reservation-response');
 const {ReservationV2Model}=require('../build/v2/models/reservation-v2.model');
-const point={id:'123',name:'Praha 10',address:'Černokostelecká 2020/20, Praha',zip:'10030'};
+const point={id:'B10103',name:'Praha 10',address:'Černokostelecká 2020/20, Praha',zip:'10030'};
 const body={productId:new Types.ObjectId().toString(),variantId:new Types.ObjectId().toString(),rentalMode:'external',startDate:'2030-10-10',endDate:'2030-10-12',customer:{firstName:'Jana',lastName:'Test',email:'test@example.test',phone:'+420777123456'}};
 const delivery={...body,fulfillmentMethod:'balikovna',balikovnaPoint:point};
 assert.ok(validateReservationRequestBody(body).value);

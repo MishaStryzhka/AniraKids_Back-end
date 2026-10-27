@@ -628,7 +628,7 @@ async function main() {
   assert.equal((await request('/reservations/'+br.reservationNumber,ownerAuth)).body.reservation.items.length,2);
   assert.equal((await request('/reservations/'+br.reservationNumber,strangerAuth)).status,404);
   // Delivery is a reservation snapshot; no carrier booking or price is inferred.
-  const point={id:'123',name:'Praha 10',address:'Černokostelecká 2020/20, Praha',zip:'10030'};
+  const point={id:'B10103',name:'Praha 10',address:'Černokostelecká 2020/20, Praha',zip:'10030'};
   const deliveryDate=formatDateOnly(addCalendarDays(today,400));
   const deliveryBody={...body,startDate:deliveryDate,endDate:deliveryDate,fulfillmentMethod:'balikovna',balikovnaPoint:point};
   const deliveryKey=randomUUID();
