@@ -653,6 +653,7 @@ async function main() {
   assert.equal(basketDelivery.status,201,JSON.stringify(basketDelivery.body));
   const deliveryHistory=(await request('/account/reservations',ownerAuth)).body.items.find(x=>x.reservation.reservationNumber===basketDelivery.body.reservation.reservationNumber);
   assert.deepEqual(deliveryHistory.reservation.balikovnaPoint,point);
+  await Reservation.deleteMany({reservationNumber:{$in:[shipped.body.reservation.reservationNumber,basketDelivery.body.reservation.reservationNumber]}});
   evidence.push('Balikovna single/basket storage, guest/account/admin readback, retry safety, validation, unchanged totals and inventory protection');
   // Two baskets racing for the same pieces can create only one complete order.
   await Reservation.updateOne({_id:basketRow._id},{$set:{status:'cancelled'}});
