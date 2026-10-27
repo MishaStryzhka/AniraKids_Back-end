@@ -10,6 +10,7 @@ import type {
 } from '../types/domain';
 
 export type ReservationServiceErrorCode =
+  | 'INVALID_FULFILLMENT'
   | 'INVALID_DATE'
   | 'PAST_START_DATE'
   | 'PRODUCT_NOT_FOUND'
@@ -32,6 +33,8 @@ export class ReservationServiceError extends Error {
 }
 
 export interface CreateReservationCommand {
+  fulfillmentMethod?: import('../types/domain').FulfillmentMethod;
+  balikovnaPoint?: import('../types/domain').BalikovnaPoint;
   auditActor?: string;
   fittingDiscount?: import('./fitting-discount.service').FittingDiscountSelection;
   partner?: import('./partner-referral.service').PartnerAttribution;

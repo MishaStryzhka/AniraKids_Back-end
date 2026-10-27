@@ -37,6 +37,7 @@ export interface PublicReservationDto {
   deposit: number;
   totalDue: number;
   fulfillmentMethod?: FulfillmentMethod;
+  balikovnaPoint?: import('../types/domain').BalikovnaPoint;
   paymentStatus: PaymentStatus;
 }
 
@@ -88,6 +89,10 @@ export const toPublicReservationResponse = (
 
   if (reservation.fulfillmentMethod) {
     publicReservation.fulfillmentMethod = reservation.fulfillmentMethod;
+    if (reservation.fulfillmentMethod === 'balikovna' && reservation.balikovnaPoint) {
+      const {id, name, address, zip} = reservation.balikovnaPoint;
+      publicReservation.balikovnaPoint = {id, name, address, zip};
+    }
   }
 
   const response: PublicCreateReservationResponse = {

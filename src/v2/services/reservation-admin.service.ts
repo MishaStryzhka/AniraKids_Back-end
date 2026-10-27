@@ -337,7 +337,7 @@ export class ReservationAdminService {
   async getReservationDetail(reservationId: Types.ObjectId) {
     const reservation = await ReservationV2Model.findById(reservationId)
       .select(
-        '_id reservationNumber customerId customerSnapshot items rentalMode startDate endDate status expiresAt subtotal deposit totalDue fulfillmentMethod paymentStatus notes cancelledAt cancellationReason createdAt updatedAt partner partnerAudit paymentEntries'
+        '_id reservationNumber customerId customerSnapshot items rentalMode startDate endDate status expiresAt subtotal deposit totalDue fulfillmentMethod balikovnaPoint paymentStatus notes cancelledAt cancellationReason createdAt updatedAt partner partnerAudit paymentEntries'
       )
       .lean()
       .exec();

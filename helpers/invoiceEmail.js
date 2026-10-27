@@ -11,6 +11,13 @@ function invoiceEmail(invoice, fitting, reservation, paymentMethod) {
  const title=rentalConfirmed?'Pronájem potvrzen':confirmed?'Zkouška potvrzena':correction?'Opravný doklad':'Faktura';
  const intro=rentalConfirmed?`Platbu ${money(s.paid)} jsme přijali. Váš termín pronájmu je potvrzený.`:confirmed?`Platbu ${money(s.paid)} jsme přijali. Váš termín zkoušky je potvrzený.`:`V příloze posíláme ${correction?'opravný doklad':'fakturu'} ${invoice.number}.`;
  const details=[['Číslo rezervace',invoice.sourceNumber]];
+ if(reservation?.fulfillmentMethod==='pickup')details.push(['Převzetí','Osobní vyzvednutí']);
+ if(reservation?.fulfillmentMethod==='balikovna'){
+  const point=reservation.balikovnaPoint;
+  details.push(['Převzetí','Balíkovna']);
+  if(point)details.push(['Výdejní místo',`${point.name}, ${point.address} (PSČ Balíkovny: ${point.zip})`]);
+  details.push(['Doprava','Hradí zákazník; není zahrnuta v ceně pronájmu. Podrobnosti dle individuální domluvy.']);
+ }
  if(fitting){
   const day=new Intl.DateTimeFormat('cs-CZ',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(fitting.date+'T12:00:00Z'));
   details.push(['Termín',`${day} v ${fitting.time} (30 minut)`],['Adresa',fitting.address]);

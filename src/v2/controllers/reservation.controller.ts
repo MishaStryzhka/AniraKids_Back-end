@@ -32,6 +32,8 @@ export const createReservation: HttpHandler = async (
     productId: new Types.ObjectId(body.productId),
     variantId: new Types.ObjectId(body.variantId),
     rentalMode: body.rentalMode,
+      fulfillmentMethod: body.fulfillmentMethod,
+      balikovnaPoint: body.balikovnaPoint,
     fittingDiscount: body.fittingDiscount,
     startDate: body.startDate,
     endDate: body.endDate,

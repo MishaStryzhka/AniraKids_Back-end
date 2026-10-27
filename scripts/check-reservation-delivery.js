@@ -1,0 +1,26 @@
+const assert=require('node:assert/strict');
+const {Types}=require('mongoose');
+const {validateReservationRequestBody}=require('../build/v2/schemas/reservation.schema');
+const {hashReservationFingerprint}=require('../build/v2/utils/idempotency');
+const {toPublicReservationResponse}=require('../build/v2/http/reservation-response');
+const {ReservationV2Model}=require('../build/v2/models/reservation-v2.model');
+const point={id:'123',name:'Praha 10',address:'Černokostelecká 2020/20, Praha',zip:'10030'};
+const body={productId:new Types.ObjectId().toString(),variantId:new Types.ObjectId().toString(),rentalMode:'external',startDate:'2030-10-10',endDate:'2030-10-12',customer:{firstName:'Jana',lastName:'Test',email:'test@example.test',phone:'+420777123456'}};
+const delivery={...body,fulfillmentMethod:'balikovna',balikovnaPoint:point};
+assert.ok(validateReservationRequestBody(body).value);
+assert.ok(validateReservationRequestBody(delivery).value);
+for(const bad of [{...delivery,rentalMode:'studio'},{...delivery,balikovnaPoint:undefined},{...delivery,fulfillmentMethod:'pickup'},{...delivery,balikovnaPoint:{...point,zip:'100 30'}},{...delivery,balikovnaPoint:{...point,id:'<script>'}},{...delivery,shippingPrice:0}]) assert.ok(validateReservationRequestBody(bad).errorMessage);
+assert.equal(hashReservationFingerprint(body),hashReservationFingerprint({...body,fulfillmentMethod:'pickup'}),'legacy pickup retries remain compatible');
+assert.notEqual(hashReservationFingerprint(body),hashReservationFingerprint(delivery));
+assert.notEqual(hashReservationFingerprint(delivery),hashReservationFingerprint({...delivery,balikovnaPoint:{...point,id:'456'}}));
+const record=new ReservationV2Model({reservationNumber:'AK-2030-ABC123',rentalMode:'external',expiresAt:new Date('2030-10-09'),startDate:new Date('2030-10-10'),endDate:new Date('2030-10-12'),customerSnapshot:body.customer,items:[{productId:body.productId,variantId:body.variantId,inventoryItemId:new Types.ObjectId(),productNameSnapshot:'Test',sizeSnapshot:'98',rentalPriceSnapshot:800,depositSnapshot:2000}],subtotal:800,deposit:2000,totalDue:2800,fulfillmentMethod:'balikovna',balikovnaPoint:point});
+assert.equal(record.validateSync(),undefined);
+assert.deepEqual(record.toObject().balikovnaPoint,point);
+assert.deepEqual(toPublicReservationResponse(record.toObject()).reservation.balikovnaPoint,point);
+assert.equal(toPublicReservationResponse(record.toObject()).reservation.totalDue,2800);
+console.log('Delivery validation, schema storage, public response and retry fingerprint checks passed');
+
+const {invoiceEmail}=require('../helpers/invoiceEmail');
+const email=invoiceEmail({sourceType:'reservation',sourceNumber:'AK-2030-ABC123',number:'F1',snapshot:{paid:200,balance:600,buyer:{name:'Test',email:'test@example.test'}}},null,{status:'confirmed',fulfillmentMethod:'balikovna',balikovnaPoint:{...point,name:'<script>alert(1)</script>'}},'Převod');
+assert.ok(email.text.includes('PSČ Balíkovny: 10030'));
+assert.ok(!email.html.includes('<script>'));

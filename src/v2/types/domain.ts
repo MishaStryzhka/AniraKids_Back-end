@@ -153,7 +153,8 @@ export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
 export const PAYMENT_STATUSES = ['unpaid', 'paid', 'refunded'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
-export type FulfillmentMethod = 'pickup';
+export type FulfillmentMethod = 'pickup' | 'balikovna';
+export interface BalikovnaPoint { id: string; name: string; address: string; zip: string; }
 
 export interface ReservationItem {
   productId: Types.ObjectId;
@@ -209,6 +210,7 @@ export interface Reservation {
   deposit: MoneyAmount;
   totalDue: MoneyAmount;
   fulfillmentMethod?: FulfillmentMethod;
+  balikovnaPoint?: BalikovnaPoint;
   paymentStatus: PaymentStatus;
   notes?: string;
   cancelledAt?: Date;

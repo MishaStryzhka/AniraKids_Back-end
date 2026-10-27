@@ -45,6 +45,8 @@ export const mapReservationApiError = (
 ): MappedReservationApiError => {
   if (error instanceof ReservationServiceError) {
     switch (error.code) {
+      case 'INVALID_FULFILLMENT':
+        return mapped(400, 'VALIDATION_ERROR', 'Invalid delivery selection');
       case 'INVALID_DATE':
         return mapped(400, error.code, 'Invalid rental date');
       case 'PAST_START_DATE':

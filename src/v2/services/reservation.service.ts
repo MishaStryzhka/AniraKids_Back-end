@@ -1,3 +1,4 @@
+import {validateReservationRequestBody} from '../schemas/reservation.schema';
 import {cooperationActive} from './cooperation.service';
 import type {
   HydratedDocument,
@@ -175,6 +176,11 @@ export class ReservationService {
     options?: CreateReservationOptions
   ): Promise<CreateReservationResult> {
     const now = resolveNow(options);
+    // Validate fulfillment for internal/admin callers as well as the public API.
+    if(command.fulfillmentMethod !== undefined || command.balikovnaPoint !== undefined){
+      const checked=validateReservationRequestBody({productId:command.productId.toHexString(),variantId:command.variantId.toHexString(),rentalMode:command.rentalMode,startDate:command.startDate,endDate:command.endDate,customer:command.customer,fulfillmentMethod:command.fulfillmentMethod,balikovnaPoint:command.balikovnaPoint});
+      if(!checked.value)throw new ReservationServiceError('INVALID_FULFILLMENT','Invalid delivery selection');
+    }
 
     if (options?.idempotency) {
       const replay = await this.findIdempotentReplay(
@@ -333,7 +339,8 @@ export class ReservationService {
             deposit: totals.deposit,
             totalDue: totals.totalDue,
             fulfillmentMethod:
-              command.rentalMode === 'external' ? 'pickup' : undefined,
+              command.rentalMode === 'external' ? (command.fulfillmentMethod ?? 'pickup') : undefined,
+            balikovnaPoint: command.fulfillmentMethod === 'balikovna' ? command.balikovnaPoint : undefined,
             paymentStatus: 'unpaid',
             advanceRequired: Math.min(200, totals.subtotal),
             paymentRevision: 0,
@@ -467,7 +474,8 @@ export class ReservationService {
             items, rentalMode: command.rentalMode, startDate, endDate, status: 'pending',
             expiresAt: calculatePendingExpiresAt(now), subtotal: totals.subtotal,
             deposit: totals.deposit, totalDue: totals.totalDue,
-            fulfillmentMethod: command.rentalMode === 'external' ? 'pickup' : undefined,
+            fulfillmentMethod: command.rentalMode === 'external' ? (command.fulfillmentMethod ?? 'pickup') : undefined,
+            balikovnaPoint: command.fulfillmentMethod === 'balikovna' ? command.balikovnaPoint : undefined,
             paymentStatus: 'unpaid', advanceRequired: Math.min(200, totals.subtotal),
             paymentRevision: 0, paymentEntries: [], notes: normalizeReservationNotes(command.notes), now,
           });
