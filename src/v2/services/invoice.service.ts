@@ -21,6 +21,7 @@ export async function invoicePreview(input:any,session?:mongoose.ClientSession,a
  const total=fitting?200:source.subtotal;
  const paid=fitting?(source.paymentStatus==='paid'?200:0):summary!.rentalNet;
  const lines=fitting?[{description:'Osobní zkouška šatů',amount:200}]:source.items.map((i:any)=>({description:`Pronájem: ${i.productNameSnapshot} (${i.sizeSnapshot})`,amount:i.rentalPriceSnapshot}));
+ if(!fitting&&source.shippingPrice)lines.push({description:source.fulfillmentMethod==='balikovna_address'?'Doprava – Balíkovna na adresu':'Doprava – Balíkovna',amount:source.shippingPrice});
  if(!fitting&&source.fittingDiscount)lines.push({description:`Uplatněna sleva za zkoušku ${source.fittingDiscount.number}`,amount:-source.fittingDiscount.amount});
  if(lines.reduce((n:number,l:any)=>n+l.amount,0)!==total)throw new PaymentError('INVOICE_TOTAL_MISMATCH');
  const completion=fitting?source.audit?.filter((a:any)=>a.action==='complete').slice(-1)[0]?.at:source.partnerAudit?.filter((a:any)=>a.action==='return').slice(-1)[0]?.at;

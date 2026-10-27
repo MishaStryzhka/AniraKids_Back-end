@@ -33,8 +33,10 @@ export class ReservationServiceError extends Error {
 }
 
 export interface CreateReservationCommand {
+  deliveryTariff?: '2026-10';
   fulfillmentMethod?: import('../types/domain').FulfillmentMethod;
   balikovnaPoint?: import('../types/domain').BalikovnaPoint;
+  deliveryAddress?: import('../types/domain').DeliveryAddress;
   auditActor?: string;
   fittingDiscount?: import('./fitting-discount.service').FittingDiscountSelection;
   partner?: import('./partner-referral.service').PartnerAttribution;

@@ -177,8 +177,9 @@ export class ReservationService {
   ): Promise<CreateReservationResult> {
     const now = resolveNow(options);
     // Validate fulfillment for internal/admin callers as well as the public API.
-    if(command.fulfillmentMethod !== undefined || command.balikovnaPoint !== undefined){
-      const checked=validateReservationRequestBody({productId:command.productId.toHexString(),variantId:command.variantId.toHexString(),rentalMode:command.rentalMode,startDate:command.startDate,endDate:command.endDate,customer:command.customer,fulfillmentMethod:command.fulfillmentMethod,balikovnaPoint:command.balikovnaPoint});
+    if(command.fulfillmentMethod === 'balikovna_address' && command.deliveryTariff !== '2026-10')throw new ReservationServiceError('INVALID_FULFILLMENT','Delivery tariff required');
+    if(command.fulfillmentMethod !== undefined || command.balikovnaPoint !== undefined || command.deliveryAddress !== undefined){
+      const checked=validateReservationRequestBody({productId:command.productId.toHexString(),variantId:command.variantId.toHexString(),rentalMode:command.rentalMode,startDate:command.startDate,endDate:command.endDate,customer:command.customer,fulfillmentMethod:command.fulfillmentMethod,balikovnaPoint:command.balikovnaPoint,deliveryAddress:command.deliveryAddress,deliveryTariff:command.deliveryTariff});
       if(!checked.value)throw new ReservationServiceError('INVALID_FULFILLMENT','Invalid delivery selection');
     }
 
@@ -257,6 +258,8 @@ export class ReservationService {
       command.rentalMode
     );
     const totals = calculateReservationTotals([resolvedPricing]);
+    const shippingPrice = command.rentalMode === 'external' ? command.fulfillmentMethod === 'balikovna' ? 89 : command.fulfillmentMethod === 'balikovna_address' ? 119 : 0 : 0;
+    totals.subtotal += shippingPrice; totals.totalDue += shippingPrice;
 
     const candidateInventoryItemIds =
       await availabilityService.findAvailableInventoryItems(
@@ -340,6 +343,8 @@ export class ReservationService {
             totalDue: totals.totalDue,
             fulfillmentMethod:
               command.rentalMode === 'external' ? (command.fulfillmentMethod ?? 'pickup') : undefined,
+            shippingPrice,
+            deliveryAddress: command.fulfillmentMethod === 'balikovna_address' ? command.deliveryAddress : undefined,
             balikovnaPoint: command.fulfillmentMethod === 'balikovna' ? command.balikovnaPoint : undefined,
             paymentStatus: 'unpaid',
             advanceRequired: Math.min(200, totals.subtotal),
@@ -438,6 +443,8 @@ export class ReservationService {
     }
     if(command.partner)resolved=discountAdditionalDresses(resolved);
     const totals = calculateReservationTotals(resolved.map(item => item.pricing));
+    const shippingPrice = command.rentalMode === 'external' ? command.fulfillmentMethod === 'balikovna' ? 89 : command.fulfillmentMethod === 'balikovna_address' ? 119 : 0 : 0;
+    totals.subtotal += shippingPrice; totals.totalDue += shippingPrice;
     const guestToken = command.customerId ? undefined :
       options?.idempotency?.guestAccessToken ?? generateGuestAccessToken();
     if (!command.customerId && options?.idempotency && !options.idempotency.guestAccessToken)
@@ -475,6 +482,8 @@ export class ReservationService {
             expiresAt: calculatePendingExpiresAt(now), subtotal: totals.subtotal,
             deposit: totals.deposit, totalDue: totals.totalDue,
             fulfillmentMethod: command.rentalMode === 'external' ? (command.fulfillmentMethod ?? 'pickup') : undefined,
+            shippingPrice,
+            deliveryAddress: command.fulfillmentMethod === 'balikovna_address' ? command.deliveryAddress : undefined,
             balikovnaPoint: command.fulfillmentMethod === 'balikovna' ? command.balikovnaPoint : undefined,
             paymentStatus: 'unpaid', advanceRequired: Math.min(200, totals.subtotal),
             paymentRevision: 0, paymentEntries: [], notes: normalizeReservationNotes(command.notes), now,
