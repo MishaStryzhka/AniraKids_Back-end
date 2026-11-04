@@ -388,6 +388,7 @@ export function partnerHandler(action: string): HttpHandler {
                 }
               : {}),
             rentalMode: v.rentalMode,
+            rentalPolicyVersion: v.rentalPolicyVersion,
             startDate: v.startDate,
             endDate: v.endDate,
             customer: v.customer,

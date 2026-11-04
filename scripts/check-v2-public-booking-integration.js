@@ -236,9 +236,9 @@ async function main() {
   assert.equal((await request(`/catalogue/products/${product.slug}`)).body.product.gender, 'women');
   await Product.updateOne({ _id: product._id }, { gender: 'girls' });
   assert.equal(detail.body.product.variants.length, 1);
-  assert.deepEqual(detail.body.product.variants[0].pricing.studio, { rentalPrice: 600, deposit: 0, totalDue: 600 });
+  assert.deepEqual(detail.body.product.variants[0].pricing.studio, { rentalPrice: 600, deposit: 1200, totalDue: 1800,firstDayPrice:600,additionalDayPrice:0,rentalDays:1 });
   assert.deepEqual(detail.body.product.variants[0].pricing.external, {
-    rentalPrice: 950,
+    rentalPrice: 950,firstDayPrice:950,additionalDayPrice:200,rentalDays:1,
     deposit: 1200,
     totalDue: 2150,
   });
@@ -357,7 +357,7 @@ async function main() {
   );
   const today = parseDateOnly(getBusinessDateOnly());
   const startDate = formatDateOnly(addCalendarDays(today, 30));
-  const endDate = formatDateOnly(addCalendarDays(today, 32));
+  const endDate = startDate;
   const selection = {
     variantId: variant.id,
     rentalMode: 'external',
@@ -373,7 +373,7 @@ async function main() {
     'INVALID_DATE'
   );
   assert.equal(
-    (await quote({ startDate: formatDateOnly(addCalendarDays(today, -1)) }))
+    (await quote({ startDate: formatDateOnly(addCalendarDays(today, -1)), endDate: formatDateOnly(addCalendarDays(today, -1)) }))
       .body.error.code,
     'PAST_START_DATE'
   );
@@ -413,7 +413,7 @@ async function main() {
   assert.equal(leap.body.calendar.days[28].date, '2032-02-29');
   // Separate physical pieces can cover individual days but cannot be swapped mid-rental.
   const secondItem = await Inventory.create({variantId: variant._id, internalCode:'CALENDAR-SECOND', status:'active', condition:'good'});
-  const farEnd = formatDateOnly(addCalendarDays(parseDateOnly(startDate), 10));
+  const farEnd = formatDateOnly(addCalendarDays(parseDateOnly(startDate), 6));
   const crossingBlocks = await Block.create([
     { inventoryItemId: inventory._id, startDate: parseDateOnly(farEnd), endDate: parseDateOnly(farEnd), reason:'cleaning', createdBy:new mongoose.Types.ObjectId() },
     { inventoryItemId: secondItem._id, startDate: parseDateOnly(startDate), endDate: parseDateOnly(startDate), reason:'cleaning', createdBy:new mongoose.Types.ObjectId() }
@@ -426,11 +426,11 @@ async function main() {
   await Inventory.deleteOne({_id:secondItem._id});
   evidence.push('calendar month/leap validation, no-store/public projection, same physical piece over full range');
   const studioQuote = await quote({rentalMode:'studio'});
-  assert.deepEqual(studioQuote.body.availability.pricing, { rentalPrice:600, deposit:0, totalDue:600 });
+  assert.deepEqual(studioQuote.body.availability.pricing, { rentalPrice:600, deposit:1200, totalDue:1800,firstDayPrice:600,additionalDayPrice:0,rentalDays:1 });
   const available = await quote();
   assert.equal(available.body.availability.available, true);
   assert.deepEqual(available.body.availability.pricing, {
-    rentalPrice: 950,
+    rentalPrice: 950,firstDayPrice:950,additionalDayPrice:200,rentalDays:1,
     deposit: 1200,
     totalDue: 2150,
   });
@@ -453,6 +453,7 @@ async function main() {
     'date validation, variant ownership/status, available quote, manual block on cleaning day'
   );
   const body = {
+    rentalPolicyVersion:'2026-11',
     productId: product.id,
     ...selection,
     customer: {
@@ -590,7 +591,7 @@ async function main() {
   const basketDate = formatDateOnly(addCalendarDays(today,90));
   const basketBody = {
     items:[{productId:product.id,variantId:variant.id},{productId:basketProduct.id,variantId:basketVariant.id}],
-    rentalMode:'external',startDate:basketDate,endDate:basketDate,
+    rentalPolicyVersion:'2026-11',rentalMode:'external',startDate:basketDate,endDate:basketDate,
     customer:{...body.customer,email:'basket@example.test'},
   };
   const beforeBasket = await Reservation.countDocuments();
@@ -635,8 +636,8 @@ async function main() {
   const shipped=await post(deliveryBody,deliveryKey);
   assert.equal(shipped.status,201,JSON.stringify(shipped.body));
   assert.deepEqual(shipped.body.reservation.balikovnaPoint,point);
-  assert.equal(shipped.body.reservation.totalDue,2239);
-  assert.equal(shipped.body.reservation.shippingPrice,89);
+  assert.equal(shipped.body.reservation.totalDue,2328);
+  assert.equal(shipped.body.reservation.shippingPrice,178);
   const shippedRow=await Reservation.findOne({reservationNumber:shipped.body.reservation.reservationNumber}).lean();
   assert.deepEqual(shippedRow.balikovnaPoint,point);
   assert.deepEqual((await post(deliveryBody,deliveryKey)).body,shipped.body);
@@ -657,17 +658,17 @@ async function main() {
   const address={street:'Testovací 12',city:'Praha',zip:'19000',country:'CZ'};
   const homeBody={...body,customer:{...body.customer,email:'shipping-home@example.test'},startDate:formatDateOnly(addCalendarDays(today,420)),endDate:formatDateOnly(addCalendarDays(today,420)),deliveryTariff:'2026-10',fulfillmentMethod:'balikovna_address',deliveryAddress:address};
   const homeKey=randomUUID(),home=await post(homeBody,homeKey);
-  assert.equal(home.status,201,JSON.stringify(home.body));assert.equal(home.body.reservation.shippingPrice,119);assert.equal(home.body.reservation.totalDue,2269);
+  assert.equal(home.status,201,JSON.stringify(home.body));assert.equal(home.body.reservation.shippingPrice,238);assert.equal(home.body.reservation.totalDue,2388);
   assert.deepEqual(home.body.reservation.deliveryAddress,address);
   assert.equal((await post({...homeBody,deliveryAddress:{...address,city:'Brno'}},homeKey)).status,409);
   assert.equal((await post({...homeBody,shippingPrice:0})).status,400);
   assert.equal((await post({...homeBody,deliveryAddress:{...address,zip:'bad'}})).status,400);
   const row=await Reservation.findOne({reservationNumber:home.body.reservation.reservationNumber}).lean();
   const payments=require('../build/v2/services/payment.service').publicPaymentSummary(row);
-  assert.equal(payments.fullPaymentInstructions.amount,2269);
+  assert.equal(payments.fullPaymentInstructions.amount,2388);
   await Reservation.updateOne({_id:row._id},{$set:{status:'returned'}});
   const invoice=await require('../build/v2/services/invoice.service').invoicePreview({type:'reservation',number:row.reservationNumber,buyerName:'Test',buyerAddress:'Test'});
-  assert.equal(invoice.snapshot.lines.find(x=>x.description==='Doprava – Balíkovna na adresu').amount,119);
+  assert.equal(invoice.snapshot.lines.find(x=>x.description==='Doprava – Balíkovna na adresu').amount,238);
   assert.equal(invoice.snapshot.total,row.subtotal);
   assert.equal(invoice.snapshot.lines.reduce((n,x)=>n+x.amount,0),row.subtotal);
   await Reservation.deleteMany({reservationNumber:{$in:[shipped.body.reservation.reservationNumber,basketDelivery.body.reservation.reservationNumber,home.body.reservation.reservationNumber]}});
@@ -727,10 +728,10 @@ async function main() {
   assert.deepEqual(studioRace.map(result=>result.status).sort(),[201,409],'Concurrent studio requests cannot double-book');
   const studioWinner = studioRace.find(result=>result.status===201).body.reservation;
   const studioRow = await Reservation.findOne({reservationNumber:studioWinner.reservationNumber});
-  assert.equal(studioWinner.deposit,0);
-  assert.equal(studioWinner.totalDue,studioWinner.subtotal);
-  assert.equal(studioRow.items[0].depositSnapshot,0);
-  assert.equal(studioRow.deposit,0);
+  assert.equal(studioWinner.deposit,1200);
+  assert.equal(studioWinner.totalDue,studioWinner.subtotal+1200);
+  assert.equal(studioRow.items[0].depositSnapshot,1200);
+  assert.equal(studioRow.deposit,1200);
   const {reservationAdminService} = require('../build/v2/services/reservation-admin.service');
   const {toAdminReservationCalendarEventDto} = require('../build/v2/http/admin-response');
   await Reservation.updateOne({_id:studioRow._id},{$set:{advanceRequired:0}});
@@ -748,9 +749,9 @@ async function main() {
   await Reservation.deleteOne({_id:adjacentRow._id});
   const {inventoryAvailabilityAdminService} = require('../build/v2/services/inventory-availability-admin.service');
   const lifecycleNow = new Date(nextDate+'T12:00:00Z');
-  await Reservation.updateOne({_id:studioRow._id},{$set:{rentalMode:'external'}});
+  await Reservation.collection.updateOne({_id:studioRow._id},{$set:{rentalMode:'external',occupiedEndDate:parseDateOnly(nextDate)}});
   await assert.rejects(()=>inventoryAvailabilityAdminService.moveToMaintenance(inventory._id,{now:lifecycleNow}),{code:'INVENTORY_HAS_CURRENT_OR_FUTURE_RESERVATION'});
-  await Reservation.updateOne({_id:studioRow._id},{$set:{rentalMode:'studio'}});
+  await Reservation.collection.updateOne({_id:studioRow._id},{$set:{rentalMode:'studio',occupiedEndDate:parseDateOnly(studioDate)}});
   assert.equal((await inventoryAvailabilityAdminService.moveToMaintenance(inventory._id,{now:lifecycleNow})).status,'maintenance','Completed studio day imposes no lifecycle cleaning buffer');
   await inventoryAvailabilityAdminService.activate(inventory._id,{now:lifecycleNow});
   await Reservation.deleteOne({_id:studioRow._id});
@@ -758,10 +759,10 @@ async function main() {
   const studioBasket = {...basketBody,customer:studioCustomer,rentalMode:'studio',startDate:studioBasketDate,endDate:studioBasketDate};
   const studioBasketResult = await post(studioBasket);
   assert.equal(studioBasketResult.status,201);
-  assert.equal(studioBasketResult.body.reservation.deposit,0);
-  assert.equal(studioBasketResult.body.reservation.totalDue,studioBasketResult.body.reservation.subtotal);
-  assert.ok(studioBasketResult.body.reservation.items.every(item=>item.deposit===0));
-  evidence.push('Studio catalogue, availability, single and basket reservations omit deposit; external deposit and totals preserved');
+  assert.equal(studioBasketResult.body.reservation.deposit,2700);
+  assert.equal(studioBasketResult.body.reservation.totalDue,studioBasketResult.body.reservation.subtotal+2700);
+  assert.ok(studioBasketResult.body.reservation.items.every(item=>item.deposit>0));
+  evidence.push('Studio catalogue, availability, single and basket reservations retain configured deposit; external deposit and totals preserved');
   const nextBasketDate = formatDateOnly(addCalendarDays(today,131));
   assert.equal((await post({...studioBasket,startDate:nextBasketDate,endDate:nextBasketDate})).status,201,'Consecutive studio baskets use the same pieces without an extra blocked day');
   evidence.push('Studio manual-block safety, concurrent oversell prevention, confirmation/reconfirmation, admin occupancy/calendar, lifecycle and consecutive multi-item baskets');

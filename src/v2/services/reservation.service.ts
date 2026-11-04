@@ -1,3 +1,5 @@
+import { resolvePeriodPricing, rentalDays } from '../utils/pricing';
+import { occupiedRentalRange, roundTripShippingPrice, RENTAL_POLICY_VERSION } from '../utils/rental-policy';
 import {validateReservationRequestBody} from '../schemas/reservation.schema';
 import {cooperationActive} from './cooperation.service';
 import type {
@@ -193,18 +195,22 @@ export class ReservationService {
       }
     }
 
-    if ((command.rentalMode === 'studio' || command.partner) && !(await cooperationActive())) {
+    if ((command.partner) && !(await cooperationActive())) {
       throw new ReservationServiceError('PRODUCT_NOT_RENTABLE', 'Spolupráce se studiem zatím není aktivní.');
     }
 
+    if(command.rentalPolicyVersion !== RENTAL_POLICY_VERSION) throw new ReservationServiceError('RENTAL_POLICY_CHANGED','Refresh rental terms');
     const {
       startDate,
       endDate,
     } = parseReservationDates(command.startDate, command.endDate);
 
+    let days: number;
+    try { days=rentalDays(command.rentalMode,startDate,endDate); } catch { throw new ReservationServiceError('INVALID_DATE','Invalid rental duration'); }
+    const occupied=occupiedRentalRange(startDate,endDate,command.rentalMode,command.fulfillmentMethod);
     const businessToday = parseDateOnly(getBusinessDateOnly(now));
 
-    if (compareDateOnly(startDate, businessToday) < 0) {
+    if (compareDateOnly(occupied.occupiedStartDate, businessToday) < 0) {
       throw new ReservationServiceError(
         'PAST_START_DATE',
         'Rental startDate cannot be in the past'
@@ -252,20 +258,20 @@ export class ReservationService {
       );
     }
 
-    const resolvedPricing = resolveRentalPricing(
+    const resolvedPricing = resolvePeriodPricing(
       product,
       variant,
-      command.rentalMode
+      command.rentalMode, days
     );
     const totals = calculateReservationTotals([resolvedPricing]);
-    const shippingPrice = command.rentalMode === 'external' ? command.fulfillmentMethod === 'balikovna' ? 89 : command.fulfillmentMethod === 'balikovna_address' ? 119 : 0 : 0;
+    const shippingPrice = roundTripShippingPrice(command.rentalMode,command.fulfillmentMethod);
     totals.subtotal += shippingPrice; totals.totalDue += shippingPrice;
 
     const candidateInventoryItemIds =
       await availabilityService.findAvailableInventoryItems(
         variant._id,
-        startDate,
-        endDate,
+        occupied.occupiedStartDate,
+        occupied.occupiedEndDate,
         {
           now,
         }
@@ -343,7 +349,7 @@ export class ReservationService {
             totalDue: totals.totalDue,
             fulfillmentMethod:
               command.rentalMode === 'external' ? (command.fulfillmentMethod ?? 'pickup') : undefined,
-            shippingPrice,
+            shippingPrice, rentalPolicyVersion: RENTAL_POLICY_VERSION, ...occupied,
             deliveryAddress: command.fulfillmentMethod === 'balikovna_address' ? command.deliveryAddress : undefined,
             balikovnaPoint: command.fulfillmentMethod === 'balikovna' ? command.balikovnaPoint : undefined,
             paymentStatus: 'unpaid',
@@ -427,6 +433,8 @@ export class ReservationService {
     now: Date, options?: CreateReservationOptions
   ): Promise<CreateReservationResult> {
     if (!command.items?.length || command.items.length > 20) throw new TypeError('Invalid reservation items');
+    const days=rentalDays(command.rentalMode,startDate,endDate);
+    const occupied=occupiedRentalRange(startDate,endDate,command.rentalMode,command.fulfillmentMethod);
     let resolved = [];
     for (const selection of command.items) {
       const product = await ProductV2Model.findById(selection.productId).exec();
@@ -439,11 +447,11 @@ export class ReservationService {
         throw new ReservationServiceError('VARIANT_NOT_ACTIVE', 'Variant is not active');
       if (!variant.productId.equals(product._id))
         throw new ReservationServiceError('VARIANT_PRODUCT_MISMATCH', 'Variant does not belong to product');
-      resolved.push({ product, variant, pricing: resolveRentalPricing(product, variant, command.rentalMode) });
+      resolved.push({ product, variant, pricing: resolvePeriodPricing(product, variant, command.rentalMode, days) });
     }
     if(command.partner)resolved=discountAdditionalDresses(resolved);
     const totals = calculateReservationTotals(resolved.map(item => item.pricing));
-    const shippingPrice = command.rentalMode === 'external' ? command.fulfillmentMethod === 'balikovna' ? 89 : command.fulfillmentMethod === 'balikovna_address' ? 119 : 0 : 0;
+    const shippingPrice = roundTripShippingPrice(command.rentalMode,command.fulfillmentMethod);
     totals.subtotal += shippingPrice; totals.totalDue += shippingPrice;
     const guestToken = command.customerId ? undefined :
       options?.idempotency?.guestAccessToken ?? generateGuestAccessToken();
@@ -455,7 +463,7 @@ export class ReservationService {
       const used = new Set<string>();
       const items: Reservation['items'] = [];
       for (const { product, variant, pricing } of resolved) {
-        const candidates = await availabilityService.findAvailableInventoryItems(variant._id, startDate, endDate, { now });
+        const candidates = await availabilityService.findAvailableInventoryItems(variant._id, occupied.occupiedStartDate, occupied.occupiedEndDate, { now });
         const inventoryItemId = candidates.sort((a, b) => objectIdKey(a).localeCompare(objectIdKey(b)))
           .find(id => !used.has(objectIdKey(id)));
         if (!inventoryItemId)
@@ -482,7 +490,7 @@ export class ReservationService {
             expiresAt: calculatePendingExpiresAt(now), subtotal: totals.subtotal,
             deposit: totals.deposit, totalDue: totals.totalDue,
             fulfillmentMethod: command.rentalMode === 'external' ? (command.fulfillmentMethod ?? 'pickup') : undefined,
-            shippingPrice,
+            shippingPrice, rentalPolicyVersion: RENTAL_POLICY_VERSION, ...occupied,
             deliveryAddress: command.fulfillmentMethod === 'balikovna_address' ? command.deliveryAddress : undefined,
             balikovnaPoint: command.fulfillmentMethod === 'balikovna' ? command.balikovnaPoint : undefined,
             paymentStatus: 'unpaid', advanceRequired: Math.min(200, totals.subtotal),

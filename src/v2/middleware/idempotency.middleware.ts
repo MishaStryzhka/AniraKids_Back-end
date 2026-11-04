@@ -110,7 +110,7 @@ export const resolveReservationIdempotency: HttpHandler = async (
       productId: body.productId,
       variantId: body.variantId,
       rentalMode: body.rentalMode,
-      deliveryTariff:body.deliveryTariff,
+      rentalPolicyVersion:body.rentalPolicyVersion,deliveryTariff:body.deliveryTariff,
       fulfillmentMethod: body.fulfillmentMethod,
       balikovnaPoint: body.balikovnaPoint,
       deliveryAddress: body.deliveryAddress,

@@ -61,6 +61,7 @@ export interface CatalogueProductCreateInput {
     studio?: number;
     external?: number;
   };
+  additionalDayPrice?: number;
   defaultSalePrice?: number;
   defaultDeposit?: number;
   seo?: {
@@ -86,6 +87,7 @@ export interface CatalogueProductUpdateInput {
     studio?: number | null;
     external?: number | null;
   };
+  additionalDayPrice?: number;
   defaultSalePrice?: number | null;
   defaultDeposit?: number;
   seo?: {

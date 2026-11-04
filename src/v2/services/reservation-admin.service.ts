@@ -1,3 +1,4 @@
+import {occupiedOverlapExpression} from './availability.service';
 import { paymentSummary } from './payment.service';
 import {
   Types,
@@ -215,13 +216,7 @@ export const buildReservationAdminCalendarFilter = (
   to: Date,
   now: Date
 ): FilterQuery<Reservation> => ({
-  startDate: {
-    $lte: to,
-  },
-  endDate: {
-    $gte: getReservationEndConflictThreshold(from),
-  },
-  $nor: [{ rentalMode: 'studio', endDate: { $lt: from } }],
+  $expr: occupiedOverlapExpression(from,to),
   $or: [
     {
       status: {
@@ -337,7 +332,7 @@ export class ReservationAdminService {
   async getReservationDetail(reservationId: Types.ObjectId) {
     const reservation = await ReservationV2Model.findById(reservationId)
       .select(
-        '_id reservationNumber customerId customerSnapshot items rentalMode startDate endDate status expiresAt subtotal deposit totalDue fulfillmentMethod balikovnaPoint deliveryAddress shippingPrice paymentStatus notes cancelledAt cancellationReason createdAt updatedAt partner partnerAudit paymentEntries'
+        '_id reservationNumber customerId customerSnapshot items rentalMode startDate endDate status expiresAt subtotal deposit totalDue fulfillmentMethod balikovnaPoint deliveryAddress shippingPrice rentalPolicyVersion occupiedStartDate occupiedEndDate paymentStatus notes cancelledAt cancellationReason createdAt updatedAt partner partnerAudit paymentEntries'
       )
       .lean()
       .exec();
@@ -581,14 +576,14 @@ export class ReservationAdminService {
             session
           );
 
-          const occupiedEnd = getReservationOccupiedThrough(
+          const occupiedEnd = reservation.occupiedEndDate ?? getReservationOccupiedThrough(
             reservation.endDate,
             reservation.rentalMode
           );
 
           const blockedIds = await findBlockedInventoryItemIds(
             inventoryItemIds,
-            reservation.startDate,
+            reservation.occupiedStartDate ?? reservation.startDate,
             occupiedEnd,
             now,
             {
@@ -662,7 +657,7 @@ export class ReservationAdminService {
 
     const items = await ReservationV2Model.find(filter)
       .select(
-        '_id reservationNumber status rentalMode startDate endDate expiresAt customerSnapshot items'
+        '_id reservationNumber status rentalMode startDate endDate occupiedStartDate occupiedEndDate expiresAt customerSnapshot items'
       )
       .sort({
         startDate: 1,

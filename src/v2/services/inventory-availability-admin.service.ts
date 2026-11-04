@@ -1,3 +1,4 @@
+import {occupiedEndExpression} from './availability.service';
 import {
   Types,
   type ClientSession,
@@ -170,10 +171,7 @@ const hasBlockingReservationForLifecycle = async (
 
   const reservation = await ReservationV2Model.findOne({
     'items.inventoryItemId': inventoryItemId,
-    $nor: [{ rentalMode: 'studio', endDate: { $lt: parseDateOnly(getBusinessDateOnly(now)) } }],
-    endDate: {
-      $gte: threshold,
-    },
+    $expr: {$gte:[occupiedEndExpression,parseDateOnly(getBusinessDateOnly(now))]},
     $or: [
       {
         status: {

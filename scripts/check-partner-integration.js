@@ -161,6 +161,7 @@ module.exports = async function ({ request, models }) {
       .toISOString()
       .slice(0, 10);
     const body = {
+      rentalPolicyVersion:'2026-11',
       items: [
         { productId: String(p._id), variantId: String(v._id) },
         { productId: String(p._id), variantId: String(v._id) },
@@ -179,7 +180,7 @@ module.exports = async function ({ request, models }) {
     const created = await call('/partner/create-reservation', 2, body, key);
     assert.equal(created.status, 201, JSON.stringify(created.body));
     assert.equal(created.body.subtotal, 1080);
-    assert.equal(created.body.deposit, 0);
+    assert.equal(created.body.deposit, 2000);
     assert.equal(
       (await call('/partner/create-reservation', 2, body, key)).status,
       200
@@ -270,7 +271,9 @@ module.exports = async function ({ request, models }) {
       ).status,
       200
     );
-    for(const role of [0,1,2])assert.equal((await call('/partner/reservations?month='+month,role)).body.items.find(item=>item.id===String(r._id)).paymentStatus,'paid');
+    for(const role of [0,1,2])assert.equal((await call('/partner/reservations?month='+month,role)).body.items.find(item=>item.id===String(r._id)).paymentStatus,'unpaid'); // Rental paid; configured deposit is still outstanding.
+    const depositCash={operationId:randomUUID(),expectedRevision:1,type:'deposit_received',amount:2000,method:'cash'};
+    assert.equal((await call('/partner/reservations/'+r._id,1,{action:'payment',payment:depositCash})).status,200);
     const {InvoiceModel}=require('../build/v2/models/invoice.model');
     const partnerInvoice=await InvoiceModel.findOne({sourceKey:'reservation:'+r._id}).lean();
     assert.equal(partnerInvoice.email.status,'pending');
@@ -286,7 +289,7 @@ module.exports = async function ({ request, models }) {
     const combined=mailFixture.messages.filter(m=>m.subject.includes(partnerInvoice.number));
     assert.equal(combined.length,1);assert.match(combined[0].subject,/Pronájem potvrzen · Faktura/);
     const audited = await models.ReservationV2Model.findById(r._id).lean();
-    assert.deepEqual(audited.partnerAudit.map(e=>e.action), ['created','rental_received','invoice_issued','confirm','prepare','rent','return']);
+    assert.deepEqual(audited.partnerAudit.map(e=>e.action), ['created','rental_received','invoice_issued','deposit_received','confirm','prepare','rent','return']);
     for (const entry of audited.partnerAudit) {
       assert.ok(entry.at instanceof Date && Number.isFinite(entry.at.getTime()));
       assert.equal(entry.by, (['prepare','return'].includes(entry.action)?'owner:'+ids[0]:'partner:'+ids[entry.action==='created'?2:1]));
@@ -294,6 +297,7 @@ module.exports = async function ({ request, models }) {
     assert.equal(audited.partnerAudit[1].operationId, cash.operationId);
     assert.equal(audited.partnerAudit[1].amount,1080);
     assert.equal(audited.partnerAudit[1].method,'cash');
+    assert.equal((await call('/partner/reservations/'+r._id,1,{action:'payment',payment:{operationId:randomUUID(),expectedRevision:2,type:'deposit_refunded',amount:2000,method:'cash',note:'Vrácení kauce po vrácení oblečení'}})).status,200);
     const notes = () => request('/admin/reservations/'+r._id+'/notes', {method:'PATCH',headers:{Authorization:'Bearer '+tokens[0],'Content-Type':'application/json'},body:JSON.stringify({notes:'Audit fixture note'})});
     assert.equal((await notes()).status,200);
     assert.equal((await notes()).status,200);

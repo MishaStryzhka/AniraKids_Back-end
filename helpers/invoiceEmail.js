@@ -19,6 +19,7 @@ function invoiceEmail(invoice, fitting, reservation, paymentMethod) {
   if(point)details.push(['Výdejní místo',`${point.name}, ${point.address} (PSČ Balíkovny: ${point.zip})`]);
   details.push(['Doprava',reservation.shippingPrice === undefined ? 'Dle individuální domluvy.' : `${reservation.shippingPrice} Kč (zahrnuto v celkové částce)`]);
  }
+ if(reservation?.rentalPolicyVersion==='2026-11'&&reservation?.shippingPrice)details.push(['Zpětné odeslání','Zahrnuto v ceně dopravy. Štítek pro vrácení najdete v balíčku.']);
  if(fitting){
   const day=new Intl.DateTimeFormat('cs-CZ',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(fitting.date+'T12:00:00Z'));
   details.push(['Termín',`${day} v ${fitting.time} (30 minut)`],['Adresa',fitting.address]);

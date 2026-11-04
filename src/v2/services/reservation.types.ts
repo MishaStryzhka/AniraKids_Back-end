@@ -10,6 +10,7 @@ import type {
 } from '../types/domain';
 
 export type ReservationServiceErrorCode =
+  | 'RENTAL_POLICY_CHANGED'
   | 'INVALID_FULFILLMENT'
   | 'INVALID_DATE'
   | 'PAST_START_DATE'
@@ -33,6 +34,7 @@ export class ReservationServiceError extends Error {
 }
 
 export interface CreateReservationCommand {
+  rentalPolicyVersion?: '2026-11';
   deliveryTariff?: '2026-10';
   fulfillmentMethod?: import('../types/domain').FulfillmentMethod;
   balikovnaPoint?: import('../types/domain').BalikovnaPoint;

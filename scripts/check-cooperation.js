@@ -17,9 +17,8 @@ const {fittingEmail}=require('../helpers/fittingEmail');
   assert.equal(await cooperationActive(),false);
   assert.deepEqual(await fittingLocation(),{address:'Kytlická 862/2, Praha',placeName:'ANIRAK'});
   assert.equal(await resolveBookingPartner(),undefined);
-  await assert.rejects(reservationService.createReservation({rentalMode:'studio'}),e=>e.code==='PRODUCT_NOT_RENTABLE');
+  await assert.rejects(reservationService.createReservation({rentalMode:'studio'}),e=>e.code==='RENTAL_POLICY_CHANGED');
   await assert.rejects(reservationService.createReservation({rentalMode:'external',partner:{partnerId:'blaze'}}),e=>e.code==='PRODUCT_NOT_RENTABLE');
-  await assert.rejects(new PublicCatalogueService().calendar('id',{rentalMode:'studio',month:'2030-01'}),e=>e.code==='RENTAL_MODE_UNAVAILABLE');
   active=true;
   assert.deepEqual(await fittingLocation(),{address:'Plzeňská 782/112, 150 00 Praha',placeName:'Blaze Photostudio'});
   assert.deepEqual(await resolveBookingPartner(),{partnerId:'blaze',source:'anirak',version:1});
@@ -29,6 +28,6 @@ const {fittingEmail}=require('../helpers/fittingEmail');
   const local={...existing,...await fittingLocation()};
   assert.ok(fittingEmail(local,'confirmed').text.includes('Místo: ANIRAK'));
   assert.ok(!fittingEmail(local,'confirmed').text.includes('Plzeňská'));
-  console.log('PASS: inactive cooperation blocks studio/new partner bookings, switches address and referrals, preserves existing email snapshots');
+  console.log('PASS: inactive cooperation blocks new partner bookings, photoshoot uses versioned rental terms, switches address and referrals, preserves existing email snapshots');
  }finally{PartnerModel.exists=exists;}
 })().catch(e=>{console.error(e);process.exitCode=1;});

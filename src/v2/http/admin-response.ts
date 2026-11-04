@@ -78,6 +78,7 @@ export const toAdminProductDto = (input: unknown) => {
       'saleEnabled',
       'rentalPrices',
       'defaultSalePrice',
+      'additionalDayPrice',
       'defaultDeposit',
       'photos',
       'status',
@@ -379,7 +380,7 @@ export const toAdminReservationCalendarEventDto = (
 
   const customer = toPlainObject(source.customerSnapshot);
   const items = Array.isArray(source.items) ? source.items : [];
-  const occupiedThrough = getReservationOccupiedThrough(
+  const occupiedThrough = source.occupiedEndDate instanceof Date ? source.occupiedEndDate : getReservationOccupiedThrough(
     source.endDate, source.rentalMode === 'studio' ? 'studio' : 'external'
   );
 
@@ -391,6 +392,7 @@ export const toAdminReservationCalendarEventDto = (
     startDate: formatDateOnly(source.startDate),
     endDate: formatDateOnly(source.endDate),
     occupiedThrough: formatDateOnly(occupiedThrough),
+    occupiedFrom: formatDateOnly(source.occupiedStartDate instanceof Date ? source.occupiedStartDate : source.startDate),
     customerName: [customer.firstName, customer.lastName]
       .filter(value => typeof value === 'string' && value.length > 0)
       .join(' '),

@@ -34,6 +34,7 @@ export interface PublicReservationDto {
   item: PublicReservationItemDto;
   items: PublicReservationItemDto[];
   shippingPrice?: number;
+  rentalPolicyVersion?: '2026-11';
   subtotal: number;
   deposit: number;
   totalDue: number;
@@ -83,6 +84,7 @@ export const toPublicReservationResponse = (
     })),
     ...(reservation.fittingDiscount?{fittingDiscount:{number:reservation.fittingDiscount.number,amount:reservation.fittingDiscount.amount}}:{}),
     shippingPrice: reservation.shippingPrice ?? 0,
+    rentalPolicyVersion: reservation.rentalPolicyVersion,
     ...(reservation.deliveryAddress ? {deliveryAddress: reservation.deliveryAddress} : {}),
     subtotal: reservation.subtotal,
     deposit: reservation.deposit,

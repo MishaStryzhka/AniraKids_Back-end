@@ -1,3 +1,5 @@
+import {occupiedRentalRange} from '../utils/rental-policy';
+import type {FulfillmentMethod} from '../types/domain';
 import type {
   ClientSession,
   FilterQuery,
@@ -75,6 +77,14 @@ export interface FindBlockedInventoryItemOptions {
   excludeReservationId?: Types.ObjectId;
 }
 
+export const occupiedEndExpression = { $ifNull: ['$occupiedEndDate', { $add: ['$endDate', {
+  $cond: [{ $eq: ['$rentalMode', 'studio'] }, 0, 86400000]
+}] }] };
+export const occupiedOverlapExpression = (from:Date,to:Date) => ({$and:[
+  {$lte:[{$ifNull:['$occupiedStartDate','$startDate']},to]},
+  {$gte:[occupiedEndExpression,from]},
+]});
+
 const buildBlockingReservationQuery = (
   inventoryItemIds: readonly Types.ObjectId[],
   requestedStartDate: Date,
@@ -86,12 +96,7 @@ const buildBlockingReservationQuery = (
   ...(excludeReservationId === undefined
     ? {}
     : { _id: { $ne: excludeReservationId } }),
-  startDate: { $lte: requestedEndDate },
-  endDate: {
-    $gte: getReservationEndConflictThreshold(requestedStartDate),
-  },
-  // Keep the indexed broad range, excluding the nonexistent studio cleaning day.
-  $nor: [{ rentalMode: 'studio', endDate: { $lt: requestedStartDate } }],
+  $expr: occupiedOverlapExpression(requestedStartDate, requestedEndDate),
   $or: [
     {
       status: {
@@ -229,29 +234,32 @@ export class AvailabilityService {
   /** One bounded month; each end date must fit a single physical item. */
   async getVariantCalendar(
     variantId: Types.ObjectId, from: Date, to: Date, today: string,
-    selectedStart: Date | undefined, now: Date, rentalMode: RentalMode = 'external'
+    selectedStart: Date | undefined, now: Date, rentalMode: RentalMode = 'external', fulfillmentMethod?: FulfillmentMethod
   ): Promise<Array<{ date: string; available: boolean }>> {
     assertAvailabilityRange(from, to);
     const items = await InventoryItemV2Model.find({ variantId, status: 'active' })
       .select('_id').exec();
     const ids = items.map(item => item._id);
     const earliest = selectedStart && selectedStart < from ? selectedStart : from;
-    const last = addCalendarDays(to, getCleaningBufferDays(rentalMode));
+    const broadRange = occupiedRentalRange(earliest, to, rentalMode, fulfillmentMethod);
+    const first = broadRange.occupiedStartDate;
+    const last = broadRange.occupiedEndDate;
     const [reservations, blocks] = ids.length ? await Promise.all([
-      ReservationV2Model.find(buildBlockingReservationQuery(ids, earliest, last, now))
-        .select('startDate endDate rentalMode items.inventoryItemId').exec(),
-      AvailabilityBlockV2Model.find(buildAvailabilityBlockQuery(ids, earliest, last))
+      ReservationV2Model.find(buildBlockingReservationQuery(ids, first, last, now))
+        .select('startDate endDate occupiedStartDate occupiedEndDate rentalMode items.inventoryItemId').exec(),
+      AvailabilityBlockV2Model.find(buildAvailabilityBlockQuery(ids, first, last))
         .select('startDate endDate inventoryItemId').exec(),
     ]) : [[], []];
     const result: Array<{ date: string; available: boolean }> = [];
     for (let day = from; day <= to; day = addCalendarDays(day, 1)) {
       const date = formatDateOnly(day);
-      const start = selectedStart ?? day;
-      const end = addCalendarDays(day, getCleaningBufferDays(rentalMode));
-      const available = date >= today && start <= day && items.some(item =>
+      const rentalStart = selectedStart ?? day;
+      const count = (day.getTime()-rentalStart.getTime())/86400000+1;
+      const {occupiedStartDate:start,occupiedEndDate:end} = occupiedRentalRange(rentalStart,day,rentalMode,fulfillmentMethod);
+      const available = formatDateOnly(start) >= today && count >= 1 && count <= (rentalMode==='studio'?1:7) && items.some(item =>
         !reservations.some(reservation =>
           reservation.items.some(held => held.inventoryItemId.equals(item._id)) &&
-          reservationConflictsWithRequestedRange(reservation.startDate, reservation.endDate, start, end, reservation.rentalMode)
+          reservationConflictsWithRequestedRange(reservation.occupiedStartDate ?? reservation.startDate, reservation.occupiedEndDate ?? reservation.endDate, start, end, reservation.occupiedEndDate ? 'studio' : reservation.rentalMode)
         ) && !blocks.some(block =>
           block.inventoryItemId.equals(item._id) &&
           availabilityBlockConflictsWithRequestedRange(block.startDate, block.endDate, start, end)
