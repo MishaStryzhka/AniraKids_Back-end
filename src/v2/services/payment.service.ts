@@ -71,7 +71,7 @@ export const publicPaymentSummary = (r: Reservation) => {
   if (r.advanceRequired === undefined) return null;
   const s = paymentSummary(r);
   const pendingPayable = r.status === 'pending' && r.expiresAt instanceof Date && r.expiresAt.getTime() > Date.now();
-  const payable = !s.legacyUnreconciled && (pendingPayable || r.status === 'confirmed' || r.status === 'prepared');
+  const payable = !r.revolutActiveAttempt && !r.revolutAttempts?.some(a=>a.reviewRequired) && !s.legacyUnreconciled && (pendingPayable || r.status === 'confirmed' || r.status === 'prepared');
   const message = r.reservationNumber;
   const instructions = (amount: number, allowed: boolean) =>
     allowed && amount > 0 && isValidCzechIban(BOOKING_POLICY.bank.iban)
@@ -83,12 +83,14 @@ export const publicPaymentSummary = (r: Reservation) => {
   const fullPaymentInstructions = instructions(s.rentalBalance + Math.max(0, s.depositRequired - s.depositHeld), payable);
   return { advanceRequired: s.advanceRequired, advanceBalance: s.advanceBalance,
     rentalBalance: s.rentalBalance, depositRequired: s.depositRequired, depositHeld: s.depositHeld,
+    cardPayment: {active: Boolean(r.revolutActiveAttempt), reviewRequired: Boolean(r.revolutAttempts?.some(a=>a.reviewRequired)), kind:r.revolutAttempts?.find(a=>a.id===r.revolutActiveAttempt)?.kind ?? null},
     paymentReport: s.paymentReport, lastPayment: s.lastPayment,
     paymentInstructions, fullPaymentInstructions };
 };
 
 export const validatePaymentChange = (r: Reservation, input: PaymentInput): void => {
   const s = paymentSummary(r);
+  if (r.revolutActiveAttempt) throw new PaymentError('REVOLUT_PAYMENT_ACTIVE');
   if (s.legacyUnreconciled) throw new PaymentError('PAYMENT_LEGACY_RECONCILIATION_REQUIRED');
   if ((r.paymentEntries?.length ?? 0) >= 500) throw new PaymentError('PAYMENT_LIMIT_EXCEEDED');
   const fee = input.type.startsWith('cancellation_');
@@ -136,7 +138,7 @@ export const recordPayment = async (id: Types.ObjectId, input: PaymentInput, act
     ? 'refunded' : next.rentalNet >= r.subtotal && (next.depositHeld >= r.deposit || r.status === 'returned') && r.status !== 'cancelled' ? 'paid' : 'unpaid';
   // One atomic document write: audit, balances/status, revision and idempotency cannot split.
   const updated = await ReservationV2Model.findOneAndUpdate({
-    _id: id, status: r.status, paymentStatus: r.paymentStatus,
+    _id: id, status: r.status, paymentStatus: r.paymentStatus, revolutActiveAttempt: {$exists:false},
     ...(fittingCreditId ? {fittingCreditId: {$exists:false}, ...(r.status === 'pending' ? {expiresAt: {$gt: new Date()}} : {})} : {}),
     ...(r.paymentRevision === undefined ? { paymentRevision: { $exists: false } } : { paymentRevision: expectedRevision }),
     'paymentEntries.operationId': { $ne: input.operationId },

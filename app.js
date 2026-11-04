@@ -39,7 +39,9 @@ app.use((req, res, next) => {
 
 // Close retired routes before authentication, uploads or database access.
 app.use(retiredMarketplace);
-app.use(express.json());
+app.use(express.json({ verify: (req, _res, buffer) => {
+  if (req.path === '/api/v2/payments/revolut/webhook') req.rawBody = Buffer.from(buffer);
+} }));
 
 // **********************************************************************
 

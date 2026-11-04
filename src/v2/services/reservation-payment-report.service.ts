@@ -32,6 +32,7 @@ export async function reportReservationPayment(
       throw new PaymentError('PAYMENT_IDEMPOTENCY_CONFLICT');
     return r;
   }
+  if(r.revolutActiveAttempt)throw new PaymentError('REVOLUT_PAYMENT_ACTIVE');
   const summary = paymentSummary(r);
   if (summary.paymentReport?.status === 'pending' && summary.paymentReport.kind !== 'cash')
     throw new PaymentError('PAYMENT_REPORT_PENDING');
@@ -49,7 +50,7 @@ export async function reportReservationPayment(
     rentalReceivedBefore:summary.rentalReceived, depositReceivedBefore:summary.depositReceived,
   };
   const updated = await ReservationV2Model.findOneAndUpdate({
-    ...filter, _id:r._id, status:r.status,
+    ...filter, _id:r._id, status:r.status, revolutActiveAttempt:{$exists:false},
     ...(r.status === 'pending' ? {expiresAt:{$gt:now}} : {}),
     ...(r.paymentRevision === undefined ? {paymentRevision:{$exists:false}} : {paymentRevision:r.paymentRevision}),
   }, {

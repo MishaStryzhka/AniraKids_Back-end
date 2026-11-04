@@ -7,6 +7,7 @@ on:
     paths:
       - src/v2/**
       - scripts/check-v2-payments-integration.js
+      - scripts/check-revolut-integration.js
       - .github/workflows/payment-ledger-verify.yml
 permissions:
   contents: read
@@ -58,6 +59,7 @@ jobs:
         run: |
           mkdir -p test-evidence
           set -o pipefail
+          node scripts/check-revolut-integration.js
           node scripts/check-rental-policy-integration.js
           node scripts/check-v2-public-booking-integration.js | tee test-evidence/public-booking.log
           node scripts/check-v2-payments-integration.js | tee test-evidence/payment-ledger.log

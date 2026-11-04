@@ -1,3 +1,4 @@
+import {revolutConfig,revolutWebhook,requireRevolutSignature} from '../controllers/revolut.controller';
 import {authorizeBillingCron,partnerBillingCron} from '../controllers/partner-billing.controller';
 import {fittingHandler} from '../controllers/fitting.controller';
 import {partnerHandler} from '../controllers/partner.controller';
@@ -36,6 +37,8 @@ export const createV2Router = (
   const router = express.Router();
 
   router.get('/health', getHealth);
+  router.get('/payments/revolut/config',revolutConfig);
+  router.post('/payments/revolut/webhook',requireRevolutSignature,dependencies.ensureMongoConnection,revolutWebhook);
   router.get('/partner-billing/cron',authorizeBillingCron,dependencies.ensureMongoConnection,partnerBillingCron);
   router.get('/partner-policy',dependencies.ensureMongoConnection,async(_req,res,next)=>{try{res.setHeader?.('Cache-Control','no-store');return res.status(200).json({additionalDressDiscount:await PartnerModel.exists({_id:'blaze',enabled:true,cooperationActive:true})?20:0});}catch(e){return next(e);}});
   router.get('/referrals/:code',dependencies.ensureMongoConnection,partnerHandler('referral'));
