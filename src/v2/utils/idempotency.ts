@@ -30,6 +30,7 @@ export class IdempotencyConfigurationError extends Error {
 }
 
 export interface ReservationFingerprintInput {
+  rentalPolicyVersion?: '2026-11';
   deliveryTariff?: '2026-10';
   fulfillmentMethod?: import('../types/domain').FulfillmentMethod;
   balikovnaPoint?: import('../types/domain').BalikovnaPoint;
@@ -98,6 +99,7 @@ export const normalizeReservationFingerprint = (
       phone: customer.phone,
     },
     notes,
+    ...(input.rentalPolicyVersion ? {rentalPolicyVersion:input.rentalPolicyVersion}:{}),
     ...(input.deliveryTariff ? {deliveryTariff:input.deliveryTariff}:{}),
     ...(input.fulfillmentMethod === 'balikovna_address' ? {fulfillmentMethod:'balikovna_address',deliveryAddress:input.deliveryAddress} : {}),
     ...(input.fulfillmentMethod === 'balikovna' ? { fulfillmentMethod: 'balikovna', balikovnaPoint: {

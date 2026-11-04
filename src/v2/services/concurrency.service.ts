@@ -157,7 +157,7 @@ export const createReservationAtomically = async (
 
   const now = resolveNow(input.now);
   const inventoryItemIds = input.items.map(item => item.inventoryItemId);
-  const requestedOccupiedEnd = addCalendarDays(
+  const requestedOccupiedEnd = input.occupiedEndDate ?? addCalendarDays(
     input.endDate,
     getCleaningBufferDays(input.rentalMode)
   );
@@ -177,7 +177,7 @@ export const createReservationAtomically = async (
 
         await assertInventoryItemsAvailable(
           lockedIds,
-          input.startDate,
+          input.occupiedStartDate ?? input.startDate,
           requestedOccupiedEnd,
           now,
           session

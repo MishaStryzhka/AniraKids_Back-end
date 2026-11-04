@@ -45,6 +45,8 @@ export const mapReservationApiError = (
 ): MappedReservationApiError => {
   if (error instanceof ReservationServiceError) {
     switch (error.code) {
+      case 'RENTAL_POLICY_CHANGED':
+        return mapped(409,error.code,'Obnovte stránku pro aktuální podmínky pronájmu.');
       case 'INVALID_FULFILLMENT':
         return mapped(400, 'VALIDATION_ERROR', 'Invalid delivery selection');
       case 'INVALID_DATE':

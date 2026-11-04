@@ -135,6 +135,7 @@ jobs:
           node scripts/check-favorites-integration.js
           node scripts/check-seznam-registration-integration.js
           node scripts/check-google-registration-integration.js
+          node scripts/check-rental-policy-integration.js
           node scripts/check-v2-public-booking-integration.js | tee test-evidence/public-booking.log
           git rev-parse HEAD > test-evidence/commit.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

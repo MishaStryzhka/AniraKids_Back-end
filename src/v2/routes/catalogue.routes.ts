@@ -41,6 +41,7 @@ const availabilitySchema = Joi.object({
     .pattern(/^[a-f\d]{24}$/i)
     .required(),
   rentalMode: Joi.string().valid('studio', 'external').required(),
+  fulfillmentMethod: Joi.string().valid('pickup', 'balikovna', 'balikovna_address'),
   startDate: Joi.string()
     .pattern(/^\d{4}-\d{2}-\d{2}$/)
     .required(),
@@ -75,6 +76,7 @@ export const parseCalendarQuery = (input: unknown): PublicCalendarQuery => {
   const { value, error } = Joi.object({
     variantId: Joi.string().pattern(/^[a-f\d]{24}$/i).required(),
     rentalMode: Joi.string().valid('studio', 'external').required(),
+  fulfillmentMethod: Joi.string().valid('pickup', 'balikovna', 'balikovna_address'),
     month: Joi.string().pattern(/^\d{4}-\d{2}$/).required(),
     startDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
   }).unknown(false).validate(input ?? {}, { convert: false });

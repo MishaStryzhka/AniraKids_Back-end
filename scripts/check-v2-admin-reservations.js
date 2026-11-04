@@ -296,8 +296,8 @@ const checkDateFilters = () => {
   );
 
   assertEqual(
-    calendar.endDate.$gte.toISOString(),
-    '2026-10-09T00:00:00.000Z',
+    calendar.$expr.$and[1].$gte[1].toISOString(),
+    '2026-10-10T00:00:00.000Z',
     'calendar includes cleaning-buffer overlap'
   );
 };

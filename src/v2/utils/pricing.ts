@@ -10,7 +10,7 @@ import { isMoneyAmount } from '../models/validation';
 
 type RentalPricingProduct = Pick<
   ProductV2,
-  'rentalEnabled' | 'rentalPrices' | 'defaultDeposit'
+  'rentalEnabled' | 'rentalPrices' | 'defaultDeposit' | 'additionalDayPrice'
 >;
 
 type RentalPricingVariant = Pick<
@@ -109,4 +109,22 @@ export function discountAdditionalDresses<T extends {product:{category?:string};
  const dresses=items.map((item,index)=>({item,index})).filter(({item})=>item.product.category==='dress');
  const full=dresses.reduce((best,current)=>!best||current.item.pricing.rentalPrice>best.item.pricing.rentalPrice?current:best,undefined as typeof dresses[number]|undefined)?.index;
  return items.map((item,index)=>item.product.category==='dress'&&index!==full?{...item,pricing:{...item.pricing,rentalPrice:Math.round(item.pricing.rentalPrice*.8)}}:item);
+}
+
+/** Inclusive customer use days. Transport and cleaning never increase rent. */
+export function rentalDays(mode: RentalMode, start: Date, end: Date): number {
+  const days = (end.getTime() - start.getTime()) / 86400000 + 1;
+  if (!Number.isInteger(days) || days < 1 || days > 7 || (mode === 'studio' && days !== 1))
+    throw new PricingError(mode === 'studio' ? 'Focení vyžaduje vrácení ve stejný den.' : 'Pronájem lze rezervovat na 1 až 7 dní.');
+  return days;
+}
+export function resolvePeriodPricing(product: RentalPricingProduct, variant: RentalPricingVariant, mode: RentalMode, days = 1) {
+  if (!Number.isInteger(days) || days < 1 || days > 7 || (mode === 'studio' && days !== 1)) throw new PricingError('Invalid rental duration');
+  const firstDayPrice = resolveRentalPrice(product, variant, mode);
+  const additionalDayPrice = mode === 'external' ? product.additionalDayPrice ?? 200 : 0;
+  assertMoneyAmount(additionalDayPrice, 'Additional day price');
+  const rentalPrice = firstDayPrice + (days - 1) * additionalDayPrice;
+  assertMoneyAmount(rentalPrice, 'Rental total');
+  if (!Number.isSafeInteger(rentalPrice)) throw new PricingError('Rental total exceeds safe integer range');
+  return { rentalPrice, deposit: resolveDeposit(product, variant), firstDayPrice, additionalDayPrice, rentalDays: days };
 }

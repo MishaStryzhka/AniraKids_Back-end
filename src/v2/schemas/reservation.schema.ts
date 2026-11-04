@@ -5,6 +5,7 @@ import type {
 } from '../types/domain';
 
 export interface ReservationRequestBody {
+  rentalPolicyVersion?: '2026-11';
   deliveryTariff?: '2026-10';
   fulfillmentMethod?: import('../types/domain').FulfillmentMethod;
   balikovnaPoint?: import('../types/domain').BalikovnaPoint;
@@ -67,6 +68,7 @@ export const reservationRequestSchema = Joi.object({
     variantId: Joi.string().pattern(objectIdPattern).required(),
   }).unknown(false)).min(1).max(20),
   rentalMode: Joi.string().valid('studio', 'external').required(),
+  rentalPolicyVersion: Joi.string().valid('2026-11'),
   deliveryTariff: Joi.when('rentalMode',{is:'external',then:Joi.string().valid('2026-10'),otherwise:Joi.forbidden()}),
   fulfillmentMethod: Joi.when('rentalMode', { is: 'external', then: Joi.string().valid('pickup', 'balikovna', 'balikovna_address'), otherwise: Joi.forbidden() }),
   balikovnaPoint: Joi.when('fulfillmentMethod', { is: 'balikovna', then: Joi.object({

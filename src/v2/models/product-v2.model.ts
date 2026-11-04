@@ -147,6 +147,7 @@ export const ProductV2Schema = new Schema<ProductV2>(
       type: Boolean,
       default: false,
     },
+    additionalDayPrice: { type: Number, min: 0, default: 200, validate: Number.isSafeInteger },
     rentalPrices: {
       type: rentalPricesSchema,
       default: undefined,

@@ -161,6 +161,7 @@ export const applyProductInput = (
     'familyLookGroup',
     'rentalEnabled',
     'saleEnabled',
+    'additionalDayPrice',
     'defaultDeposit',
   ] as const;
 
@@ -226,7 +227,7 @@ export const applyProductInput = (
 const productCoreFields = [
   'name', 'slug', 'description', 'category', 'gender', 'color',
   'occasion', 'ageTags', 'brand', 'familyLookGroup',
-  'rentalEnabled', 'saleEnabled', 'defaultSalePrice', 'defaultDeposit',
+  'rentalEnabled', 'saleEnabled', 'defaultSalePrice', 'defaultDeposit', 'additionalDayPrice',
   'status',
 ] as const;
 

@@ -83,6 +83,7 @@ export interface ProductV2 {
   rentalEnabled: boolean;
   saleEnabled: boolean;
   rentalPrices?: RentalPrices;
+  additionalDayPrice?: number;
   defaultSalePrice?: MoneyAmount;
   defaultDeposit: MoneyAmount;
   photos: ProductPhoto[];
@@ -214,6 +215,9 @@ export interface Reservation {
   balikovnaPoint?: BalikovnaPoint;
   deliveryAddress?: DeliveryAddress;
   shippingPrice?: number;
+  rentalPolicyVersion?: '2026-11';
+  occupiedStartDate?: Date;
+  occupiedEndDate?: Date;
   paymentStatus: PaymentStatus;
   notes?: string;
   cancelledAt?: Date;

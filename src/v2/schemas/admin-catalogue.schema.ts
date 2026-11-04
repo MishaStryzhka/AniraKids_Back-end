@@ -59,6 +59,7 @@ const productFields = {
   saleEnabled: Joi.boolean(),
   rentalPrices: rentalPricesSchema,
   defaultSalePrice: money,
+  additionalDayPrice: money,
   defaultDeposit: money,
   seo: seoInputSchema,
 };
@@ -80,6 +81,7 @@ export interface CreateProductAdminBody {
     studio?: number;
     external?: number;
   };
+  additionalDayPrice?: number;
   defaultSalePrice?: number;
   defaultDeposit?: number;
   seo?: {
@@ -105,6 +107,7 @@ export interface UpdateProductAdminBody {
     studio?: number | null;
     external?: number | null;
   };
+  additionalDayPrice?: number;
   defaultSalePrice?: number | null;
   defaultDeposit?: number;
   seo?: {

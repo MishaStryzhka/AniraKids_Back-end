@@ -1,3 +1,6 @@
+import {occupiedRentalRange} from '../utils/rental-policy';
+import {resolvePeriodPricing,rentalDays} from '../utils/pricing';
+import type {FulfillmentMethod} from '../types/domain';
 import { resolveProductSeo } from '../utils/product-seo';
 import {cooperationActive} from './cooperation.service';
 import { colorKey, colorLabel, colorKeysExpression } from '../utils/product-colors';
@@ -50,6 +53,7 @@ export interface PublicCatalogueQuery {
 }
 
 export interface PublicAvailabilityQuery {
+  fulfillmentMethod?: FulfillmentMethod;
   variantId: string;
   rentalMode: RentalMode;
   startDate: string;
@@ -57,6 +61,7 @@ export interface PublicAvailabilityQuery {
 }
 
 export interface PublicCalendarQuery {
+  fulfillmentMethod?: FulfillmentMethod;
   variantId: string;
   rentalMode: RentalMode;
   month: string;
@@ -81,7 +86,7 @@ export function calendarRange(query: PublicCalendarQuery, now = new Date()) {
 }
 
 const productProjection =
-  '_id slug name description category gender color photos rentalEnabled rentalPrices defaultDeposit seo';
+  '_id slug name description category gender color photos rentalEnabled rentalPrices additionalDayPrice defaultDeposit seo';
 const publicProduct = (product: ProductV2 & { _id: Types.ObjectId }) => ({
   id: product._id.toHexString(),
   slug: product.slug,
@@ -96,8 +101,8 @@ const publicProduct = (product: ProductV2 & { _id: Types.ObjectId }) => ({
   })),
 });
 
-const pricing = (product: ProductV2, variant: Variant, mode: RentalMode) => {
-  const resolved = resolveRentalPricing(product, variant, mode);
+const pricing = (product: ProductV2, variant: Variant, mode: RentalMode, days = 1) => {
+  const resolved = resolvePeriodPricing(product, variant, mode, days);
   const totals = calculateReservationTotals([resolved]);
   return { ...resolved, totalDue: totals.totalDue };
 };
@@ -117,7 +122,6 @@ const optionalPricing = (
 
 export class PublicCatalogueService {
   private async rentalContext(productId: string, query: {variantId: string; rentalMode: RentalMode}) {
-    if(query.rentalMode==='studio' && !(await cooperationActive()))throw new PublicCatalogueError(409,'RENTAL_MODE_UNAVAILABLE');
     const product = await ProductV2Model.findOne({
       _id: productId,
       status: 'active',
@@ -142,7 +146,7 @@ export class PublicCatalogueService {
     const { from, to, start } = calendarRange(query, now);
     const { product, variant } = await this.rentalContext(productId, query);
     const today = getBusinessDateOnly(now);
-    const days = await availabilityService.getVariantCalendar(variant._id, from, to, today, start, now, query.rentalMode);
+    const days = await availabilityService.getVariantCalendar(variant._id, from, to, today, start, now, query.rentalMode, query.fulfillmentMethod);
     return { calendar: {
       productId: product._id.toHexString(), variantId: variant._id.toHexString(),
       rentalMode: query.rentalMode, month: query.month,
@@ -160,9 +164,7 @@ export class PublicCatalogueService {
       ...(query.category ? { category: query.category } : {}),
       ...(escaped ? { name: { $regex: escaped, $options: 'i' } } : {}),
     };
-    const active = await cooperationActive();
-    if(query.rentalMode==='studio'&&!active)throw new PublicCatalogueError(409,'RENTAL_MODE_UNAVAILABLE');
-    const mode = query.rentalMode || (active?'studio':'external');
+    const mode = query.rentalMode || 'studio';
     const productFilters: Record<string, unknown> = {
       ...(query.gender ? { gender: query.gender === 'children' ? { $in: ['girls', 'boys'] } : query.gender } : {}),
       ...(query.color ? { $or: [
@@ -219,7 +221,6 @@ export class PublicCatalogueService {
   }
 
   async detail(slug: string) {
-    const active=await cooperationActive();
     const product = await ProductV2Model.findOne({
       slug,
       status: 'active',
@@ -244,7 +245,7 @@ export class PublicCatalogueService {
           id: variant._id.toHexString(),
           size: variant.size,
           pricing: {
-            studio: active ? optionalPricing(product, variant, 'studio') : null,
+            studio: optionalPricing(product, variant, 'studio'),
             external: optionalPricing(product, variant, 'external'),
           },
         })),
@@ -257,23 +258,27 @@ export class PublicCatalogueService {
     query: PublicAvailabilityQuery,
     now = new Date()
   ) {
-    let start: Date, end: Date;
+    let start: Date, end: Date, days: number;
     try {
       start = parseDateOnly(query.startDate);
       end = parseDateOnly(query.endDate);
-      if (end < start) throw new Error('Invalid range');
+      days = rentalDays(query.rentalMode,start,end);
+      if(query.rentalMode==='studio' && query.fulfillmentMethod && query.fulfillmentMethod!=='pickup') throw new Error('Invalid delivery');
     } catch {
       throw new PublicCatalogueError(400, 'INVALID_DATE');
     }
     if (query.startDate < getBusinessDateOnly(now))
       throw new PublicCatalogueError(400, 'PAST_START_DATE');
-    const { product, variant, quote } = await this.rentalContext(productId, query);
+    const { product, variant } = await this.rentalContext(productId, query);
+    const quote = pricing(product,variant,query.rentalMode,days);
+    const occupied=occupiedRentalRange(start,end,query.rentalMode,query.fulfillmentMethod);
+    if(occupied.occupiedStartDate < parseDateOnly(getBusinessDateOnly(now))) throw new PublicCatalogueError(400,'PAST_START_DATE');
     // The create transaction occupies the rental through its cleaning buffer.
     // A quote must test the same range, including manual blocks on that last day.
     const result = await availabilityService.getVariantAvailability(
       variant._id,
-      start,
-      addCalendarDays(end, getCleaningBufferDays(query.rentalMode)),
+      occupied.occupiedStartDate,
+      occupied.occupiedEndDate,
       { now }
     );
     return {
@@ -281,6 +286,7 @@ export class PublicCatalogueService {
         productId: product._id.toHexString(),
         variantId: variant._id.toHexString(),
         rentalMode: query.rentalMode,
+        ...(query.fulfillmentMethod?{fulfillmentMethod:query.fulfillmentMethod}:{}),
         startDate: query.startDate,
         endDate: query.endDate,
         available: result.available,
