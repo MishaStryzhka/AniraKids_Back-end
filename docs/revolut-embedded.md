@@ -1,6 +1,6 @@
 # Embedded Revolut payments
 
-This implements reservation advances and full outstanding rental/deposit payments. It does not activate the merchant account, change reservation confirmation to automatic, or charge any live card.
+This implements reservation advances and full outstanding rental/deposit payments. It does not activate the merchant account, charge any live card.
 
 ## Configuration and rollout
 
@@ -22,13 +22,13 @@ Enable production only after those tests and domain registration pass. Turning `
 
 The server calculates all amounts in Kč from the reservation ledger and sends minor units to Revolut. No client amount is accepted. A durable reservation lock and payment revision compare-and-swap serialize creation and ledger updates. The provider order reference binds a payment to one immutable split of rental and deposit. Manual payment entries and transfer reports are blocked while a card order is active. QR instructions are withheld during active/review payments.
 
-The SDK's success event and return URL are hints only. Reconciliation fetches the provider order and checks order ID, reference, currency and amount. A completed order adds rental/deposit entries atomically once. It never changes reservation status or extends a hold. Late/overlapping payments are retained, marked for review and do not queue an automatic invoice. Review is visible in payment entry notes and audit (`revolut_payment_review`); contact the customer and resolve availability/refund before closing the incident.
+The SDK's success event and return URL are hints only. Reconciliation fetches the provider order and checks order ID, reference, currency and amount. A completed order adds rental/deposit entries atomically once. After the durable money write, a valid pending reservation is confirmed through the existing inventory transaction. The transaction requires a paid advance, an unexpired hold and available physical items. It does not extend an expired hold. Replayed events resume confirmation if a process failure interrupted that step. Late/overlapping payments are retained, marked for review and do not queue an automatic invoice. Review is visible in payment entry notes and audit (`revolut_payment_review`); contact the customer and resolve availability/refund before closing the incident.
 
 Create-order retries are intentionally conservative: the current API does not document an idempotency key for order creation. If the response is lost, the attempt remains locked. A subsequent signed webhook can recover it using merchant reference. For a stuck creating attempt, the operator must find the matching reference in Revolut and reconcile/cancel that order. Never blindly clear the lock or create another charge. If no order can be found, confirm with the provider that no order exists before a controlled database correction; there is no customer-facing force-unlock.
 
 Refunds are not sent by this integration. Perform approved refunds in Revolut and record the actual refund in the existing admin ledger with its reference. Refund/chargeback event synchronization is not implemented; reconcile provider statements operationally. Review flags require an operator's controlled resolution; they are not cleared by customer refresh.
 
-Existing automatic invoice processing is reused for normal payments; it is idempotent and has its existing retry queue. Reservation confirmation remains manual after payment and availability checks.
+Existing automatic invoice processing is reused for normal payments; it is idempotent and has its existing retry queue. Revolut confirmation is automatic after verified payment and availability checks. QR/cash verification remains manual.
 
 ## Verification
 
@@ -36,6 +36,6 @@ Existing automatic invoice processing is reused for normal payments; it is idemp
 
 `NODE_ENV=test PUBLIC_BOOKING_MONGOD_BINARY=/path/to/mongod node scripts/check-revolut-integration.js`
 
-The integration test owns a disposable loopback database and mocks Revolut, invoices and notifications. It verifies concurrent creation, repeat delivery, immutable amounts, cancellation, lost response recovery, late completion, request signatures and missing authorization. This is not a live payment test.
+The integration test owns a disposable loopback database and mocks Revolut, invoices and notifications. It verifies concurrent creation, repeat delivery, immutable amounts, cancellation, lost response recovery, late completion, automatic advance/full confirmation, conflict/expiry at confirmation, recovery after interruption, request signatures and missing authorization. This is not a live payment test.
 
 References: https://developer.revolut.com/docs/sdks/merchant-web-sdk/payment-methods/embedded-checkout and https://developer.revolut.com/docs/guides/merchant/monitor-and-observe/webhooks/verify-the-payload-signature . Merchant API version: 2026-08-17.

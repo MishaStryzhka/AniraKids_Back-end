@@ -26,7 +26,8 @@ export function revolutReservation(action:'create'|'sync'|'cancel'):HttpHandler 
       }
       if(action==='cancel')await cancelCardOrder(r);
       else {
-        const attempt=r.revolutAttempts?.find(a=>a.id===r.revolutActiveAttempt);
+        const attempt=r.revolutAttempts?.find(a=>a.id===r.revolutActiveAttempt) ??
+          (r.status==='pending' ? r.revolutAttempts?.find(a=>a.state==='completed' && !a.reviewRequired) : undefined);
         if(attempt?.orderId)await reconcileCardOrder(attempt.orderId);
       }
       const current=await ReservationV2Model.findById(r._id).lean().exec();

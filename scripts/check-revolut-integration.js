@@ -13,6 +13,8 @@ require('../build/v2/services/partner-reward-ledger.service').observePartnerRewa
 let invoices=0;
 require('../build/v2/services/invoice-automation.service').processAutomaticInvoice=async()=>{invoices++;};
 const {ReservationV2Model:R}=require('../build/v2/models/reservation-v2.model');
+const {InventoryItemV2Model:I}=require('../build/v2/models/inventory-item-v2.model');
+const {reservationAdminService}=require('../build/v2/services/reservation-admin.service');
 const {createCardOrder,reconcileCardOrder,cancelCardOrder,cardAmounts}=require('../build/v2/services/revolut.service');
 const {paymentSummary,recordPayment}=require('../build/v2/services/payment.service');
 const {revolutReservation,revolutWebhook}=require('../build/v2/controllers/revolut.controller');
@@ -33,13 +35,21 @@ let child,dir;const watchdog=setTimeout(()=>{child?.kill('SIGKILL');process.exit
 async function start(){
  const socket=net.createServer();await new Promise(r=>socket.listen(0,'127.0.0.1',r));const port=socket.address().port;await new Promise(r=>socket.close(r));
  dir=mkdtempSync(tmpdir()+'/revolut-test-');
- child=spawn(process.env.PUBLIC_BOOKING_MONGOD_BINARY||'mongod',['--bind_ip','127.0.0.1','--port',String(port),'--dbpath',dir,'--nounixsocket'],{stdio:['ignore','pipe','pipe']});
+ child=spawn(process.env.PUBLIC_BOOKING_MONGOD_BINARY||'mongod',['--bind_ip','127.0.0.1','--port',String(port),'--dbpath',dir,'--nounixsocket','--replSet','revolut-test'],{stdio:['ignore','pipe','pipe']});
  await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',()=>reject(new Error('Mongo exited')));child.stdout.on('data',d=>{if(String(d).includes('Waiting for connections'))resolve();});});
- await mongoose.connect(`mongodb://127.0.0.1:${port}/revolut_${randomUUID().replaceAll('-','')}`,{serverSelectionTimeoutMS:5000});
+ const uri=`mongodb://127.0.0.1:${port}/revolut_${randomUUID().replaceAll('-','')}?directConnection=true`;
+ await mongoose.connect(uri,{serverSelectionTimeoutMS:5000});
+ await mongoose.connection.db.admin().command({replSetInitiate:{_id:'revolut-test',members:[{_id:0,host:`127.0.0.1:${port}`}]}});
+ for(let n=0;n<100;n++) {
+  if((await mongoose.connection.db.admin().command({hello:1})).isWritablePrimary){await mongoose.disconnect();await mongoose.connect(uri);return;}
+  await new Promise(r=>setTimeout(r,100));
+ }
+ throw new Error('Replica election failed');
 }
 async function fixture(){
  const id=()=>new mongoose.Types.ObjectId();
- return (await R.create({reservationNumber:'AK-2030-'+randomUUID().slice(0,6).toUpperCase(),customerSnapshot:{firstName:'Test',lastName:'User',email:'test@example.test',phone:'+420777111222'},items:[{productId:id(),variantId:id(),inventoryItemId:id(),productNameSnapshot:'Fixture',sizeSnapshot:'98',rentalPriceSnapshot:700,depositSnapshot:2000}],rentalMode:'studio',startDate:new Date('2030-01-01'),endDate:new Date('2030-01-01'),status:'pending',expiresAt:new Date(Date.now()+900000),subtotal:700,deposit:2000,totalDue:2700,advanceRequired:200,paymentRevision:0,paymentEntries:[],paymentStatus:'unpaid'})).toObject();
+ const inventory=await I.create({variantId:id(),internalCode:'TEST-'+randomUUID().toUpperCase(),status:'active',condition:'good'});
+ return (await R.create({reservationNumber:'AK-2030-'+randomUUID().slice(0,6).toUpperCase(),customerSnapshot:{firstName:'Test',lastName:'User',email:'test@example.test',phone:'+420777111222'},items:[{productId:id(),variantId:id(),inventoryItemId:inventory._id,productNameSnapshot:'Fixture',sizeSnapshot:'98',rentalPriceSnapshot:700,depositSnapshot:2000}],rentalMode:'studio',startDate:new Date('2030-01-01'),endDate:new Date('2030-01-01'),status:'pending',expiresAt:new Date(Date.now()+900000),subtotal:700,deposit:2000,totalDue:2700,advanceRequired:200,paymentRevision:0,paymentEntries:[],paymentStatus:'unpaid'})).toObject();
 }
 const fresh=r=>R.findById(r._id).lean().exec();
 const orderFor=r=>[...orders.values()].find(o=>r.revolutAttempts?.some(a=>a.id===o.merchant_order_data.reference));
@@ -65,7 +75,7 @@ async function main(){
  await assert.rejects(recordPayment(r._id,{operationId:randomUUID(),expectedRevision:r.paymentRevision,type:'rental_received',amount:200,method:'cash'},'fixture'));
  order.state='completed';await Promise.all([reconcileCardOrder(order.id),reconcileCardOrder(order.id)]);
  r=await fresh(r);assert.equal(r.paymentEntries.length,2);assert.equal(paymentSummary(r).rentalNet,700);assert.equal(paymentSummary(r).depositHeld,2000);
- assert.equal(r.paymentStatus,'paid');assert.equal(r.status,'pending');assert.equal(r.revolutActiveAttempt,undefined);assert.ok(r.invoiceAutomation);
+ assert.equal(r.paymentStatus,'paid');assert.equal(r.status,'confirmed');assert.equal(r.expiresAt,null);assert.equal(r.partnerAudit.filter(a=>a.action==='confirm').length,1);assert.equal(r.partnerAudit.find(a=>a.action==='confirm').by,'revolut');assert.equal(r.revolutActiveAttempt,undefined);assert.ok(r.invoiceAutomation);
  const revision=r.paymentRevision;await reconcileCardOrder(order.id);assert.equal((await fresh(r)).paymentRevision,revision);
  // Late payment is retained in the ledger, but never revives the booking or invoices automatically.
  r=await fixture();await createCardOrder(r,'advance');r=await fresh(r);const late=orderFor(r);await R.updateOne({_id:r._id},{$set:{expiresAt:new Date(0)}});late.state='completed';const invoiceBefore=invoices;
@@ -78,6 +88,22 @@ async function main(){
  // Lost create response stays locked, then a signed notification can recover by merchant reference.
  r=await fixture();unknown=true;await assert.rejects(createCardOrder(r,'advance'));unknown=false;r=await fresh(r);const lost=orderFor(r);const lostPosts=posts;
  await assert.rejects(createCardOrder(r,'advance'));assert.equal(posts,lostPosts);lost.state='completed';await reconcileCardOrder(lost.id);r=await fresh(r);assert.equal(r.paymentEntries.length,1);assert.equal(r.revolutActiveAttempt,undefined);
+ // Advance automatically confirms too; an interrupted post-payment step resumes on replay.
+ r=await fixture();await createCardOrder(r,'advance');r=await fresh(r);const recover=orderFor(r);recover.state='completed';
+ const confirm=reservationAdminService.confirm;reservationAdminService.confirm=async()=>{throw new Error('fixture interruption');};
+ await assert.rejects(reconcileCardOrder(recover.id));reservationAdminService.confirm=confirm;
+ r=await fresh(r);assert.equal(r.status,'pending');assert.equal(r.paymentEntries.length,1);assert.equal(r.invoiceAutomation,undefined);
+ await reconcileCardOrder(recover.id);r=await fresh(r);assert.equal(r.status,'confirmed');assert.equal(r.paymentEntries.length,1);assert.equal(paymentSummary(r).rentalBalance,500);
+ // A competing reservation wins availability; payment never displaces it.
+ r=await fixture();await createCardOrder(r,'advance');r=await fresh(r);const conflict=orderFor(r);
+ await R.collection.insertOne({...r,_id:new mongoose.Types.ObjectId(),reservationNumber:'AK-2030-BLOCK1',status:'confirmed',revolutAttempts:[],revolutActiveAttempt:undefined});
+ conflict.state='completed';await reconcileCardOrder(conflict.id);r=await fresh(r);
+ assert.equal(r.status,'pending');assert.equal(r.revolutAttempts[0].reviewRequired,true);assert.equal(r.invoiceAutomation,undefined);assert.equal(r.paymentEntries.length,1);
+ // Hold expiry between the ledger write and confirmation must also block auto-confirmation.
+ r=await fixture();await createCardOrder(r,'advance');r=await fresh(r);const expiredDuring=orderFor(r);expiredDuring.state='completed';
+ reservationAdminService.confirm=async(id,options)=>{await R.updateOne({_id:id},{$set:{expiresAt:new Date(0)}});return confirm.call(reservationAdminService,id,options);};
+ await reconcileCardOrder(expiredDuring.id);reservationAdminService.confirm=confirm;r=await fresh(r);
+ assert.equal(r.status,'pending');assert.equal(r.revolutAttempts[0].reviewRequired,true);assert.equal(r.invoiceAutomation,undefined);
  // Mismatched amount/currency/reference never reaches the ledger.
  r=await fixture();await createCardOrder(r,'advance');r=await fresh(r);const bad=orderFor(r);bad.state='completed';bad.currency='EUR';await assert.rejects(reconcileCardOrder(bad.id));assert.equal((await fresh(r)).paymentEntries.length,0);
  // Public endpoints require reservation authorization, independent of guessed number.

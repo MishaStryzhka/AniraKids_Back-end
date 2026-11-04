@@ -1,3 +1,5 @@
+import {reservationAdminService} from './reservation-admin.service';
+import {ReservationAdminError} from './reservation-admin.types';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
 import { ReservationV2Model } from '../models/reservation-v2.model';
@@ -64,6 +66,40 @@ export async function createCardOrder(r:Stored, kind:'advance'|'full') {
   return {publicId:order.token};
 }
 
+// Runs after the durable money write; duplicate notifications also resume this
+// step after a process/network failure. Confirmation uses the existing inventory
+// transaction, so it cannot displace another booking.
+async function finishCardPayment(id:Types.ObjectId, attemptId:string) {
+  let r=await ReservationV2Model.findById(id).lean().exec();
+  const attempt=r?.revolutAttempts?.find(a=>a.id===attemptId);
+  if(!r || !attempt || attempt.state!=='completed' || attempt.reviewRequired)return;
+  if(r.status==='cancelled') {
+    await ReservationV2Model.updateOne({_id:id,status:'cancelled','revolutAttempts.id':attemptId},
+      {$set:{'revolutAttempts.$.reviewRequired':true},$inc:{paymentRevision:1}}).exec();
+    return;
+  }
+  if(r.status==='pending') {
+    try { await reservationAdminService.confirm(id,{actor:'revolut',requireActiveHold:true}); }
+    catch(error) {
+      if(!(error instanceof ReservationAdminError))throw error;
+      // A concurrent staff confirmation can already have succeeded.
+      r=await ReservationV2Model.findById(id).lean().exec();
+      if(!r)return;
+      if(r.status!=='confirmed' && r.status!=='prepared') {
+        await ReservationV2Model.updateOne({_id:id,status:r.status,'revolutAttempts.id':attemptId},
+          {$set:{'revolutAttempts.$.reviewRequired':true},$inc:{paymentRevision:1},
+            $push:{partnerAudit:{action:'revolut_confirmation_review',at:new Date(),by:'revolut',operationId:attemptId,reference:attempt.orderId}}}).exec();
+        return;
+      }
+    }
+  }
+  // Queue the receipt only after successful confirmation, never while an expired
+  // or conflicting reservation still needs an operator's decision.
+  if(attempt.rentalAmount)await ReservationV2Model.updateOne({_id:id,status:{$in:['confirmed','prepared','rented','returned']},invoiceAutomation:{$exists:false}},
+    {$set:{invoiceAutomation:{status:'pending',requestedAt:new Date(),requestedBy:'revolut'}}}).exec();
+  await processAutomaticInvoice('reservation',String(id));
+}
+
 export async function reconcileCardOrder(orderId:string) {
   if (!/^[a-f0-9-]{36}$/i.test(orderId)) throw new PaymentError('VALIDATION_ERROR',400);
   const order=await revolutRequest('GET','/orders/'+orderId);
@@ -75,7 +111,7 @@ export async function reconcileCardOrder(orderId:string) {
     if (!r) return;
     const attempt=r.revolutAttempts!.find(a=>a.id===reference)!;
     assertOrderMatches(attempt,order);
-    if (attempt.state==='completed') { if(!attempt.reviewRequired)await processAutomaticInvoice('reservation',String(r._id)); return; }
+    if (attempt.state==='completed') { if(!attempt.reviewRequired)await finishCardPayment(r._id,attempt.id); return; }
     if (attempt.state===order.state && ['cancelled','failed'].includes(order.state))return;
     if (!['completed','cancelled','failed'].includes(order.state)) {
       await ReservationV2Model.updateOne({_id:r._id,revolutActiveAttempt:attempt.id,'revolutAttempts.id':attempt.id},
@@ -95,12 +131,11 @@ export async function reconcileCardOrder(orderId:string) {
     const updated=await ReservationV2Model.findOneAndUpdate({_id:r._id,status:r.status,...revisionFilter(r),
       revolutAttempts:{$elemMatch:{id:attempt.id,state:{$ne:'completed'}}}},
       {$set:{'revolutAttempts.$.state':order.state,'revolutAttempts.$.orderId':order.id,'revolutAttempts.$.reviewRequired':review,
-        ...(completed?{paymentStatus:!review && next.rentalNet>=r.subtotal && next.depositHeld>=r.deposit?'paid':'unpaid'}:{}),
-        ...(completed && !review && attempt.rentalAmount && !r.invoiceAutomation?{invoiceAutomation:{status:'pending',requestedAt:now,requestedBy:'revolut'}}:{})},
+        ...(completed?{paymentStatus:!review && next.rentalNet>=r.subtotal && next.depositHeld>=r.deposit?'paid':'unpaid'}:{})},
         ...(r.revolutActiveAttempt===attempt.id?{$unset:{revolutActiveAttempt:1}}:{}),$inc:{paymentRevision:1},
         $push:{...(entries.length?{paymentEntries:{$each:entries}}:{}),partnerAudit:{action:review?'revolut_payment_review':completed?'revolut_payment_received':'revolut_payment_closed',at:now,by:'revolut',operationId:attempt.id,amount:completed?attempt.amount:0,reference:order.id}}},
       {new:true,runValidators:true}).lean().exec();
-    if(updated){if(completed && !review)await processAutomaticInvoice('reservation',String(r._id));return;}
+    if(updated){if(completed && !review)await finishCardPayment(r._id,attempt.id);return;}
   }
   throw new PaymentError('PAYMENT_CONFLICT');
 }
