@@ -7,7 +7,7 @@ import { reportReservationPayment } from '../services/reservation-payment-report
 import { PaymentError } from '../services/payment.types';
 import { Types } from 'mongoose';
 
-const reservationAccess = async (authorization: unknown): Promise<
+export const reservationAccess = async (authorization: unknown): Promise<
   {filter:{customerId:Types.ObjectId}|{guestAccessTokenHash:string};actor:string}|null
 > => {
   if (typeof authorization !== 'string') return null;

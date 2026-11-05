@@ -24,6 +24,8 @@ const app = express();
 
 const formatsLogger = app.get('env') === 'development' ? 'dev' : 'short';
 
+// Query strings can contain deployment-bypass or other access credentials.
+logger.token('url', req => (req.originalUrl || req.url || '').split('?')[0]);
 app.use(logger(formatsLogger));
 
 const legacyCors = cors();
@@ -39,7 +41,9 @@ app.use((req, res, next) => {
 
 // Close retired routes before authentication, uploads or database access.
 app.use(retiredMarketplace);
-app.use(express.json());
+app.use(express.json({ verify: (req, _res, buffer) => {
+  if (req.path === '/api/v2/payments/revolut/webhook') req.rawBody = Buffer.from(buffer);
+} }));
 
 // **********************************************************************
 

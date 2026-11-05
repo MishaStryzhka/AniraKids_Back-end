@@ -519,7 +519,7 @@ export class ReservationAdminService {
 
   async confirm(
     reservationId: Types.ObjectId,
-    options?: { now?: Date; actor?: string }
+    options?: { now?: Date; actor?: string; requireActiveHold?: boolean }
   ): Promise<HydratedDocument<Reservation>> {
     const now = resolveNow(options?.now);
     const session = await ReservationV2Model.db.startSession();
@@ -554,6 +554,13 @@ export class ReservationAdminService {
 
           if (reservation.advanceRequired !== undefined && paymentSummary(reservation).advanceBalance > 0) {
             throw new ReservationAdminError('PAYMENT_ADVANCE_REQUIRED', 'Record the received advance before confirmation');
+          }
+
+          // Automatic payments may never revive an expired hold. Check on every
+          // transaction retry, not only before acquiring the inventory lock.
+          if(options?.requireActiveHold && (!reservation.expiresAt || reservation.expiresAt.getTime()<=Date.now() ||
+              reservation.revolutAttempts?.some(a=>a.reviewRequired))) {
+            throw new ReservationAdminError('RESERVATION_CONFIRMATION_CONFLICT','Automatic confirmation requires an active hold');
           }
 
           assertAvailabilityRange(

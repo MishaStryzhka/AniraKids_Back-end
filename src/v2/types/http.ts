@@ -12,6 +12,7 @@ export interface JsonResponse {
 
 export interface HttpRequest {
   body?: unknown;
+  rawBody?: Buffer;
   headers: Record<string, string | string[] | undefined>;
   params?: Record<string, string | undefined>;
   query?: Record<string, unknown>;
