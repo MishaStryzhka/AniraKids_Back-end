@@ -17,6 +17,8 @@ export function verifyRevolutSignature(raw: Buffer | undefined, timestamp: unkno
     timingSafeEqual(expected,Buffer.from(value.trim().slice(3),'hex')));
 }
 export interface RevolutOrder { id:string; token:string; state:string; amount:number; currency:string; merchant_order_data?:{reference?:string}; }
+// Sandbox diagnostics deliberately exclude tokens, headers and payer/card data.
+const diagnosticCode = (value:unknown) => typeof value==='string' && /^[a-z_]{1,64}$/.test(value) ? value : undefined;
 export async function revolutRequest(method:'GET'|'POST', path:string, body?:unknown): Promise<RevolutOrder> {
   // Reconciliation remains available when checkout is disabled (kill switch).
   if (!process.env.REVOLUT_SECRET_KEY || !['prod','sandbox'].includes(process.env.REVOLUT_MODE ?? ''))
@@ -25,8 +27,19 @@ export async function revolutRequest(method:'GET'|'POST', path:string, body?:unk
   try {
     const response = await axios.default.request({method,url:host+'/api'+path,data:body,timeout:12000,maxRedirects:0,
       headers:{Authorization:`Bearer ${process.env.REVOLUT_SECRET_KEY}`,'Revolut-Api-Version':'2026-08-17','Content-Type':'application/json'}});
+    if(process.env.REVOLUT_MODE==='sandbox' && method==='GET' && /^\/orders\/[a-f0-9-]{36}$/i.test(path)) {
+      const order=response.data;
+      console.info('revolut_sandbox_order',JSON.stringify({orderId:path.slice(8),state:diagnosticCode(order?.state),
+        payments:Array.isArray(order?.payments)?order.payments.map((payment:any)=>({state:diagnosticCode(payment.state),
+          reason:diagnosticCode(payment.decline_reason ?? payment.failure_reason),
+          threeDS:diagnosticCode(payment.payment_method?.checks?.three_ds?.state),
+          cvv:diagnosticCode(payment.payment_method?.checks?.cvv_verification)})):[]}));
+    }
     return response.data as RevolutOrder;
-  } catch {
+  } catch(error) {
+    if(process.env.REVOLUT_MODE==='sandbox' && axios.default.isAxiosError(error))
+      console.warn('revolut_sandbox_error',JSON.stringify({method,operation:path.endsWith('/cancel')?'cancel':'order',
+        status:error.response?.status,code:diagnosticCode(error.response?.data?.code)}));
     // Never leak Axios errors: they contain the secret authorization header.
     throw new PaymentError('REVOLUT_UNAVAILABLE',503);
   }
