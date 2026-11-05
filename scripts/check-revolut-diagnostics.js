@@ -1,0 +1,21 @@
+const assert = require('node:assert/strict');
+const axios = require('axios');
+const {revolutRequest} = require('../build/v2/services/revolut-client');
+const originalRequest = axios.default.request;
+const originalInfo = console.info;
+(async () => {
+  const logs = [];
+  process.env.REVOLUT_MODE = 'prod';
+  process.env.REVOLUT_SECRET_KEY = 'secret-must-not-be-logged';
+  console.info = (...args) => logs.push(args);
+  const response = {id:'test',token:'private-order-token',state:'pending',customer:{email:'private@example.com'},payments:[{state:'failed',decline_reason:'do_not_honour',payment_method:{card_number:'4111111111111111',checks:{three_ds:{state:'failed'},cvv_verification:'match'}}},{state:'invalid\nvalue',decline_reason:'private@example.com'}]};
+  axios.default.request = async () => ({data:response});
+  assert.equal(await revolutRequest('GET','/orders/6aecf49f-4fcd-a5f3-bea9-94afe3ea9b21'),response);
+  assert.equal(logs[0][0],'revolut_order');
+  const safe = JSON.parse(logs[0][1]);
+  assert.equal(safe.payments[0].reason,'do_not_honour');
+  assert.deepEqual(safe.payments[1],{});
+  for (const forbidden of ['secret-must-not-be-logged','private-order-token','private@example.com','4111111111111111']) assert(!JSON.stringify(logs).includes(forbidden));
+  await revolutRequest('POST','/orders',{});
+  assert.equal(logs.length,1);
+})().then(() => { console.info=originalInfo; originalInfo('Revolut diagnostics: passed (production codes, privacy, read-only logging)'); }).catch(error => { console.error(error); process.exitCode=1; }).finally(() => { console.info=originalInfo; axios.default.request=originalRequest; });
