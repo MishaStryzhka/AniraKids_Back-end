@@ -24,6 +24,8 @@ const app = express();
 
 const formatsLogger = app.get('env') === 'development' ? 'dev' : 'short';
 
+// Query strings can contain deployment-bypass or other access credentials.
+logger.token('url', req => (req.originalUrl || req.url || '').split('?')[0]);
 app.use(logger(formatsLogger));
 
 const legacyCors = cors();

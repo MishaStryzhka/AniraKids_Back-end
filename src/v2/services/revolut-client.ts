@@ -34,17 +34,7 @@ export async function revolutRequest(method:'GET'|'POST', path:string, body?:unk
           reason:diagnosticCode(payment.decline_reason ?? payment.failure_reason ?? payment.payment_method?.failure_reason),
           threeDS:diagnosticCode(payment.payment_method?.checks?.three_ds?.state),
           cvv:diagnosticCode(payment.payment_method?.checks?.cvv_verification)})):[]}));
-      for(const payment of Array.isArray(order?.payments)?order.payments:[]) {
-        if(payment.state!=='failed' || !/^[a-f0-9-]{36}$/i.test(payment.id))continue;
-        try {
-          const {data:p}=await axios.default.get(host+'/api/payments/'+payment.id,{timeout:5000,maxRedirects:0,
-            headers:{Authorization:`Bearer ${process.env.REVOLUT_SECRET_KEY}`,'Revolut-Api-Version':'2026-08-17'}});
-          console.info('revolut_sandbox_failed_payment',JSON.stringify({paymentId:payment.id,state:diagnosticCode(p.state),
-            reason:diagnosticCode(p.decline_reason ?? p.failure_reason ?? p.payment_method?.failure_reason),
-            threeDS:diagnosticCode(p.payment_method?.checks?.three_ds?.state),
-            fields:Object.keys(p),methodFields:Object.keys(p.payment_method??{})}));
-        }catch { /* Diagnostics must not change the authoritative order result. */ }
-      }
+
     }
     return response.data as RevolutOrder;
   } catch(error) {

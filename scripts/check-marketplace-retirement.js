@@ -13,7 +13,7 @@ async function main() {
   account.use((_req, res) => res.status(200).json({ currentAccountRoute: true }));
   const context = { module: { exports: {} }, __dirname: path.join(__dirname, '..'), require: name => {
     if (name === 'dotenv') return { config() {} };
-    if (name === 'morgan') return () => (_req, _res, next) => next();
+    if (name === 'morgan') return Object.assign(() => (_req, _res, next) => next(), {token: () => {}});
     if (name === './config/mongodb') return { connectMongo: async () => { databaseCalls++; } };
     if (name === './routes/api/auth' || name === './routes/api/settings') return account;
     if (name === './routes/retiredMarketplace') return require('../routes/retiredMarketplace');
