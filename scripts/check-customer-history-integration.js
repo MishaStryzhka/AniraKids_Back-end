@@ -18,10 +18,10 @@ process.env.SECRET_KEY = 'customer-history-test-only';
 const { ReservationV2Model } = require('../build/v2/models');
 const { listCustomerReservations } = require('../build/v2/controllers/customer-reservations.controller');
 const jwt = require('jsonwebtoken');
-async function read(token, page = '1') {
+async function read(token, page = '1', filters = {}) {
   let output, status;
   const res = { setHeader: () => {}, status: value => { status = value; return res; }, json: value => { output = value; } };
-  await listCustomerReservations({ headers: token ? { authorization: 'Bearer ' + token } : {}, query: { page } }, res, error => { throw error; });
+  await listCustomerReservations({ headers: token ? { authorization: 'Bearer ' + token } : {}, query: { page, ...filters } }, res, error => { throw error; });
   return { status, body: output };
 }
 (async () => {
@@ -56,9 +56,26 @@ async function read(token, page = '1') {
   assert.ok(!JSON.stringify(result.body).includes('PRIVATE')); assert.ok(!JSON.stringify(result.body).includes(owner.email));
   assert.equal((await read(token, '2')).body.items.length, 0);
   assert.equal((await read(token, '-1')).status, 400);
+  await User.updateOne({_id:owner._id},{$set:{emailVerified:true}});
+  const verified=await read(token);
+  assert.equal(verified.body.total,2);assert.equal(verified.body.guestEmailAccess,true);
+  assert.ok(!verified.body.items.some(item=>item.reservation.reservationNumber==='AK-2026-BBBBBB'));
+  const {reservationAccess}=require('../build/v2/controllers/reservation-status.controller');
+  const access=await reservationAccess('Bearer '+token);
+  assert.equal(await ReservationV2Model.countDocuments(access.filter),2);
+  assert.equal((await read(token,'1',{q:'CCCCCC'})).body.total,1);
+  assert.equal((await read(token,'1',{q:'Fixture'})).body.total,2);
+  assert.equal((await read(token,'1',{q:'.*'})).body.total,0);
+  assert.equal((await read(token,'1',{status:'finished'})).body.total,0);
+  assert.equal((await read(token,'1',{status:'active'})).body.total,2);
+  assert.equal((await read(token,'1',{q:{$ne:null}})).status,400);
+  assert.equal((await read(token,'1',{sort:'invalid'})).status,400);
+  await User.updateOne({_id:owner._id},{$set:{emailVerified:false}});
+  assert.equal((await read(token)).body.total,1);
+  assert.equal(await ReservationV2Model.countDocuments((await reservationAccess('Bearer '+token)).filter),1);
   await User.updateOne({ _id: owner._id }, { $set: { tokens: [] } });
   assert.equal((await read(token)).status, 401);
-  console.log('PASS: customer history is scoped to active session and owner ID; same-email guest and other accounts excluded; private data omitted; pagination validated');
+  console.log('PASS: customer history is scoped to active session and owner ID; verified mailbox guests included, unverified guests and other accounts excluded; search and filters validated; private data omitted; pagination validated');
 
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(async () => {
   await mongoose.disconnect();

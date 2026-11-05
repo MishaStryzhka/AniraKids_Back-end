@@ -1,3 +1,4 @@
+import { reservationOwnership, type ReservationAccessFilter } from '../auth/reservation-ownership';
 import { ReservationV2Model } from '../models';
 import { authenticateLegacyBearer, parseBearerAuthorization } from '../auth/legacy-bearer';
 import { toPublicReservationResponse } from '../http/reservation-response';
@@ -5,17 +6,16 @@ import { hashGuestAccessToken } from '../utils/reservation';
 import type { HttpHandler } from '../types/http';
 import { reportReservationPayment } from '../services/reservation-payment-report.service';
 import { PaymentError } from '../services/payment.types';
-import { Types } from 'mongoose';
 
 export const reservationAccess = async (authorization: unknown): Promise<
-  {filter:{customerId:Types.ObjectId}|{guestAccessTokenHash:string};actor:string}|null
+  {filter:ReservationAccessFilter;actor:string}|null
 > => {
   if (typeof authorization !== 'string') return null;
   const guest = /^Reservation ([A-Za-z0-9_-]{43})$/.exec(authorization);
   if (guest) return {filter:{guestAccessTokenHash:hashGuestAccessToken(guest[1])},actor:'guest'};
   const bearer = parseBearerAuthorization(authorization);
   const identity = bearer.kind === 'bearer' ? await authenticateLegacyBearer(bearer.token) : null;
-  return identity ? {filter:{customerId:identity.userId},actor:'customer:'+identity.userId.toHexString()} : null;
+  return identity ? {filter:(await reservationOwnership(identity.userId)).filter,actor:'customer:'+identity.userId.toHexString()} : null;
 };
 
 // A reservation number is an identifier, never authorization. Guest capabilities

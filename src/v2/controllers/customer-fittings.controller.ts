@@ -1,3 +1,4 @@
+import {accountListQuery} from '../http/account-list-query';
 import {createHash} from 'crypto';
 import {notifyOwnerFittingPaymentReported} from '../services/admin-push.service';
 import {authenticateLegacyBearer,parseBearerAuthorization} from '../auth/legacy-bearer';
@@ -25,9 +26,11 @@ export function customerFittingHandler(action:'list'|'read'|'claim'|'report'|'ca
     const raw=req.query?.page??'1';
     if(typeof raw!=='string'||!/^\d{1,5}$/.test(raw)||Number(raw)<1)throw new FittingError('VALIDATION_ERROR',400);
     const page=Number(raw),limit=20;
+    let query;try{query=accountListQuery(req.query,'fitting');}catch{throw new FittingError('VALIDATION_ERROR',400);}
+    const listFilter={$and:[ownership,query.filter]};
     const [records,total]=await Promise.all([
-     FittingModel.find(ownership).sort({createdAt:-1,_id:-1}).skip((page-1)*limit).limit(limit).lean().exec(),
-     FittingModel.countDocuments(ownership).exec(),
+     FittingModel.find(listFilter).sort(query.order).skip((page-1)*limit).limit(limit).lean().exec(),
+     FittingModel.countDocuments(listFilter).exec(),
     ]);
     return res.status(200).json({items:records.map(record=>publicFitting(record,now)),total,page,limit,guestEmailAccess:Boolean(verifiedEmail)});
    }

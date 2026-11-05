@@ -1,5 +1,5 @@
+import type { ReservationAccessFilter } from '../auth/reservation-ownership';
 import Joi = require('joi');
-import { Types } from 'mongoose';
 import { ReservationV2Model } from '../models/reservation-v2.model';
 import { paymentSummary, publicPaymentSummary } from './payment.service';
 import { PaymentError } from './payment.types';
@@ -15,7 +15,7 @@ const schema = Joi.object({
 // reservation or extends its hold. Only staff can record money actually received.
 export async function reportReservationPayment(
   number: string,
-  access: {customerId: Types.ObjectId} | {guestAccessTokenHash: string},
+  access: ReservationAccessFilter,
   body: unknown,
   actor: string
 ) {

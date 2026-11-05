@@ -1,3 +1,5 @@
+import { reservationOwnership } from '../auth/reservation-ownership';
+import { accountListQuery } from '../http/account-list-query';
 import { hashGuestAccessToken } from '../utils/reservation';
 import { ReservationV2Model } from '../models';
 import { authenticateLegacyBearer, parseBearerAuthorization } from '../auth/legacy-bearer';
@@ -13,12 +15,15 @@ export const listCustomerReservations: HttpHandler = async (request, response, n
     const raw = request.query?.page ?? '1';
     if (typeof raw !== 'string' || !/^[1-9]\d{0,4}$/.test(raw)) return response.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid page' } });
     const page = Number(raw), limit = 20;
-    const filter = { customerId: identity.userId };
+    const ownership = await reservationOwnership(identity.userId);
+    let query;
+    try { query = accountListQuery(request.query, 'rental'); } catch { return response.status(400).json({error:{code:'VALIDATION_ERROR',message:'Invalid filters'}}); }
+    const filter = {$and:[ownership.filter,query.filter]};
     const [records, total] = await Promise.all([
-      ReservationV2Model.find(filter).sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).exec(),
+      ReservationV2Model.find(filter).sort(query.order).skip((page - 1) * limit).limit(limit).exec(),
       ReservationV2Model.countDocuments(filter).exec(),
     ]);
-    return response.status(200).json({ items: records.map(record => toPublicReservationResponse(record.toObject())), page, limit, total });
+    return response.status(200).json({ items: records.map(record => toPublicReservationResponse(record.toObject())), page, limit, total, guestEmailAccess:ownership.guestEmailAccess });
   } catch (error) { return next(error); }
 };
 
