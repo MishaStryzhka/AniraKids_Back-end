@@ -1,3 +1,5 @@
+import {revolutAttemptSchema} from './revolut-attempt.schema';
+import {paymentOptionsSchema} from './payment-settings.model';
 import {model,models,Schema} from 'mongoose';
 import {partnerAttributionSchema} from './partner.model';
 const schema=new Schema({
@@ -5,6 +7,8 @@ const schema=new Schema({
  partner:{type:partnerAttributionSchema},studioBooked:{type:Boolean,default:false},studioBookingReference:String,
  operationId:{type:String,required:true},requestHash:{type:String,required:true,select:false},tokenHash:{type:String,required:true,select:false},
  number:{type:String,required:true},date:{type:String,required:true},time:{type:String,required:true},startAt:{type:Date,required:true},placeName:String,address:{type:String,required:true},
+ revolutActiveAttempt:String,revolutAttempts:{type:[revolutAttemptSchema],default:undefined},paymentMethod:{type:String,enum:['card','bank_transfer']},
+ paymentOptions:{type:paymentOptionsSchema},
  slotKey:String,activeEmail:String,expiresAt:Date,customerId:Schema.Types.ObjectId,
  status:{type:String,enum:['pending','review','confirmed','completed','cancelled','expired'],required:true},
  paymentStatus:{type:String,enum:['unpaid','paid','refunded'],required:true},

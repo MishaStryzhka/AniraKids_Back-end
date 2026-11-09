@@ -185,6 +185,7 @@ export interface Reservation {
   fittingDiscount?: {amount:number;number:string;appliedAt:Date;appliedBy:string};
   advanceRequired?: number;
   revolutAttempts?: import('../services/revolut.types').RevolutAttempt[];
+  paymentOptions?: import('../services/payment-options').PaymentOptions;
   revolutActiveAttempt?: string;
   paymentRevision?: number;
   paymentEntries?: PaymentEntry[];

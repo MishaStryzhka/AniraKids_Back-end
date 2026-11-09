@@ -1,3 +1,5 @@
+import {snapshotPaymentOptions} from './payment-settings.service';
+import {legacyFittingPayments} from './payment-options';
 import {fittingLocation,cooperationActive} from './cooperation.service';
 import mongoose = require('mongoose');
 import {releaseUnusedFittingDiscounts} from './fitting-discount.service';
@@ -46,7 +48,7 @@ export async function createFitting(body:unknown,now=new Date(),customerId?:Type
  if(customerId&&await FittingModel.exists({customerId,activeEmail:hash(v.email)}))throw new FittingError('PENDING_ACCOUNT_FITTING_EXISTS');
  const activeEmail=customerId?'account:'+customerId.toHexString()+':'+hash(v.email):hash(v.email);
  try{
-  const doc=await FittingModel.create({partner,customerId,operationId:v.operationId,tokenHash:hash(v.token),requestHash,number:'ZK-'+randomUUID().replace(/-/g,'').slice(0,12).toUpperCase(),date:v.date,time:v.time,startAt:slot.startAt,...location,slotKey:v.date+'T'+v.time,activeEmail,expiresAt:new Date(now.getTime()+60*60000),status:'pending',paymentStatus:'unpaid',customer:{name:v.name,email:v.email,phone:v.phone},product,creditOperationId:randomUUID(),revision:0,audit:[{action:'created',at:now,by:auditActor||partner?.createdBy||'customer'}]});
+  const doc=await FittingModel.create({paymentOptions:await snapshotPaymentOptions('fitting'),partner,customerId,operationId:v.operationId,tokenHash:hash(v.token),requestHash,number:'ZK-'+randomUUID().replace(/-/g,'').slice(0,12).toUpperCase(),date:v.date,time:v.time,startAt:slot.startAt,...location,slotKey:v.date+'T'+v.time,activeEmail,expiresAt:new Date(now.getTime()+60*60000),status:'pending',paymentStatus:'unpaid',customer:{name:v.name,email:v.email,phone:v.phone},product,creditOperationId:randomUUID(),revision:0,audit:[{action:'created',at:now,by:auditActor||partner?.createdBy||'customer'}]});
   await Promise.all([notifyFitting(doc.toObject(),'created',v.token),notifyOwnerFittingCreated(doc._id)]);
   return publicFitting(doc.toObject(),now);
  }catch(error){
@@ -56,8 +58,10 @@ export async function createFitting(body:unknown,now=new Date(),customerId?:Type
 export function publicFitting(doc:any,now=new Date()){
  const expired=doc.status==='pending'&&new Date(doc.expiresAt)<=now;
  const status=expired?'expired':doc.status;
- return {number:doc.number,date:doc.date,time:doc.time,durationMinutes:30,price:200,address:doc.address,status,paymentStatus:doc.paymentStatus,expiresAt:doc.expiresAt,product:doc.product,
- paymentInstructions:status==='pending'&&doc.paymentStatus==='unpaid'?{...BOOKING_POLICY.bank,amount:200,message:doc.number,qrPayload:`SPD*1.0*ACC:${BOOKING_POLICY.bank.iban}*AM:200.00*CC:CZK*MSG:${doc.number}*PT:IP`}:null};
+ const paymentOptions=doc.paymentOptions??legacyFittingPayments;
+ const cardPayment={active:Boolean(doc.revolutActiveAttempt),reviewRequired:Boolean(doc.revolutAttempts?.some((a:any)=>a.reviewRequired))};
+ return {paymentOptions,cardPayment,number:doc.number,date:doc.date,time:doc.time,durationMinutes:30,price:200,address:doc.address,status,paymentStatus:doc.paymentStatus,expiresAt:doc.expiresAt,product:doc.product,
+ paymentInstructions:paymentOptions.qrEnabled&&!cardPayment.active&&!cardPayment.reviewRequired&&status==='pending'&&doc.paymentStatus==='unpaid'?{...BOOKING_POLICY.bank,amount:200,message:doc.number,qrPayload:`SPD*1.0*ACC:${BOOKING_POLICY.bank.iban}*AM:200.00*CC:CZK*MSG:${doc.number}*PT:IP`}:null};
 }
 export async function readFitting(number:string,token:string,now=new Date()){
  if(!/^ZK-[A-F0-9]{12}$/.test(number)||!/^[a-f0-9]{64}$/.test(token))throw new FittingError('FITTING_NOT_FOUND',404);
@@ -65,8 +69,9 @@ export async function readFitting(number:string,token:string,now=new Date()){
  const doc=await FittingModel.findOne({number,tokenHash:hash(token)}).lean().exec();if(!doc)throw new FittingError('FITTING_NOT_FOUND',404);return publicFitting(doc,now);
 }
 export async function reportFittingPayment(number:string,token:string,now=new Date()){
- await readFitting(number,token,now);
- const changed = await FittingModel.findOneAndUpdate({number,tokenHash:hash(token),status:'pending',expiresAt:{$gt:now}},{$set:{status:'review'},$inc:{revision:1},$push:{audit:{action:'payment_reported',at:now,by:'customer'}}},{new:true}).select('_id').lean().exec();
+ const publicDoc=await readFitting(number,token,now);
+ if(!publicDoc.paymentOptions.qrEnabled||publicDoc.cardPayment.active||publicDoc.cardPayment.reviewRequired)throw new FittingError('PAYMENT_NOT_ALLOWED');
+ const changed = await FittingModel.findOneAndUpdate({number,tokenHash:hash(token),status:'pending',revolutActiveAttempt:{$exists:false},expiresAt:{$gt:now}},{$set:{status:'review'},$inc:{revision:1},$push:{audit:{action:'payment_reported',at:now,by:'customer'}}},{new:true}).select('_id').lean().exec();
  if (changed) await notifyOwnerFittingPaymentReported(changed._id);
  return readFitting(number,token,now);
 }
@@ -168,7 +173,7 @@ export async function actOnFitting(id:string,body:any,actor:string,now=new Date(
  if(doc.revision!==body.revision)throw new FittingError('FITTING_CONFLICT');
  let set:any={},unset:any={};
  switch(body.action){
-  case 'confirm':if(!['pending','review'].includes(doc.status)||!doc.slotKey||(doc.status==='pending'&&new Date(doc.expiresAt)<=now))throw new FittingError('FITTING_CONFLICT');set={status:'confirmed',paymentStatus:'paid',...(!doc.invoiceAutomation?{invoiceAutomation:{status:'pending',requestedAt:now,requestedBy:actor}}:{})};unset={activeEmail:1};break;
+  case 'confirm':if(doc.revolutActiveAttempt)throw new FittingError('PAYMENT_NOT_ALLOWED');if(!['pending','review'].includes(doc.status)||!doc.slotKey||(doc.status==='pending'&&new Date(doc.expiresAt)<=now))throw new FittingError('FITTING_CONFLICT');set={status:'confirmed',paymentStatus:'paid',...(!doc.invoiceAutomation?{invoiceAutomation:{status:'pending',requestedAt:now,requestedBy:actor}}:{})};unset={activeEmail:1};break;
   case 'late-payment':if(!['expired','cancelled'].includes(doc.status)||doc.paymentStatus!=='unpaid')throw new FittingError('FITTING_CONFLICT');set={paymentStatus:'paid'};break;
   case 'complete':if(doc.status!=='confirmed'||new Date(doc.startAt)>now)throw new FittingError('FITTING_CONFLICT');if(body.performedBy!==undefined&&!['anirak','partner'].includes(body.performedBy))throw new FittingError('VALIDATION_ERROR',400);set={status:'completed',performedBy:body.performedBy||(doc.partner?.source==='partner'?'partner':'anirak')};unset={slotKey:1,activeEmail:1};break;
   case 'cancel':if(!['pending','review','confirmed'].includes(doc.status))throw new FittingError('FITTING_CONFLICT');set={status:'cancelled'};unset={slotKey:1,activeEmail:1};break;

@@ -81,11 +81,11 @@ export const publicPaymentSummary = (r: Reservation) => {
   // Keep the original advance contract for older storefront versions.
   const paymentInstructions = instructions(s.advanceBalance, payable && pendingPayable);
   const fullPaymentInstructions = instructions(s.rentalBalance + Math.max(0, s.depositRequired - s.depositHeld), payable);
-  return { advanceRequired: s.advanceRequired, advanceBalance: s.advanceBalance,
+  return { paymentOptions:r.paymentOptions, advanceRequired: s.advanceRequired, advanceBalance: s.advanceBalance,
     rentalBalance: s.rentalBalance, depositRequired: s.depositRequired, depositHeld: s.depositHeld,
     cardPayment: {active: Boolean(r.revolutActiveAttempt), reviewRequired: Boolean(r.revolutAttempts?.some(a=>a.reviewRequired)), kind:r.revolutAttempts?.find(a=>a.id===r.revolutActiveAttempt)?.kind ?? null},
     paymentReport: s.paymentReport, lastPayment: s.lastPayment,
-    paymentInstructions, fullPaymentInstructions };
+    paymentInstructions:r.paymentOptions?.qrEnabled===false?null:paymentInstructions, fullPaymentInstructions:r.paymentOptions?.qrEnabled===false?null:fullPaymentInstructions };
 };
 
 export const validatePaymentChange = (r: Reservation, input: PaymentInput): void => {

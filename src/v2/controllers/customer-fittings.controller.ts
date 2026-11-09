@@ -7,6 +7,12 @@ import {expireFittings,FittingError,publicFitting} from '../services/fitting.ser
 import type {HttpHandler} from '../types/http';
 
 const User=require('../../../models/user');
+export async function fittingOwnership(customerId:import('mongoose').Types.ObjectId){
+   const user=await User.findById(customerId).select('email emailVerified').lean().exec();
+   const verifiedEmail=user?.emailVerified===true&&typeof user.email==='string'?user.email.trim().toLowerCase():undefined;
+   const ownership=verifiedEmail?{$or:[{customerId},{customerId:null,'customer.email':verifiedEmail}]}:{customerId};
+ return {ownership,verifiedEmail};
+}
 
 /** Guest access requires mailbox ownership verified on the server, never form input. */
 export function customerFittingHandler(action:'list'|'read'|'claim'|'report'|'cancel'):HttpHandler {
@@ -19,9 +25,7 @@ export function customerFittingHandler(action:'list'|'read'|'claim'|'report'|'ca
    if(!identity)throw new FittingError('UNAUTHORIZED',401);
    const customerId=identity.userId,now=new Date();
    await expireFittings(now);
-   const user=await User.findById(customerId).select('email emailVerified').lean().exec();
-   const verifiedEmail=user?.emailVerified===true&&typeof user.email==='string'?user.email.trim().toLowerCase():undefined;
-   const ownership=verifiedEmail?{$or:[{customerId},{customerId:null,'customer.email':verifiedEmail}]}:{customerId};
+   const {ownership,verifiedEmail}=await fittingOwnership(customerId);
    if(action==='list'){
     const raw=req.query?.page??'1';
     if(typeof raw!=='string'||!/^\d{1,5}$/.test(raw)||Number(raw)<1)throw new FittingError('VALIDATION_ERROR',400);
@@ -47,7 +51,10 @@ export function customerFittingHandler(action:'list'|'read'|'claim'|'report'|'ca
    const filter={number,...ownership};
    if(!await FittingModel.exists(filter))throw new FittingError('FITTING_NOT_FOUND',404);
    if(action==='report') {
-    const changed = await FittingModel.findOneAndUpdate({...filter,status:'pending',expiresAt:{$gt:now}},{$set:{status:'review'},$inc:{revision:1},$push:{audit:{action:'payment_reported',at:now,by:customerId.toHexString()}}},{new:true}).select('_id').lean().exec();
+    const doc=await FittingModel.findOne(filter).lean().exec();
+    const payment=publicFitting(doc);
+    if(!payment.paymentOptions.qrEnabled||payment.cardPayment.active||payment.cardPayment.reviewRequired)throw new FittingError('PAYMENT_NOT_ALLOWED');
+    const changed = await FittingModel.findOneAndUpdate({...filter,status:'pending',revolutActiveAttempt:{$exists:false},expiresAt:{$gt:now}},{$set:{status:'review'},$inc:{revision:1},$push:{audit:{action:'payment_reported',at:now,by:customerId.toHexString()}}},{new:true}).select('_id').lean().exec();
     if (changed) await notifyOwnerFittingPaymentReported(changed._id);
    }
    if(action==='cancel')await FittingModel.updateOne({...filter,status:{$in:['pending','review','confirmed']}},{$set:{status:'cancelled'},$unset:{slotKey:1,activeEmail:1},$inc:{revision:1},$push:{audit:{action:'cancelled',at:now,by:customerId.toHexString()}}}).exec();

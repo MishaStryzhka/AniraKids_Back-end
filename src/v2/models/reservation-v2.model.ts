@@ -1,3 +1,5 @@
+import {revolutAttemptSchema} from './revolut-attempt.schema';
+import {paymentOptionsSchema} from './payment-settings.model';
 import { PAYMENT_ENTRY_TYPES } from '../services/payment.types';
 import {partnerAttributionSchema} from './partner.model';
 import { model, models, Schema, type Model } from 'mongoose';
@@ -116,13 +118,9 @@ export const ReservationV2Schema = new Schema<Reservation>(
     advanceRequired: { type: Number, min: 0, max: 200, validate: Number.isSafeInteger },
     invoiceIssuedId: String,
     invoiceAutomation: {type: new Schema({status:String,requestedAt:Date,requestedBy:String,errorCode:String},{_id:false})},
+    paymentOptions: {type:paymentOptionsSchema},
     revolutActiveAttempt: {type:String},
-    revolutAttempts: {type:[new Schema({
-      id:{type:String,required:true}, kind:{type:String,enum:['advance','full'],required:true},
-      amount:{type:Number,required:true,min:1}, rentalAmount:{type:Number,required:true,min:0}, depositAmount:{type:Number,required:true,min:0},
-      expiresAt:{type:Date,required:true}, state:{type:String,enum:['creating','pending','completed','cancelled','failed'],required:true},
-      orderId:String, token:String, reviewRequired:Boolean,
-    },{_id:false})],default:undefined},
+    revolutAttempts: {type:[revolutAttemptSchema],default:undefined},
     paymentRevision: { type: Number, min: 0, validate: Number.isSafeInteger },
     paymentEntries: { type: [paymentEntrySchema], default: undefined },
     paymentReport: {type: new Schema({
