@@ -32,6 +32,7 @@ export async function reportReservationPayment(
       throw new PaymentError('PAYMENT_IDEMPOTENCY_CONFLICT');
     return r;
   }
+  if(r.fulfillmentMethod==='balikovna'||r.fulfillmentMethod==='balikovna_address')throw new PaymentError('PAYMENT_NOT_ALLOWED');
   if(input.kind!=='cash'&&r.paymentOptions?.qrEnabled===false)throw new PaymentError('PAYMENT_NOT_ALLOWED');
   if(r.revolutActiveAttempt)throw new PaymentError('REVOLUT_PAYMENT_ACTIVE');
   const summary = paymentSummary(r);

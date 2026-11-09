@@ -40,3 +40,22 @@ for(const method of ['balikovna','balikovna_address']) {
 assert.equal(occupiedRentalRange(date('2026-11-15'),date('2026-11-15'),'external','pickup').occupiedEndDate.toISOString().slice(0,10),'2026-11-16');
 assert.equal(occupiedRentalRange(date('2026-11-15'),date('2026-11-15'),'studio','pickup').occupiedEndDate.toISOString().slice(0,10),'2026-11-15');
 console.log('Return-day cleaning and overlap boundary checks passed');
+
+async function checkDeliveryPaymentPolicy(){
+ const {publicPaymentSummary}=require('../build/v2/services/payment.service');
+ const {reportReservationPayment}=require('../build/v2/services/reservation-payment-report.service');
+ const original=ReservationV2Model.findOne;
+ try {
+  for(const fulfillmentMethod of ['balikovna','balikovna_address']) {
+   const reservation={...record.toObject(),fulfillmentMethod,status:'confirmed',advanceRequired:200,paymentOptions:{gateway:'revolut',qrEnabled:true,defaultMethod:'qr'}};
+   const payment=publicPaymentSummary(reservation);
+   assert.equal(payment.paymentOptions.defaultMethod,'online');
+   assert.equal(payment.paymentInstructions,null);
+   assert.equal(payment.fullPaymentInstructions,null);
+   ReservationV2Model.findOne=()=>({lean:()=>({exec:async()=>reservation})});
+   for(const kind of ['advance','full','cash']) await assert.rejects(reportReservationPayment(reservation.reservationNumber,{}, {kind,amount:200,operationId:'11111111-1111-4111-8111-111111111111'},'test'),e=>e.code==='PAYMENT_NOT_ALLOWED');
+  }
+ } finally {ReservationV2Model.findOne=original;}
+ console.log('Delivery requires online payment; QR and cash reports rejected');
+}
+checkDeliveryPaymentPolicy().catch(error=>{console.error(error);process.exitCode=1;});
