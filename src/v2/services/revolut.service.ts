@@ -31,6 +31,7 @@ export function assertOrderMatches(attempt:RevolutAttempt, order:RevolutOrder) {
 // Never create an order twice after a timeout: creation has no documented
 // idempotency key. The durable "creating" slot stays locked for reconciliation.
 export async function createCardOrder(r:Stored, kind:'advance'|'full') {
+  if(r.paymentOptions?.gateway==='off'&&!r.revolutActiveAttempt)throw new PaymentError('PAYMENT_NOT_ALLOWED');
   const config=revolutConfiguration();
   if (!config) throw new PaymentError('REVOLUT_UNAVAILABLE',503);
   const amounts=cardAmounts(r,kind);
@@ -108,7 +109,7 @@ export async function reconcileCardOrder(orderId:string) {
   if (!reference) return;
   for(let retry=0;retry<5;retry++) {
     const r=await ReservationV2Model.findOne({'revolutAttempts.id':reference}).lean().exec();
-    if (!r) return;
+    if (!r) {await (await import('./fitting-revolut.service')).reconcileFittingCardOrder(order);return;}
     const attempt=r.revolutAttempts!.find(a=>a.id===reference)!;
     assertOrderMatches(attempt,order);
     if (attempt.state==='completed') { if(!attempt.reviewRequired)await finishCardPayment(r._id,attempt.id); return; }

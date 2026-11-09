@@ -353,7 +353,7 @@ export class ReservationService {
             deliveryAddress: command.fulfillmentMethod === 'balikovna_address' ? command.deliveryAddress : undefined,
             balikovnaPoint: command.fulfillmentMethod === 'balikovna' ? command.balikovnaPoint : undefined,
             paymentStatus: 'unpaid',
-            advanceRequired: Math.min(200, totals.subtotal),
+            advanceRequired: Math.min(200, totals.subtotal), paymentOptions: options?.paymentOptions,
             paymentRevision: 0,
             paymentEntries: [],
             notes: normalizedNotes,
@@ -493,7 +493,7 @@ export class ReservationService {
             shippingPrice, rentalPolicyVersion: RENTAL_POLICY_VERSION, ...occupied,
             deliveryAddress: command.fulfillmentMethod === 'balikovna_address' ? command.deliveryAddress : undefined,
             balikovnaPoint: command.fulfillmentMethod === 'balikovna' ? command.balikovnaPoint : undefined,
-            paymentStatus: 'unpaid', advanceRequired: Math.min(200, totals.subtotal),
+            paymentStatus: 'unpaid', advanceRequired: Math.min(200, totals.subtotal), paymentOptions: options?.paymentOptions,
             paymentRevision: 0, paymentEntries: [], notes: normalizeReservationNotes(command.notes), now,
           });
           return { reservation: toSafeReservation(document),

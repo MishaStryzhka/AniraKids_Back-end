@@ -1,3 +1,4 @@
+import {fittingRevolut} from '../controllers/fitting-revolut.controller';
 import {revolutConfig,revolutWebhook,requireRevolutSignature} from '../controllers/revolut.controller';
 import {authorizeBillingCron,partnerBillingCron} from '../controllers/partner-billing.controller';
 import {fittingHandler} from '../controllers/fitting.controller';
@@ -37,6 +38,10 @@ export const createV2Router = (
   const router = express.Router();
 
   router.get('/health', getHealth);
+  for(const action of ['create','sync','cancel'] as const){
+    router.post('/fittings/:number/revolut/'+action,reservationApiEnabled,dependencies.ensureMongoConnection,fittingRevolut(action));
+    router.post('/account/fittings/:number/revolut/'+action,reservationApiEnabled,dependencies.ensureMongoConnection,fittingRevolut(action,true));
+  }
   router.get('/payments/revolut/config',revolutConfig);
   router.post('/payments/revolut/webhook',requireRevolutSignature,dependencies.ensureMongoConnection,revolutWebhook);
   router.get('/partner-billing/cron',authorizeBillingCron,dependencies.ensureMongoConnection,partnerBillingCron);

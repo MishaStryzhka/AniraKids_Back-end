@@ -1,3 +1,4 @@
+import {snapshotPaymentOptions} from '../services/payment-settings.service';
 import {FittingDiscountError} from '../services/fitting-discount.service';
 import { Types } from 'mongoose';
 import {resolveBookingPartner,PartnerError} from '../services/partner-referral.service';
@@ -55,6 +56,7 @@ export const createReservation: HttpHandler = async (
     const result = await reservationService.createReservation(
       command,
       {
+        paymentOptions: await snapshotPaymentOptions('rental'),
         now: request.reservationRequestNow,
         idempotency: request.reservationIdempotency,
       }

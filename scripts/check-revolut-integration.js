@@ -110,6 +110,47 @@ async function main(){
  let code;const res={setHeader(){},status(n){code=n;return this;},json(v){return v;}};
  await revolutReservation('create')({params:{reservationNumber:r.reservationNumber},headers:{},body:{kind:'full'}},res,e=>{throw e;});assert.equal(code,404);
  await revolutWebhook({headers:{},body:{event:'ORDER_COMPLETED',order_id:bad.id}},res,e=>{throw e;});assert.equal(code,401);
+
+ // Shared settings validate readiness and use optimistic concurrency.
+ const settings=require('../build/v2/services/payment-settings.service');
+ assert.throws(()=>settings.validatePaymentSettings({gateway:'globalpayments',qrEnabled:true,defaultMethod:'qr',revision:0}));
+ assert.throws(()=>settings.validatePaymentSettings({gateway:'off',qrEnabled:false,defaultMethod:'qr',revision:0}));
+ assert.throws(()=>settings.validatePaymentSettings({gateway:'revolut',qrEnabled:true,defaultMethod:'online',revision:0},false));
+ assert.throws(()=>settings.validatePaymentSettings({gateway:'off',qrEnabled:true,defaultMethod:'online',revision:0}));
+ assert.equal((await settings.snapshotPaymentOptions('fitting')).gateway,'off');
+ await settings.savePaymentSettings({gateway:'revolut',qrEnabled:false,defaultMethod:'online',revision:0},'fixture');
+ await assert.rejects(settings.savePaymentSettings({gateway:'off',qrEnabled:true,defaultMethod:'qr',revision:0},'stale'));
+ const snapshot=await settings.snapshotPaymentOptions('fitting');assert.equal(snapshot.gateway,'revolut');assert.equal(snapshot.qrEnabled,false);
+ const {FittingModel:F}=require('../build/v2/models/fitting.model');
+ const {createFittingCardOrder,syncFittingCardOrder}=require('../build/v2/services/fitting-revolut.service');
+ const {publicFitting,expireFittings,reportFittingPayment}=require('../build/v2/services/fitting.service');
+ const {createHash}=require('node:crypto');const privateToken='b'.repeat(64);
+ async function fittingFixture(){return (await F.create({operationId:randomUUID(),requestHash:'fixture',tokenHash:createHash('sha256').update(privateToken).digest('hex'),number:'ZK-'+randomUUID().replaceAll('-','').slice(0,12).toUpperCase(),date:'2030-01-01',time:'10:00',startAt:new Date('2030-01-01T09:00:00Z'),address:'Fixture',slotKey:randomUUID(),activeEmail:randomUUID(),expiresAt:new Date(Date.now()+900000),status:'pending',paymentStatus:'unpaid',customer:{name:'Test User',email:'fixture@example.test',phone:'+420777111222'},creditOperationId:randomUUID(),revision:0,paymentOptions:snapshot})).toObject();}
+ let f=await fittingFixture();
+ const competingFittings=await Promise.allSettled([createFittingCardOrder(f),createFittingCardOrder(f)]);assert.equal(competingFittings.filter(x=>x.status==='fulfilled').length,1);
+ f=await F.findById(f._id).lean();const fittingOrder=orderFor(f);
+ assert.equal(publicFitting(f).paymentInstructions,null);
+ await assert.rejects(reportFittingPayment(f.number,privateToken));
+ // Switching applies to new bookings, not the existing durable attempt.
+ await settings.savePaymentSettings({gateway:'off',qrEnabled:true,defaultMethod:'qr',revision:1},'fixture');
+ assert.equal((await settings.snapshotPaymentOptions('fitting')).gateway,'off');
+ assert.equal((await createFittingCardOrder(f)).publicId,fittingOrder.token);
+ fittingOrder.state='completed';await Promise.all([reconcileCardOrder(fittingOrder.id),reconcileCardOrder(fittingOrder.id)]);
+ f=await F.findById(f._id).lean();assert.equal(f.status,'confirmed');assert.equal(f.paymentStatus,'paid');assert.equal(f.paymentMethod,'card');assert.ok(f.slotKey);assert.equal(f.activeEmail,undefined);assert.equal(f.audit.filter(a=>a.action==='confirm').length,1);assert.equal(f.invoiceAutomation.status,'pending');
+ await assert.rejects(createFittingCardOrder(f));
+ // A delayed successful charge cannot reclaim an expired slot.
+ f=await fittingFixture();await createFittingCardOrder(f);f=await F.findById(f._id).lean();const lateF=orderFor(f);
+ await F.updateOne({_id:f._id},{$set:{expiresAt:new Date(0)}});await expireFittings();lateF.state='completed';await reconcileCardOrder(lateF.id);
+ f=await F.findById(f._id).lean();assert.equal(f.status,'expired');assert.equal(f.slotKey,undefined);assert.equal(f.paymentStatus,'paid');assert.equal(f.revolutAttempts[0].reviewRequired,true);assert.equal(f.invoiceAutomation,undefined);
+ // Cancellation first reconciles provider truth; retries do not create charges.
+ f=await fittingFixture();await createFittingCardOrder(f);await syncFittingCardOrder(f,true);f=await F.findById(f._id).lean();assert.equal(f.revolutActiveAttempt,undefined);assert.equal(f.paymentStatus,'unpaid');
+ f=await fittingFixture();unknown=true;await assert.rejects(createFittingCardOrder(f));unknown=false;f=await F.findById(f._id).lean();const unknownF=orderFor(f),beforeRetry=posts;
+ await assert.rejects(createFittingCardOrder(f));assert.equal(posts,beforeRetry);unknownF.state='completed';await reconcileCardOrder(unknownF.id);assert.equal((await F.findById(f._id).lean()).status,'confirmed');
+ f=await fittingFixture();await createFittingCardOrder(f);f=await F.findById(f._id).lean();const wrongF=orderFor(f);wrongF.state='completed';wrongF.amount=19900;await assert.rejects(reconcileCardOrder(wrongF.id));assert.equal((await F.findById(f._id).lean()).paymentStatus,'unpaid');
+ const {fittingRevolut}=require('../build/v2/controllers/fitting-revolut.controller');
+ await fittingRevolut('create')({params:{number:f.number},headers:{}},res,e=>{throw e;});assert.equal(code,404);
+ await fittingRevolut('create')({params:{number:f.number},headers:{authorization:'Bearer '+'c'.repeat(64)}},res,e=>{throw e;});assert.equal(code,404);
+ console.log('PASS payment settings and fittings: CAS, provider readiness, snapshots, concurrent creation, duplicate capture, expiry, unknown creation, cancellation, amount mismatch, access');
  console.log('PASS Revolut: real Mongo concurrency, amount binding, duplicate events, late payments, cancellation, unknown creation, signature and authorization');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{await mongoose.disconnect();if(child && child.exitCode===null){child.kill();await new Promise(r=>child.once('exit',r));}if(dir)rmSync(dir,{recursive:true,force:true});clearTimeout(watchdog);});

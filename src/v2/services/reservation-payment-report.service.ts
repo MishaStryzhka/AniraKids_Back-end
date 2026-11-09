@@ -32,13 +32,14 @@ export async function reportReservationPayment(
       throw new PaymentError('PAYMENT_IDEMPOTENCY_CONFLICT');
     return r;
   }
+  if(input.kind!=='cash'&&r.paymentOptions?.qrEnabled===false)throw new PaymentError('PAYMENT_NOT_ALLOWED');
   if(r.revolutActiveAttempt)throw new PaymentError('REVOLUT_PAYMENT_ACTIVE');
   const summary = paymentSummary(r);
   if (summary.paymentReport?.status === 'pending' && summary.paymentReport.kind !== 'cash')
     throw new PaymentError('PAYMENT_REPORT_PENDING');
   if ((r.partnerAudit?.filter(e => e.action === 'payment_reported').length ?? 0) >= 20)
     throw new PaymentError('PAYMENT_LIMIT_EXCEEDED');
-  const instructions = publicPaymentSummary(r);
+  const instructions = publicPaymentSummary(input.kind==='cash'?{...r,paymentOptions:undefined}:r);
   const selected = input.kind === 'advance' ? instructions?.paymentInstructions : instructions?.fullPaymentInstructions;
   if (!selected || selected.amount !== input.amount || (input.kind === 'cash' && summary.advanceBalance > 0))
     throw new PaymentError('PAYMENT_REPORT_CHANGED');

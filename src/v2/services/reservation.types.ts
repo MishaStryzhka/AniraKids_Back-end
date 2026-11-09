@@ -63,6 +63,7 @@ export interface TrustedReservationIdempotencyContext {
 }
 
 export interface CreateReservationOptions {
+  paymentOptions?: import('./payment-options').PaymentOptions;
   now?: Date;
   idempotency?: TrustedReservationIdempotencyContext;
 }

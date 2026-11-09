@@ -1,3 +1,4 @@
+import {paymentSettings} from '../controllers/payment-settings.controller';
 import {adminBookingCreate} from '../controllers/admin-booking-create.controller';
 import {invoiceHandler} from '../controllers/invoice.controller';
 import {adminAccess,administrators} from '../controllers/admin-access.controller';
@@ -123,6 +124,8 @@ export const registerAdminRoutes = (
   router.get('/admin/fittings', ...guards, requireAdminPermission('fittings'), fittingHandler('list'));
   router.get('/admin/fittings/:fittingId', ...guards, requireAdminPermission('fittings'), fittingHandler('detail'));
   router.post('/admin/fittings/:fittingId/actions', ...guards, requireAdminPermission('fittings'), fittingHandler('act'));
+  router.get('/admin/payment-settings', ...guards, requireAdminPermission('settings'), paymentSettings());
+  router.patch('/admin/payment-settings', ...guards, requireAdminPermission('settings'), paymentSettings(true));
   router.get('/admin/settings', ...guards, requireAdminPermission('settings'), readSiteSettings);
   router.patch('/admin/settings', ...guards, requireAdminPermission('settings'), updateSiteSettings);
   router.post('/admin/product-drafts', ...guards, requireAdminPermission('products'), productAssistantHandler('create'));
