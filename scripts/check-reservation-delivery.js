@@ -24,3 +24,19 @@ const {invoiceEmail}=require('../helpers/invoiceEmail');
 const email=invoiceEmail({sourceType:'reservation',sourceNumber:'AK-2030-ABC123',number:'F1',snapshot:{paid:200,balance:600,buyer:{name:'Test',email:'test@example.test'}}},null,{status:'confirmed',fulfillmentMethod:'balikovna',balikovnaPoint:{...point,name:'<script>alert(1)</script>'}},'Převod');
 assert.ok(email.text.includes('PSČ Balíkovny: 10030'));
 assert.ok(!email.html.includes('<script>'));
+
+// Return delivery includes cleaning on arrival; pickup retains its cleaning day.
+const {occupiedRentalRange}=require('../build/v2/utils/rental-policy');
+const {rangesOverlapInclusive}=require('../build/v2/utils/availability');
+const date=s=>new Date(s+'T00:00:00.000Z');
+for(const method of ['balikovna','balikovna_address']) {
+  const range=occupiedRentalRange(date('2026-11-12'),date('2026-11-15'),'external',method);
+  assert.equal(range.occupiedStartDate.toISOString().slice(0,10),'2026-11-10');
+  assert.equal(range.occupiedEndDate.toISOString().slice(0,10),'2026-11-18','weekend and Nov 17 holiday skipped; cleaning on arrival');
+  assert.equal(rangesOverlapInclusive(range.occupiedStartDate,range.occupiedEndDate,date('2026-11-19'),date('2026-11-25')),false);
+  assert.equal(rangesOverlapInclusive(range.occupiedStartDate,range.occupiedEndDate,date('2026-11-18'),date('2026-11-18')),true,'arrival day cannot be booked again');
+  assert.equal(occupiedRentalRange(date('2026-11-23'),date('2026-11-23'),'external',method).occupiedEndDate.toISOString().slice(0,10),'2026-11-25');
+}
+assert.equal(occupiedRentalRange(date('2026-11-15'),date('2026-11-15'),'external','pickup').occupiedEndDate.toISOString().slice(0,10),'2026-11-16');
+assert.equal(occupiedRentalRange(date('2026-11-15'),date('2026-11-15'),'studio','pickup').occupiedEndDate.toISOString().slice(0,10),'2026-11-15');
+console.log('Return-day cleaning and overlap boundary checks passed');

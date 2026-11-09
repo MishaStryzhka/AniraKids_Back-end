@@ -19,6 +19,7 @@ export function shiftWorkingDays(date: Date, days: number): Date {
 export function occupiedRentalRange(start:Date,end:Date,mode:RentalMode,method?:FulfillmentMethod){
   const shipping=mode==='external'&&(method==='balikovna'||method==='balikovna_address');
   return {occupiedStartDate:shipping?shiftWorkingDays(start,-TRANSIT_WORKING_DAYS):start,
-    occupiedEndDate:addCalendarDays(shipping?shiftWorkingDays(end,TRANSIT_WORKING_DAYS):end,getCleaningBufferDays(mode))};
+    // Shipped garments are cleaned on the return delivery day, which stays occupied.
+    occupiedEndDate:shipping?shiftWorkingDays(end,TRANSIT_WORKING_DAYS):addCalendarDays(end,getCleaningBufferDays(mode))};
 }
 export function roundTripShippingPrice(mode:RentalMode,method?:FulfillmentMethod){return mode!=='external'?0:method==='balikovna'?178:method==='balikovna_address'?238:0;}
