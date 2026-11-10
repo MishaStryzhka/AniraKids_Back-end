@@ -1,3 +1,4 @@
+import {listCustomerBookings} from '../controllers/customer-bookings.controller';
 import {revolutReservation} from '../controllers/revolut.controller';
 import {customerFittingDiscounts} from '../controllers/fitting-discount.controller';
 import { listCustomerReservations, claimCustomerReservation } from '../controllers/customer-reservations.controller';
@@ -34,6 +35,7 @@ export const registerReservationRoutes = (
     router.post('/reservations/:reservationNumber/revolut/'+action,reservationApiEnabled,dependencies.ensureMongoConnection,revolutReservation(action));
   router.post('/fitting-discounts/options', reservationApiEnabled, rejectMalformedOptionalAuthorization, dependencies.ensureMongoConnection, optionalLegacyAuth, customerFittingDiscounts);
   router.post('/account/reservations/:reservationNumber/claim', reservationApiEnabled, dependencies.ensureMongoConnection, claimCustomerReservation);
+  router.get('/account/bookings', reservationApiEnabled, dependencies.ensureMongoConnection, listCustomerBookings);
   router.get('/account/reservations', reservationApiEnabled, dependencies.ensureMongoConnection, listCustomerReservations);
   router.post('/reservations/:reservationNumber/payment-report',
     reservationApiEnabled, dependencies.ensureMongoConnection, reportReservationTransfer);
